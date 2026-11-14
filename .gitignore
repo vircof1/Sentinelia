@@ -1,0 +1,8 @@
+node_modules/
+.env
+npm-debug.log*
+logs/
+
+# Entornos locales; la plantilla sí se publica
+.env.*
+!.env.ejemplo
