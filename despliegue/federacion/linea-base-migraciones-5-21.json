@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "fase": "5.21",
+  "revisionRepositorio": "ae81d21",
+  "primeraMigracion": "0001_crear_tabla_portal.sql",
+  "ultimaMigracion": "0099_agregar_indices_consulta_auditoria.sql",
+  "totalMigraciones": 99,
+  "algoritmo": "sha256(nombre:sha256(contenido), orden lexicografico, separado por LF)",
+  "huella": "b70f5265d95c83ff16c38a4afb3346c72b89d4fde6733ffe0133e85f97448944"
+}

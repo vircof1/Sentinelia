@@ -1,0 +1,97 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+<section class="panel-general py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <a href="/configuracion#configuracion-correo" class="btn btn-sm btn-outline-secondary">
+      ← Volver a configuración
+    </a>
+    <span class="badge text-bg-warning">Confirmación operativa</span>
+  </div>
+
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h1>Verificar y reanudar el correo</h1>
+        <p class="texto-apoyo">
+          El enlace demuestra el perfil SMTP probado. Abrir esta página no
+          modifica la configuración ni reanuda entregas.
+        </p>
+      </div>
+      <code>smtp@1</code>
+    </div>
+
+    <% if (flashConfiguracion?.tipo === 'error') { %>
+      <div class="alert alert-danger" role="alert"><%= flashConfiguracion.mensaje %></div>
+    <% } %>
+
+    <div class="rejilla-resumen mt-3">
+      <article class="kpi-resumen kpi-resumen--suave">
+        <span class="etiqueta">Buzón verificado</span>
+        <strong><%= verificacion.email %></strong>
+        <small>El enlace sigue ligado al usuario que inició la prueba.</small>
+      </article>
+      <article class="kpi-resumen <%= verificacion.backlog.total > 0 ? 'kpi-resumen--alerta' : 'kpi-resumen--suave' %>">
+        <span class="etiqueta">Backlog detenido</span>
+        <strong><%= verificacion.backlog.total %></strong>
+        <small>Entregas aceptadas pendientes o en espera de reintento.</small>
+      </article>
+      <article class="kpi-resumen kpi-resumen--suave">
+        <span class="etiqueta">Más antigua</span>
+        <strong>
+          <% if (verificacion.backlog.masAntiguaUtc) { %>
+            <time data-fecha-utc="<%= verificacion.backlog.masAntiguaUtc %>"><%= verificacion.backlog.masAntiguaUtc %></time>
+          <% } else { %>
+            Ninguna
+          <% } %>
+        </strong>
+        <small>Antigüedad observada al abrir esta confirmación.</small>
+      </article>
+      <article class="kpi-resumen kpi-resumen--suave">
+        <span class="etiqueta">Caducidad del enlace</span>
+        <strong><time data-fecha-utc="<%= verificacion.expiraEnUtc %>"><%= verificacion.expiraEnUtc %></time></strong>
+        <small>La confirmación posterior volverá a comprobar perfil y backlog.</small>
+      </article>
+    </div>
+
+    <div class="bloque-listas mt-3">
+      <div>
+        <h2>Procedencia del backlog</h2>
+        <% if (verificacion.backlog.porOrigen.length === 0) { %>
+          <p class="texto-apoyo">No existen entregas detenidas.</p>
+        <% } else { %>
+          <ul class="lista-simple">
+            <% for (const origen of verificacion.backlog.porOrigen) { %>
+              <li>
+                <strong><%= origen.origen %></strong>: <%= origen.total %>
+                <% if (origen.masAntiguaUtc) { %>
+                  · desde <time data-fecha-utc="<%= origen.masAntiguaUtc %>"><%= origen.masAntiguaUtc %></time>
+                <% } %>
+              </li>
+            <% } %>
+          </ul>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="alert alert-warning mt-4" role="note">
+      Al confirmar, Sentinelia fijará la prueba <code>smtp@1</code>. El runtime
+      podrá reanudar automáticamente todas las entregas ya aceptadas que sigan
+      pendientes; no se reconstruirán transiciones rechazadas durante el bloqueo.
+    </div>
+
+    <form method="post" action="/configuracion/correo/verificar/<%= encodeURIComponent(tokenVerificacion) %>">
+      <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+      <div class="form-check correo-verificacion__confirmacion mb-3">
+        <input class="form-check-input" type="checkbox" value="si"
+               name="aceptaReanudacion" id="acepta_reanudacion_correo" required>
+        <label class="form-check-label" for="acepta_reanudacion_correo">
+          He revisado el backlog actual y acepto reanudar sus entregas.
+        </label>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-warning">Verificar y reanudar</button>
+        <a href="/configuracion#configuracion-correo" class="btn btn-outline-secondary">Cancelar</a>
+      </div>
+    </form>
+  </section>
+</section>
+<%- include('../parciales/pie') %>

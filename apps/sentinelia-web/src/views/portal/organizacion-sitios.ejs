@@ -1,0 +1,283 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const tenantContextual = tenantFiltro || tenantAlcance || null;
+  const empresasDisponibles = Array.isArray(empresas) && empresas.some((empresa) =>
+    !tenantContextual || String(empresa.tenantId) === String(tenantContextual.id)
+  );
+  const tenantIdNuevaEmpresa = tenantContextual?.id || empresaFiltro?.tenantId || null;
+  const rutaNuevaEmpresa = tenantIdNuevaEmpresa
+    ? `/organizacion/empresas/nueva?tenant_id=${encodeURIComponent(tenantIdNuevaEmpresa)}`
+    : '/organizacion/empresas/nueva';
+  const ocultarColumnaTenant = Boolean(tenantContextual);
+  const ocultarColumnaEmpresa = Boolean(empresaFiltro);
+  const mostrarPertenencia = !ocultarColumnaTenant || !ocultarColumnaEmpresa;
+  const columnasTabla = 7 + (mostrarPertenencia ? 1 : 0);
+  const placeholderBusqueda = empresaFiltro
+    ? 'Nombre, alias, zona horaria o descripción'
+    : tenantContextual
+      ? 'Nombre, alias, zona horaria, empresa o descripción'
+      : 'Nombre, alias, zona horaria, empresa, tenant o descripción';
+  const descripcionCatalogo = empresaFiltro
+    ? 'Búsqueda viva por nombre, alias, zona horaria o descripción, con paginación y ordenación al estilo directorio administrativo.'
+    : tenantContextual
+      ? 'Búsqueda viva por nombre, alias, zona horaria, empresa o descripción, con paginación y ordenación al estilo directorio administrativo.'
+      : 'Búsqueda viva por nombre, alias, zona horaria, empresa, tenant o descripción, con paginación y ordenación al estilo directorio administrativo.';
+  const mensajeVacioBase = !empresasDisponibles
+    ? 'Aún no hay empresas disponibles. Crea una empresa antes de añadir su primer sitio.'
+    : empresaFiltro
+      ? `Aún no hay sitios para la empresa ${empresaFiltro.nombre}.`
+      : tenantContextual
+        ? `Aún no hay sitios en el tenant ${tenantContextual.nombre}.`
+        : 'Aún no hay sitios visibles dentro de tu alcance.';
+  const mensajeVacioFiltrado = empresaFiltro
+    ? `No hay sitios que coincidan con la búsqueda en ${empresaFiltro.nombre}.`
+    : tenantContextual
+      ? `No hay sitios que coincidan con la búsqueda en ${tenantContextual.nombre}.`
+      : 'No hay sitios que coincidan con la búsqueda actual.';
+  const accionPrincipalSitios = !empresasDisponibles && capacidades.puedeCrearEmpresa
+    ? {
+        href: rutaNuevaEmpresa,
+        texto: 'Nueva empresa',
+        icono: 'buildings'
+      }
+    : capacidades.puedeCrearSitio && empresasDisponibles
+      ? {
+          href: '/organizacion/sitios/nuevo',
+          texto: 'Nuevo sitio',
+          icono: 'plus-circle'
+        }
+      : capacidades.puedeCrearSitio
+        ? {
+            texto: 'Nuevo sitio',
+            icono: 'geo-alt',
+            ayuda: 'Antes necesitas una empresa disponible para crear un sitio.'
+          }
+        : null;
+  const sitiosEnContexto = (Array.isArray(sitios) ? sitios : []).filter((sitio) =>
+    (!tenantContextual || String(sitio.tenantId) === String(tenantContextual.id)) &&
+    (!empresaFiltro || String(sitio.empresaId) === String(empresaFiltro.id))
+  );
+  const empresasEnContexto = (Array.isArray(empresas) ? empresas : []).filter((empresa) =>
+    (!tenantContextual || String(empresa.tenantId) === String(tenantContextual.id)) &&
+    (!empresaFiltro || String(empresa.id) === String(empresaFiltro.id))
+  );
+  const metricasSitiosHero = [
+    {
+      icono: 'geo-alt',
+      etiqueta: 'Sitios visibles',
+      valor: sitiosEnContexto.length,
+      ayuda: 'Sitios visibles en el contexto actual.'
+    },
+    ...(!empresaFiltro ? [{
+      icono: 'buildings',
+      etiqueta: 'Empresas visibles',
+      valor: empresasEnContexto.length,
+      ayuda: 'Empresas visibles en el contexto actual.'
+    }] : []),
+    ...(!tenantContextual ? [{
+      icono: 'diagram-3',
+      etiqueta: 'Tenants visibles',
+      valor: Array.isArray(tenants) ? tenants.length : 0,
+      ayuda: 'Tenants visibles dentro del alcance de la sesión.'
+    }] : [])
+  ];
+%>
+
+<section class="panel-general">
+  <%- include('parciales/organizacion-cabecera', {
+    tituloSeccion,
+    descripcionSeccion,
+    resumen,
+    subnavegacionOrganizacion,
+    flashOrganizacion,
+    contextoUsuarioActual,
+    tenantFiltro,
+    tenantAlcance,
+    empresaFiltro,
+    contextoListadoSitios: true,
+    accionPrincipalSitios,
+    metricasSitiosHero
+  }) %>
+
+  <section
+    class="seccion-panel"
+    data-sitios-lista
+    data-url-listado="/organizacion/sitios/api/listado"
+    data-eliminacion-durable="<%= capacidadesPortal?.eliminacionAdministrativaOrganizaciones ? 'true' : 'false' %>"
+    data-tenant-id="<%= tenantFiltro?.id || '' %>"
+    data-empresa-id="<%= empresaFiltro?.id || '' %>"
+    data-empty-message="<%= mensajeVacioBase %>"
+    data-empty-message-filtrado="<%= mensajeVacioFiltrado %>"
+    data-ocultar-tenant="<%= ocultarColumnaTenant ? 'true' : 'false' %>"
+    data-ocultar-empresa="<%= ocultarColumnaEmpresa ? 'true' : 'false' %>"
+    data-columnas-tabla="<%= columnasTabla %>"
+    data-puede-ver-tenants="<%= subnavegacionOrganizacion?.tenants?.visible ? 'true' : 'false' %>"
+    data-puede-ver-empresas="<%= subnavegacionOrganizacion?.empresas?.visible ? 'true' : 'false' %>"
+  >
+    <div class="seccion-cabecera">
+      <div>
+        <h2><%= tituloCatalogo %></h2>
+        <p class="texto-apoyo">
+          <%= descripcionCatalogo %>
+        </p>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm organizacion-listado">
+      <div class="card-body pt-3">
+        <% if (empresaFiltro || tenantFiltro) { %>
+          <div class="organizacion-filtros-activos justify-content-end mb-3">
+            <% if (empresaFiltro) { %>
+              <a href="/organizacion/empresas?tenant_id=<%= tenantFiltro?.id || empresaFiltro.tenantId %>" class="organizacion-chip-contexto organizacion-chip-contexto--link">
+                <i class="bi bi-buildings" aria-hidden="true"></i>
+                <span><%= empresaFiltro.nombre %></span>
+              </a>
+            <% } %>
+            <% if (tenantFiltro) { %>
+              <a href="/organizacion/tenants" class="organizacion-chip-contexto organizacion-chip-contexto--link">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                <span><%= tenantFiltro.nombre %></span>
+              </a>
+            <% } %>
+          </div>
+        <% } %>
+        <div class="row g-3 align-items-end organizacion-toolbar">
+          <div class="col-12 col-lg-9">
+            <label for="filtro_busqueda_sitios" class="form-label">
+              Buscar sitio
+            </label>
+            <div class="organizacion-input-icono">
+              <i class="bi bi-search" aria-hidden="true"></i>
+              <input
+                id="filtro_busqueda_sitios"
+                type="search"
+                class="form-control"
+                placeholder="<%= placeholderBusqueda %>"
+                autocomplete="off"
+                data-sitios-busqueda
+              >
+            </div>
+          </div>
+
+          <div class="col-12 col-lg-3">
+            <label for="filtro_filas_sitios" class="form-label">
+              Filas
+            </label>
+            <select
+              id="filtro_filas_sitios"
+              class="form-select"
+              data-sitios-page-size
+            >
+              <% for (const tamano of [10, 25, 50, 100]) { %>
+                <option value="<%= tamano %>" <%= tamano === 25 ? 'selected' : '' %>>
+                  <%= tamano %>
+                </option>
+              <% } %>
+            </select>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between gap-3 flex-wrap align-items-start mt-4">
+          <p class="text-body-secondary mb-0" data-sitios-resumen-listado>
+            Cargando sitios...
+          </p>
+        </div>
+
+        <div class="table-responsive mt-4 organizacion-tabla organizacion-tabla--sitios <%= mostrarPertenencia ? '' : 'organizacion-tabla--sitios-sin-pertenencia' %>">
+          <table class="table table-hover align-middle mb-0">
+            <colgroup>
+              <col class="organizacion-columna--id">
+              <% if (mostrarPertenencia) { %><col class="organizacion-columna--pertenencia"><% } %>
+              <col class="organizacion-columna--nombre">
+              <col class="organizacion-columna--alias">
+              <col class="organizacion-columna--timezone">
+              <col class="organizacion-columna--estado">
+              <col class="organizacion-columna--actualizado">
+              <col class="organizacion-columna--acciones">
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col" class="organizacion-columna--id">
+                  <button type="button" class="boton-orden" data-sort-by="id">
+                    ID
+                  </button>
+                </th>
+                <% if (mostrarPertenencia) { %><th scope="col" class="organizacion-columna--pertenencia">
+                  <span class="visually-hidden">Ordenar pertenencia por </span>
+                  <% if (!ocultarColumnaTenant) { %><button type="button" class="boton-orden" data-sort-by="tenant">Tenant</button><% } %>
+                  <% if (!ocultarColumnaTenant && !ocultarColumnaEmpresa) { %><span aria-hidden="true"> / </span><% } %>
+                  <% if (!ocultarColumnaEmpresa) { %><button type="button" class="boton-orden" data-sort-by="empresa">Empresa</button><% } %>
+                </th><% } %>
+                <th scope="col" class="organizacion-columna--nombre">
+                  <button type="button" class="boton-orden" data-sort-by="nombre">
+                    Nombre
+                  </button>
+                </th>
+                <th scope="col" class="organizacion-columna--alias">
+                  <button type="button" class="boton-orden" data-sort-by="alias">
+                    Alias
+                  </button>
+                </th>
+                <th scope="col" class="organizacion-columna--timezone">
+                  <button type="button" class="boton-orden" data-sort-by="timezone">
+                    Timezone
+                  </button>
+                </th>
+                <th scope="col" class="organizacion-columna--estado">
+                  <button type="button" class="boton-orden" data-sort-by="estado">
+                    Estado
+                  </button>
+                </th>
+                <th scope="col" class="organizacion-columna--actualizado">
+                  <button type="button" class="boton-orden" data-sort-by="actualizado">
+                    Actualizado
+                  </button>
+                </th>
+                <th scope="col" class="text-end organizacion-columna--acciones">Acciones</th>
+              </tr>
+            </thead>
+            <tbody data-sitios-filas>
+              <tr>
+                <td colspan="<%= columnasTabla %>" class="text-body-secondary">
+                  Cargando sitios...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div
+          class="d-flex justify-content-between align-items-center gap-3 flex-wrap border-top mt-4 pt-3"
+          data-sitios-paginador
+        >
+          <span class="text-body-secondary" data-sitios-pagina-actual></span>
+
+          <div class="btn-group" role="group" aria-label="Paginación sitios">
+            <button type="button" class="btn btn-outline-secondary" data-page-action="first">
+              <i class="bi bi-chevron-double-left me-2" aria-hidden="true"></i>
+              Primero
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-page-action="prev">
+              <i class="bi bi-chevron-left me-2" aria-hidden="true"></i>
+              Anterior
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-page-action="next">
+              Siguiente
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-page-action="last">
+              Último
+              <i class="bi bi-chevron-double-right ms-2" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<%- include('parciales/organizacion-modal-eliminacion') %>
+<script src="/js/organizacion-eliminacion.js"></script>
+<script src="/js/organizacion-sitios.js"></script>
+<%- include('../parciales/pie') %>

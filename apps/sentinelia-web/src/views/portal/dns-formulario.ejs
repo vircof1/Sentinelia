@@ -1,0 +1,620 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const esEdicionZona = modo === 'editar';
+  const nombreZonaResumen = esEdicionZona
+    ? zonaObjetivo?.nombreZona || 'zona DNS'
+    : formulario.nombreZona || 'Nombre por definir';
+  const etiquetaVolver = /^\/dns\/[1-9]\d*(?:\?|$)/.test(retornoListado)
+    ? 'Volver al detalle'
+    : /^\/dns(?:\?|$)/.test(retornoListado)
+      ? 'Volver al catálogo'
+      : 'Volver';
+  const mensajeAlcanceZona = esEdicionZona
+    ? restriccionesScope.mensajeScope.replace('Puedes crear zonas', 'Puedes gestionar zonas')
+    : restriccionesScope.mensajeScope;
+  const renderAyudaCampo = (etiqueta, ayuda, id) => `
+    <span class="campo-etiqueta-ayuda">
+      <span>${etiqueta}</span>
+      <button
+        type="button"
+        class="usuario-permiso-item__ayuda"
+        data-bs-toggle="tooltip"
+        data-bs-placement="top"
+        title="${ayuda.replaceAll('"', '&quot;')}"
+        aria-label="Ayuda sobre ${id}"
+      >
+        <i class="bi bi-info-circle" aria-hidden="true"></i>
+      </button>
+    </span>
+  `;
+  const resolverEmailRname = (valor) => {
+    const texto = String(valor || '').trim().replace(/\.+$/, '');
+
+    if (!texto) {
+      return 'hostmaster@empresa.local';
+    }
+
+    const partes = [];
+    let buffer = '';
+    let escapando = false;
+
+    for (const caracter of texto) {
+      if (escapando) {
+        buffer += caracter;
+        escapando = false;
+        continue;
+      }
+
+      if (caracter === '\\') {
+        escapando = true;
+        continue;
+      }
+
+      if (caracter === '.') {
+        partes.push(buffer);
+        buffer = '';
+        continue;
+      }
+
+      buffer += caracter;
+    }
+
+    if (buffer) {
+      partes.push(buffer);
+    }
+
+    const partesLimpias = partes.filter(Boolean);
+
+    if (partesLimpias.length < 2) {
+      return `${texto}@...`;
+    }
+
+    const [buzon, ...dominio] = partesLimpias;
+    return `${buzon}@${dominio.join('.')}`;
+  };
+%>
+
+<section class="panel-general" data-dns-formulario data-dns-modo="<%= modo %>">
+  <section class="hero-operativo hero-monitores card border-0 shadow-lg overflow-hidden dns-formulario-hero">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-globe2" aria-hidden="true"></i>
+              <span><%= esEdicionZona ? 'Edición de zona DNS' : 'Alta de zona DNS' %></span>
+            </span>
+            <h1><%= esEdicionZona ? `Gestionar ${zonaObjetivo?.nombreZona || 'zona DNS'}` : 'Crear una zona DNS' %></h1>
+            <p>
+              <%= esEdicionZona
+                ? 'Revisa el nombre, la pertenencia y la publicación solicitada para esta zona.'
+                : 'Elige el dominio y a quién pertenecerá. Revisa sus ajustes DNS antes de crear la zona.' %>
+            </p>
+            <div class="hero-etiquetas hero-monitores__etiquetas">
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-file-earmark-code" aria-hidden="true"></i>
+                <span>Zona master</span>
+              </span>
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                <span><%= esEdicionZona ? 'Zona existente' : 'Aún sin guardar' %></span>
+              </span>
+            </div>
+            <div class="hero-monitores__acciones">
+              <a
+                href="<%= retornoListado %>"
+                class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+              >
+                <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
+                <span><%= etiquetaVolver %></span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis">
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-globe2" aria-hidden="true"></i>
+                <span class="etiqueta"><%= esEdicionZona ? 'Nombre de la zona' : 'Nueva zona' %></span>
+              </span>
+              <strong data-dns-hero-nombre><%= nombreZonaResumen %></strong>
+              <small><%= esEdicionZona ? 'Nombre que tendrá la zona al guardar los cambios.' : 'Escribe el nombre en el formulario para identificarla.' %></small>
+            </article>
+            <article class="kpi-resumen <%= formulario.publicarEnBind ? 'kpi-resumen--ok' : 'kpi-resumen--neutro' %> hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-broadcast-pin" aria-hidden="true"></i>
+                <span class="etiqueta">Publicación solicitada</span>
+              </span>
+              <strong data-dns-hero-publicacion><%= formulario.publicarEnBind ? 'Publicar en BIND' : 'No publicar' %></strong>
+              <small data-dns-hero-publicacion-ayuda><%= formulario.publicarEnBind ? 'Se solicitará su publicación al guardar; no implica que ya esté aplicada.' : 'La zona se guardará sin solicitar su publicación en BIND.' %></small>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h2>Datos de la zona</h2>
+        <p class="texto-apoyo"><%= mensajeAlcanceZona %></p>
+      </div>
+    </div>
+
+    <% if (errorFormulario) { %>
+      <div class="mensaje-error"><%= errorFormulario %></div>
+    <% } %>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-body pt-3">
+        <form
+          method="post"
+          action="<%= esEdicionZona ? `/dns/${zonaObjetivo.id}/actualizar` : '/dns/crear' %>"
+          class="formulario-organizacion"
+        >
+          <input type="hidden" name="return_to" value="<%= retornoListado %>">
+
+          <div class="d-grid gap-4">
+            <section class="card border-0 shadow-sm overflow-hidden">
+              <div class="card-header bg-white border-bottom py-3">
+                <div class="d-flex flex-column gap-1">
+                  <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                    <i class="bi bi-card-heading" aria-hidden="true"></i>
+                    <span>Identidad</span>
+                  </div>
+                  <p class="mb-0 text-body-secondary">
+                    Nombre, categoría y estado de la zona que vas a gestionar.
+                  </p>
+                </div>
+              </div>
+              <div class="card-body p-4">
+                <div class="row g-3">
+                  <div class="col-12 col-lg-4">
+                    <label for="dns_nombre_zona" class="form-label">Nombre de zona</label>
+                    <input
+                      id="dns_nombre_zona"
+                      name="nombre_zona"
+                      type="text"
+                      class="form-control"
+                      autocomplete="off"
+                      autocapitalize="off"
+                      autocorrect="off"
+                      spellcheck="false"
+                      value="<%= formulario.nombreZona %>"
+                      placeholder="empresa.local"
+                      maxlength="253"
+                      required
+                    >
+                  </div>
+                  <div class="col-12 col-lg-3">
+                    <label for="dns_tipo_zona" class="form-label">Tipo</label>
+                    <input type="hidden" name="tipo_zona" value="master">
+                    <div class="campo-fijo">
+                      <strong class="d-inline-flex align-items-center gap-2">
+                        <i class="bi bi-file-earmark-code" aria-hidden="true"></i>
+                        <span>Master</span>
+                      </strong>
+                      <span class="texto-apoyo">
+                        Zona principal (master). Es el único tipo disponible en este portal.
+                      </span>
+                    </div>
+                  </div>
+                  <div class="col-12 col-lg-2">
+                    <label for="dns_activo" class="form-label">Estado</label>
+                    <select id="dns_activo" name="activo" class="form-select">
+                      <option value="1" <%= formulario.activo ? 'selected' : '' %>>Activa</option>
+                      <option value="0" <%= !formulario.activo ? 'selected' : '' %>>Inactiva</option>
+                    </select>
+                  </div>
+                  <div class="col-12 col-lg-3">
+                    <label for="dns_categoria_origen" class="form-label">Categoría de la zona</label>
+                    <% if (!puedeAdministrarDnsAvanzado) { %>
+                      <input type="hidden" name="categoria_origen" value="normal">
+                    <% } %>
+                    <select
+                      id="dns_categoria_origen"
+                      name="categoria_origen"
+                      class="form-select"
+                      <%= !puedeAdministrarDnsAvanzado ? 'disabled' : '' %>
+                    >
+                      <% for (const opcion of opcionesCategoriaOrigen) { %>
+                        <option value="<%= opcion.valor %>" <%= formulario.categoriaOrigen === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                      <% } %>
+                    </select>
+                    <p class="dns-formulario-tiempo-ayuda">Sistema identifica una zona especial; requiere permiso DNS avanzado para gestionarla.</p>
+                  </div>
+                </div>
+
+                <div class="mt-3">
+                  <label for="dns_descripcion" class="form-label">Descripción</label>
+                  <textarea
+                    id="dns_descripcion"
+                    name="descripcion"
+                    class="form-control"
+                    rows="4"
+                    placeholder="Contexto operativo, uso interno o detalle funcional breve."
+                  ><%= formulario.descripcion %></textarea>
+                </div>
+              </div>
+            </section>
+
+            <section class="card border-0 shadow-sm overflow-hidden">
+              <div class="card-header bg-white border-bottom py-3">
+                <div class="d-flex flex-column gap-1">
+                  <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                    <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                    <span>Alcance</span>
+                  </div>
+                  <p class="mb-0 text-body-secondary">
+                    Elige si la zona pertenece al tenant, a una empresa o a un sitio.
+                  </p>
+                </div>
+              </div>
+              <div class="card-body p-4 d-grid gap-4">
+                <div class="row g-3">
+                  <div class="col-12 col-lg-4">
+                    <label for="dns_nivel_pertenencia" class="form-label">Pertenencia</label>
+                    <% if (restriccionesScope.nivelPertenenciaFijo) { %>
+                      <input type="hidden" name="nivel_pertenencia" value="<%= formulario.nivelPertenencia %>">
+                    <% } %>
+                    <select
+                      id="dns_nivel_pertenencia"
+                      name="nivel_pertenencia"
+                      class="form-select"
+                      data-dns-pertenencia
+                      <%= restriccionesScope.nivelPertenenciaFijo ? 'disabled' : '' %>
+                    >
+                      <% for (const opcion of opcionesPertenencia) { %>
+                        <option value="<%= opcion.valor %>" <%= formulario.nivelPertenencia === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                      <% } %>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="row g-3">
+                  <div class="col-12 col-md-6 col-xl-4" data-dns-tenant-campo>
+                    <label for="dns_tenant_id" class="form-label">Tenant</label>
+                    <% if (restriccionesScope.tenantBloqueado) { %>
+                      <input type="hidden" name="tenant_id" value="<%= formulario.tenantId %>">
+                    <% } %>
+                    <select
+                      id="dns_tenant_id"
+                      name="tenant_id"
+                      class="form-select"
+                      data-dns-tenant
+                      <%= restriccionesScope.tenantBloqueado ? 'disabled' : '' %>
+                    >
+                      <option value="">Selecciona tenant</option>
+                      <% for (const opcion of opcionesTenants) { %>
+                        <option value="<%= opcion.valor %>" <%= String(formulario.tenantId) === String(opcion.valor) ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                      <% } %>
+                    </select>
+                  </div>
+
+                  <div class="col-12 col-md-6 col-xl-4" data-dns-empresa-campo>
+                    <label for="dns_empresa_id" class="form-label">Empresa</label>
+                    <% if (restriccionesScope.empresaBloqueada) { %>
+                      <input type="hidden" name="empresa_id" value="<%= formulario.empresaId %>">
+                    <% } %>
+                    <select
+                      id="dns_empresa_id"
+                      name="empresa_id"
+                      class="form-select"
+                      data-dns-empresa
+                      <%= restriccionesScope.empresaBloqueada ? 'disabled' : '' %>
+                    >
+                      <option value="">Selecciona empresa</option>
+                      <% for (const opcion of opcionesEmpresas) { %>
+                        <option
+                          value="<%= opcion.valor %>"
+                          data-tenant-id="<%= opcion.tenantId %>"
+                          <%= String(formulario.empresaId) === String(opcion.valor) ? 'selected' : '' %>
+                        ><%= opcion.etiqueta %></option>
+                      <% } %>
+                    </select>
+                  </div>
+
+                  <div class="col-12 col-md-6 col-xl-4" data-dns-sitio-campo>
+                    <label for="dns_sitio_id" class="form-label">Sitio</label>
+                    <% if (restriccionesScope.sitioBloqueadoPorScope) { %>
+                      <input type="hidden" name="sitio_id" value="<%= formulario.sitioId %>">
+                    <% } %>
+                    <select
+                      id="dns_sitio_id"
+                      name="sitio_id"
+                      class="form-select"
+                      data-dns-sitio
+                      <%= restriccionesScope.sitioBloqueadoPorScope ? 'disabled' : '' %>
+                    >
+                      <option value="">Sin sitio</option>
+                      <% for (const opcion of opcionesSitios) { %>
+                        <option
+                          value="<%= opcion.valor %>"
+                          data-tenant-id="<%= opcion.tenantId %>"
+                          data-empresa-id="<%= opcion.empresaId %>"
+                          <%= String(formulario.sitioId) === String(opcion.valor) ? 'selected' : '' %>
+                        ><%= opcion.etiqueta %></option>
+                      <% } %>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="card border-0 shadow-sm overflow-hidden" data-dns-soa-card>
+              <div class="card-header bg-white border-bottom py-3">
+                <div class="d-flex flex-column gap-1">
+                  <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                    <i class="bi bi-hdd-stack" aria-hidden="true"></i>
+                    <span>SOA y TTL</span>
+                  </div>
+                  <p class="mb-0 text-body-secondary">
+                    Elige un ajuste rápido y revisa cómo afectará a la caché y a los servidores secundarios.
+                  </p>
+                </div>
+              </div>
+              <div class="card-body p-4">
+                <div class="dns-formulario-presets">
+                  <span class="dns-formulario-presets__etiqueta">Ajustes rápidos</span>
+                  <div class="dns-formulario-presets__acciones" role="group" aria-label="Presets SOA y TTL">
+                    <button type="button" class="boton-secundario dns-formulario-preset" data-dns-preset="estable">
+                      Entorno estable
+                    </button>
+                    <button type="button" class="boton-secundario dns-formulario-preset" data-dns-preset="frecuente">
+                      Cambios frecuentes
+                    </button>
+                    <button type="button" class="boton-secundario dns-formulario-preset" data-dns-preset="migracion">
+                      Migración / ajuste fino
+                    </button>
+                  </div>
+                </div>
+
+                <div class="dns-formulario-resumen-operativo" data-dns-soa-resumen>
+                  <div class="dns-formulario-resumen-operativo__cabecera">
+                    <i class="bi bi-compass" aria-hidden="true"></i>
+                    <strong>Lectura operativa</strong>
+                  </div>
+                  <p class="mb-0 text-body-secondary" data-dns-soa-resumen-texto>
+                    Ajusta TTL y tiempos SOA para equilibrar rapidez de cambio, carga de consultas y resiliencia de secundarios.
+                  </p>
+                </div>
+
+                <div class="dns-formulario-alertas" data-dns-soa-alertas hidden></div>
+
+                <details class="dns-formulario-soa-detalles" data-dns-soa-detalles <%= errorFormulario ? 'open' : '' %>>
+                  <summary>
+                    <span>Ajustar parámetros técnicos</span>
+                    <small>Servidor principal y contacto obligatorios · TTL y sincronización</small>
+                  </summary>
+
+                <div class="row g-3 dns-formulario-soa-detalles__campos">
+                  <div class="col-12 col-md-6 col-xl-4">
+                    <label for="dns_ttl_defecto_segundos" class="form-label">
+                      <%- renderAyudaCampo(
+                        'TTL por defecto (s)',
+                        'Tiempo que clientes y resolvers pueden cachear los registros. Un TTL de 60 acelera cambios, pero aumenta consultas; 3600 suele ser una base prudente en entornos estables.',
+                        'TTL por defecto'
+                      ) %>
+                    </label>
+                    <input
+                      id="dns_ttl_defecto_segundos"
+                      name="ttl_defecto_segundos"
+                      type="number"
+                      class="form-control"
+                      min="0"
+                      max="2147483647"
+                      step="1"
+                      value="<%= formulario.ttlDefectoSegundos %>"
+                      data-dns-tiempo="ttl"
+                      required
+                    >
+                    <p class="dns-formulario-tiempo-ayuda" data-dns-tiempo-ayuda="ttl"></p>
+                  </div>
+                  <div class="col-12 col-md-6 col-xl-4">
+                    <label for="dns_soa_mname" class="form-label">
+                      <%- renderAyudaCampo(
+                        'SOA MNAME',
+                        'Servidor maestro o referencia principal de la zona. Debe apuntar al nameserver autoritativo que gobierna esta definición.',
+                        'SOA MNAME'
+                      ) %>
+                    </label>
+                    <input
+                      id="dns_soa_mname"
+                      name="soa_mname"
+                      type="text"
+                      class="form-control"
+                      autocomplete="off"
+                      autocapitalize="off"
+                      autocorrect="off"
+                      spellcheck="false"
+                      value="<%= formulario.soaMname %>"
+                      placeholder="ns1.empresa.local"
+                      maxlength="253"
+                      required
+                    >
+                    <p class="dns-formulario-tiempo-ayuda">Se sugiere <code>ns1.tu-dominio</code> al escribir la zona. Confirma que es el servidor DNS principal real.</p>
+                  </div>
+                  <div class="col-12 col-md-6 col-xl-4">
+                    <label for="dns_soa_rname" class="form-label">
+                      <%- renderAyudaCampo(
+                        'SOA RNAME',
+                        'Contacto administrativo en formato DNS. hostmaster.empresa.local equivale a hostmaster@empresa.local. Si el buzón lleva puntos reales, escápalos como \\. Por ejemplo: admin\\.dns.empresa.local equivale a admin.dns@empresa.local.',
+                        'SOA RNAME'
+                      ) %>
+                    </label>
+                    <input
+                      id="dns_soa_rname"
+                      name="soa_rname"
+                      type="text"
+                      class="form-control"
+                      autocomplete="off"
+                      autocapitalize="off"
+                      autocorrect="off"
+                      spellcheck="false"
+                      value="<%= formulario.soaRname %>"
+                      placeholder="hostmaster.empresa.local"
+                      maxlength="253"
+                      required
+                    >
+                    <p class="dns-formulario-rname-estado" data-dns-rname-estado>
+                      Interpretado como <code data-dns-rname-email><%= resolverEmailRname(formulario.soaRname) %></code>.
+                    </p>
+                    <p class="dns-formulario-tiempo-ayuda">Se sugiere el contacto <code>hostmaster@tu-dominio</code>; puedes sustituirlo por el buzón real.</p>
+                  </div>
+                  <div class="col-12 col-md-6 col-xl-3">
+                    <label for="dns_soa_refresh_segundos" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Refresh (s)',
+                        'Cada cuánto comprueba un secundario si hubo cambios. Muy bajo aumenta tráfico de sincronización; muy alto retrasa la detección de cambios.',
+                        'Refresh'
+                      ) %>
+                    </label>
+                    <input
+                      id="dns_soa_refresh_segundos"
+                      name="soa_refresh_segundos"
+                      type="number"
+                      class="form-control"
+                      min="0"
+                      max="2147483647"
+                      step="1"
+                      value="<%= formulario.soaRefreshSegundos %>"
+                      data-dns-tiempo="refresh"
+                      required
+                    >
+                    <p class="dns-formulario-tiempo-ayuda" data-dns-tiempo-ayuda="refresh"></p>
+                  </div>
+                  <div class="col-12 col-md-6 col-xl-3">
+                    <label for="dns_soa_retry_segundos" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Retry (s)',
+                        'Si falla el refresh, espera antes de reintentar. Bajo recupera antes una caída breve, pero insiste más sobre el servidor.',
+                        'Retry'
+                      ) %>
+                    </label>
+                    <input
+                      id="dns_soa_retry_segundos"
+                      name="soa_retry_segundos"
+                      type="number"
+                      class="form-control"
+                      min="0"
+                      max="2147483647"
+                      step="1"
+                      value="<%= formulario.soaRetrySegundos %>"
+                      data-dns-tiempo="retry"
+                      required
+                    >
+                    <p class="dns-formulario-tiempo-ayuda" data-dns-tiempo-ayuda="retry"></p>
+                  </div>
+                  <div class="col-12 col-md-6 col-xl-3">
+                    <label for="dns_soa_expire_segundos" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Expire (s)',
+                        'Tiempo máximo que un secundario seguirá sirviendo la zona sin poder refrescarla. Si expira, deja de considerarla válida.',
+                        'Expire'
+                      ) %>
+                    </label>
+                    <input
+                      id="dns_soa_expire_segundos"
+                      name="soa_expire_segundos"
+                      type="number"
+                      class="form-control"
+                      min="0"
+                      max="2147483647"
+                      step="1"
+                      value="<%= formulario.soaExpireSegundos %>"
+                      data-dns-tiempo="expire"
+                      required
+                    >
+                    <p class="dns-formulario-tiempo-ayuda" data-dns-tiempo-ayuda="expire"></p>
+                  </div>
+                  <div class="col-12 col-md-6 col-xl-3">
+                    <label for="dns_soa_minimum_segundos" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Minimum (s)',
+                        'Referencia de caché mínima o negativa según política. Muy bajo hace que ausencias como NXDOMAIN duren poco en caché; muy alto puede hacer persistir respuestas negativas más tiempo del deseado.',
+                        'Minimum'
+                      ) %>
+                    </label>
+                    <input
+                      id="dns_soa_minimum_segundos"
+                      name="soa_minimum_segundos"
+                      type="number"
+                      class="form-control"
+                      min="0"
+                      max="2147483647"
+                      step="1"
+                      value="<%= formulario.soaMinimumSegundos %>"
+                      data-dns-tiempo="minimum"
+                      required
+                    >
+                    <p class="dns-formulario-tiempo-ayuda" data-dns-tiempo-ayuda="minimum"></p>
+                  </div>
+                </div>
+                </details>
+              </div>
+            </section>
+
+            <section class="card border-0 shadow-sm overflow-hidden">
+              <div class="card-header bg-white border-bottom py-3">
+                <div class="d-flex flex-column gap-1">
+                  <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                    <i class="bi bi-broadcast-pin" aria-hidden="true"></i>
+                    <span>Publicación</span>
+                  </div>
+                  <p class="mb-0 text-body-secondary">
+                    Solicita que la zona se publique en BIND. Guardarla no significa que ya esté aplicada.
+                  </p>
+                </div>
+              </div>
+              <div class="card-body p-4">
+                <div class="row g-3 align-items-end">
+                  <div class="col-12">
+                    <div class="campo-checkbox h-100">
+                      <input
+                        type="hidden"
+                        name="publicar_en_bind"
+                        value="<%= puedeGestionarPublicacionDns ? '0' : (formulario.publicarEnBind ? '1' : '0') %>"
+                      >
+                      <label class="etiqueta-checkbox">
+                        <input
+                          type="checkbox"
+                          name="publicar_en_bind"
+                          value="1"
+                          <%= formulario.publicarEnBind ? 'checked' : '' %>
+                          <%= !puedeGestionarPublicacionDns ? 'disabled' : '' %>
+                          title="<%= puedeGestionarPublicacionDns ? '' : 'Necesitas Publicar DNS para cambiar si esta zona se proyecta a BIND.' %>"
+                        >
+                        <span>Publicar en BIND</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <div class="acciones-formulario acciones-formulario--sticky">
+              <div class="acciones-formulario__estado">
+                <strong><%= esEdicionZona ? 'Edición activa' : 'Alta nueva' %></strong>
+                <span>Revisa alcance, SOA y publicación antes de guardar la zona.</span>
+              </div>
+              <div class="acciones-formulario__botones">
+                <button type="submit" class="boton-primario">
+                  <%= esEdicionZona ? 'Guardar zona' : 'Crear zona' %>
+                </button>
+                <a href="<%= retornoListado %>" class="boton-secundario enlace-boton">Cancelar</a>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+</section>
+
+<script src="/js/dns-formulario.js"></script>
+
+<%- include('../parciales/pie') %>

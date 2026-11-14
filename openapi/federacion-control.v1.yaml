@@ -1,0 +1,1549 @@
+openapi: 3.1.0
+info:
+  title: API federada Sentinelia
+  version: 1.0.0-beta.2
+  summary: Contrato máquina a máquina de los planos de control y datos federados.
+  description: >
+    Contrato de establecimiento, autenticación técnica, heartbeat y
+    continuidad del plano de control federado. La invitación es visible
+    y transportable deliberadamente por una persona, caduca, admite un único
+    consumo y no concede por sí misma autoridad, scope ni acceso al plano de
+    datos. El secreto persistente resultante pertenece exclusivamente a la
+    comunicación backend a backend. El plano de datos conserva identidades,
+    resultados parciales y progreso durable; una confirmación acredita
+    persistencia SQL, no materialización ni efecto operativo posterior.
+x-sentinelia-transport-asymmetry:
+  emitterLocalPublicOriginRequired: false
+  emitterLocalTrustedProxiesRequired: false
+  receiverPublicOriginProtocol: https
+  description: >
+    Una instalación que solo inicia emisiones puede operar localmente por HTTP
+    y no necesita exponer un origen público. Cada destino receptor sí pertenece
+    a una relación emisora aprobada y usa un endpoint HTTPS canónico. Las rutas
+    de este contrato son fronteras receptoras y solo están disponibles cuando
+    la recepción pública de la instalación está preparada.
+servers:
+  - url: /
+    description: >
+      Origen HTTPS canónico declarado por la instalación cuando actúa como
+      receptora; no es un requisito de su emisión saliente independiente.
+tags:
+  - name: Establecimiento federado
+    description: Operaciones iniciales de vinculación direccional.
+  - name: Sesión federada
+    description: Autenticación técnica y rotación de la credencial operativa efímera.
+  - name: Continuidad federada
+    description: Recuperación bilateral y rotación del secreto persistente del salto.
+  - name: Concesión federada
+    description: Intercambio durable de oferta y aceptación sin calcular todavía la efectiva.
+  - name: Datos federados
+    description: Capacidad receptora, lotes idempotentes y progreso durable por generación.
+x-sentinelia-family-contracts:
+  profile: sentinelia-federacion-contratos-familias-v1
+  version: 1
+  families:
+    estructuraOrganizativa:
+      familyVersion: 1
+      field: nodoOrganizativo
+      payloadProfile: sentinelia-federacion-estructura-organizativa-v1
+      payloadVersion: 1
+      recordTypes: [empresa, sitio, tenant]
+      runtimeValidator: validarPayloadEstructuraOrganizativaFederacion
+    monitores:
+      familyVersion: 1
+      field: monitores
+      payloadProfile: sentinelia-federacion-monitores-v1
+      payloadVersion: 1
+      recordTypes: [alerta, definicion, estadoActual, evento, rangoHistorico, referenciaTrigger, tramoHistorico]
+      runtimeValidator: validarPayloadMonitoresFederacion
+    telemetria:
+      familyVersion: 1
+      field: telemetria
+      payloadProfile: sentinelia-federacion-telemetria-v1
+      payloadVersion: 1
+      recordTypes: [eventoDerivado, fotografiaPol, fotografiaSenal, fuente, observacion, rangoHistorico, reglaDerivacion, senal]
+      runtimeValidator: validarPayloadTelemetriaFederacion
+    triggersInformativos:
+      familyVersion: 2
+      field: triggersInformativos
+      payloadProfile: sentinelia-federacion-triggers-informativos-v2
+      payloadVersion: 2
+      recordTypes: [asignacionMonitor, definicion, ejecucionTerminada]
+      runtimeValidator: validarPayloadTriggersInformativosFederacion
+    auditoria:
+      familyVersion: 1
+      field: auditoria
+      payloadProfile: sentinelia-federacion-auditoria-v1
+      payloadVersion: 1
+      recordTypes: [evento]
+      runtimeValidator: validarPayloadAuditoriaFederada
+    avisosFederados:
+      familyVersion: 1
+      field: avisosFederados
+      payloadProfile: sentinelia-federacion-avisos-v1
+      payloadVersion: 1
+      recordTypes: [estadoActual, transicion]
+      runtimeValidator: validarPayloadAvisosFederados
+    contextoOperativoAgentesSesiones:
+      familyVersion: 1
+      field: contextoOperativoAgente
+      payloadProfile: sentinelia-federacion-contexto-operativo-agente-v1
+      payloadVersion: 1
+      recordTypes: [agente]
+      runtimeValidator: validarPayloadContextoOperativoAgentesSesionesFederacion
+paths:
+  /api/federacion/v1/openapi.yaml:
+    get:
+      tags: [Establecimiento federado]
+      operationId: obtenerContratoControlFederadoV1
+      summary: Obtiene este contrato sin material secreto operativo.
+      security: []
+      responses:
+        "200":
+          description: Contrato OpenAPI vigente.
+          content:
+            application/yaml:
+              schema:
+                type: string
+  /api/federacion/v1/establecimiento/canje:
+    post:
+      tags: [Establecimiento federado]
+      operationId: canjearInvitacionFederadaV1
+      summary: Canjea una invitación temporal mediante comunicación backend a backend.
+      description: >
+        El secreto temporal solo se admite dentro del cuerpo JSON y nunca como segmento de
+        URL, query string, cookie ni cabecera reutilizable. Una respuesta perdida
+        no puede recuperarse repitiendo el mismo canje: el operador deberá emitir
+        una invitación nueva. El consumo no confirma la identidad humana ni
+        habilita el plano de datos.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExchangeInvitationRequest"
+      responses:
+        "201":
+          description: >
+            Invitación consumida y secreto persistente entregado una única vez
+            al backend emisor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeInvitationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/InvitationRejected"
+        "409":
+          $ref: "#/components/responses/IdentityConflict"
+        "410":
+          $ref: "#/components/responses/InvitationGone"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/federacion/v1/sesion/login:
+    post:
+      tags: [Sesión federada]
+      operationId: iniciarSesionFederadaV1
+      summary: Canjea el secreto persistente por una credencial operativa efímera.
+      description: >
+        El secreto persistente se admite exclusivamente en este cuerpo JSON. La
+        sesión queda ligada a relación, instalaciones y bootId remoto. Repetir
+        el mismo loginRequestId solo recupera la misma respuesta mientras siga
+        presente su sobre efímero en Redis.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/FederationLoginRequest"}
+      responses:
+        "200":
+          description: Sesión operativa creada o repetida idempotentemente.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FederationSessionResponse"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/AuthenticationRejected"}
+        "409": {$ref: "#/components/responses/IdentityConflict"}
+        "410": {$ref: "#/components/responses/SessionResponseGone"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /api/federacion/v1/sesion/refresh:
+    post:
+      tags: [Sesión federada]
+      operationId: renovarSesionFederadaV1
+      summary: Rota la credencial operativa sin reutilizar el secreto persistente.
+      security:
+        - federationBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/FederationRefreshRequest"}
+      responses:
+        "200":
+          description: Credencial operativa rotada conservando la sesión lógica.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FederationSessionResponse"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/AuthenticationRejected"}
+        "403": {$ref: "#/components/responses/SessionNotLive"}
+        "409": {$ref: "#/components/responses/IdentityConflict"}
+        "410": {$ref: "#/components/responses/SessionResponseGone"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /api/federacion/v1/sesion/heartbeat:
+    post:
+      tags: [Sesión federada]
+      operationId: registrarHeartbeatFederadoV1
+      summary: Renueva la presencia y comprueba compatibilidad y tiempo del salto.
+      description: >
+        La presencia vive únicamente en Redis y no amplía el TTL de la sesión.
+        Cada respuesta abre una muestra temporal; el heartbeat siguiente puede
+        cerrarla con los cuatro instantes para estimar RTT y desfase sin corregir
+        silenciosamente el reloj remoto. La primera beta exige compatibilidad
+        exacta de protocolo y de todas las familias.
+      security:
+        - federationBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/FederationHeartbeatRequest"}
+      responses:
+        "200":
+          description: Presencia renovada y diagnóstico durable actualizado.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FederationHeartbeatResponse"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/AuthenticationRejected"}
+        "403": {$ref: "#/components/responses/SessionNotLive"}
+        "409": {$ref: "#/components/responses/IdentityConflict"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /api/federacion/v1/continuidad/recuperacion/canje:
+    post:
+      tags: [Continuidad federada]
+      operationId: canjearRecuperacionFederadaV1
+      summary: Sustituye la credencial persistente mediante una autorización temporal nueva.
+      description: >
+        Exige los mismos installationId ya vinculados. Consume una autorización
+        humana temporal de un solo uso y entrega el secreto nuevo una sola vez.
+        Si la respuesta se pierde, debe emitirse otra recuperación.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/FederationRecoveryExchangeRequest"}
+      responses:
+        "200":
+          description: Credencial persistente sustituida y sesiones anteriores revocadas.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FederationPersistentCredentialResponse"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/AuthenticationRejected"}
+        "409": {$ref: "#/components/responses/IdentityConflict"}
+        "410": {$ref: "#/components/responses/SessionResponseGone"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /api/federacion/v1/continuidad/credencial/rotacion:
+    post:
+      tags: [Continuidad federada]
+      operationId: rotarCredencialPersistenteFederadaV1
+      summary: Rota la credencial persistente desde una sesión operativa vigente.
+      security:
+        - federationBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/FederationPersistentCredentialRotationRequest"}
+      responses:
+        "200":
+          description: Credencial persistente rotada y sesiones anteriores revocadas.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FederationPersistentCredentialResponse"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/AuthenticationRejected"}
+        "403": {$ref: "#/components/responses/SessionNotLive"}
+        "409": {$ref: "#/components/responses/IdentityConflict"}
+        "410": {$ref: "#/components/responses/SessionResponseGone"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /api/federacion/v1/control/concesion/declaraciones:
+    post:
+      tags: [Concesión federada]
+      operationId: publicarDeclaracionConcesionFederadaV1
+      summary: Publica una oferta o aceptación inmutable en la contraparte.
+      description: >
+        La confirmación solo acredita validación y persistencia durable de la
+        declaración remota. La respuesta incorpora, cuando ya existe, la
+        declaración local de la receptora para devolverla por el mismo canal
+        iniciado por el emisor; no exige una conexión inversa. La consolidación
+        y los flujos siguen dependiendo de que ambas revisiones sean válidas.
+        Repetir intercambioId o revisionId con el mismo contenido devuelve la
+        confirmación original; cualquier divergencia se rechaza.
+      security:
+        - federationBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/FederationConcessionDeclarationExchange"}
+      responses:
+        "200":
+          description: Replay exacto confirmado con la respuesta durable original.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FederationConcessionDeclarationPublicationResult"}
+        "201":
+          description: Declaración validada y persistida durablemente.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FederationConcessionDeclarationPublicationResult"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/AuthenticationRejected"}
+        "403": {$ref: "#/components/responses/SessionNotLive"}
+        "409": {$ref: "#/components/responses/DataConflict"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /api/federacion/v1/control/concesion/relaciones/{relacionId}/intercambios/{intercambioId}:
+    get:
+      tags: [Concesión federada]
+      operationId: consultarConfirmacionDeclaracionConcesionFederadaV1
+      summary: Consulta la confirmación durable de un intercambio recibido.
+      security:
+        - federationBearer: []
+      parameters:
+        - in: path
+          name: relacionId
+          required: true
+          schema: {$ref: "#/components/schemas/FederationRelationId"}
+        - in: path
+          name: intercambioId
+          required: true
+          schema: {$ref: "#/components/schemas/FederationUuidV7"}
+      responses:
+        "200":
+          description: Confirmación durable encontrada para la misma relación autenticada.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FederationConcessionDeclarationConfirmation"}
+        "401": {$ref: "#/components/responses/AuthenticationRejected"}
+        "403": {$ref: "#/components/responses/SessionNotLive"}
+        "404": {$ref: "#/components/responses/ConcessionConfirmationNotFound"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /api/federacion/v1/control/flujos/manifiestos-iniciales:
+    post:
+      tags: [Concesión federada]
+      operationId: publicarManifiestoFlujoInicialFederadoV1
+      summary: Instala en el receptor la frontera inicial calculada por el emisor.
+      description: >
+        El manifiesto no transporta observaciones. Vincula la misma concesión
+        bilateral con identidades deterministas de flujo y generación, y evita
+        que el receptor fotografíe datos locales ajenos al origen.
+      security:
+        - federationBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/FederationInitialFlowManifest"}
+      responses:
+        "200":
+          description: Flujo receptor reconciliado o replay exacto confirmado.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FederationInitialFlowReconciliation"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/AuthenticationRejected"}
+        "403": {$ref: "#/components/responses/SessionNotLive"}
+        "409": {$ref: "#/components/responses/DataConflict"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /api/federacion/v1/control/flujos/relaciones/{relacionId}/manifiestos-iniciales:
+    get:
+      tags: [Concesión federada]
+      operationId: consultarManifiestosFlujosInicialesFederadosV1
+      summary: Recupera los manifiestos iniciales listos de la relación emisora.
+      security:
+        - federationBearer: []
+      parameters:
+        - in: path
+          name: relacionId
+          required: true
+          schema: {$ref: "#/components/schemas/FederationRelationId"}
+      responses:
+        "200":
+          description: Fotografías iniciales listas para instalar o reinstalar.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FederationInitialFlowManifestList"}
+        "401": {$ref: "#/components/responses/AuthenticationRejected"}
+        "403": {$ref: "#/components/responses/SessionNotLive"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /api/federacion/v1/datos/capacidad:
+    get:
+      tags: [Datos federados]
+      operationId: obtenerCapacidadRecepcionFederadaV1
+      summary: Obtiene la fotografía dinámica de capacidad del receptor.
+      description: >
+        La respuesta orienta la formación del siguiente lote, pero no reserva
+        recursos ni garantiza que esa capacidad permanezca vigente al recibirlo.
+        El emisor debe respetar la fotografía nueva sin reinterpretar sus límites.
+        `disponible` solo puede ser verdadero cuando activación, origen HTTPS y
+        proxies confiables mantienen preparada esta recepción; esta condición
+        no describe ni bloquea la capacidad de emisión local del receptor.
+      security:
+        - federationBearer: []
+      responses:
+        "200":
+          description: Capacidad receptora vigente en el instante de consulta.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FederationReceiverCapacity"}
+        "401": {$ref: "#/components/responses/AuthenticationRejected"}
+        "403": {$ref: "#/components/responses/SessionNotLive"}
+        "409": {$ref: "#/components/responses/DataConflict"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /api/federacion/v1/datos/lotes:
+    post:
+      tags: [Datos federados]
+      operationId: entregarLoteFederadoV1
+      summary: Entrega un lote idempotente a un flujo receptor.
+      description: >
+        Cada entrega obtiene exactamente un resultado durable. Los resultados
+        terminales pueden coexistir con aplazamientos temporales y solo los
+        temporales vuelven a procesarse. La respuesta se emite después del commit
+        de lote, intento, resultados, inbox y cursor. Repetir el mismo loteId
+        exige exactamente la misma composición; reagrupar conserva entregaId,
+        ocurrenciaOrigenId y posicionFlujo usando un loteId nuevo.
+      security:
+        - federationBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/FederationDataBatchRequest"}
+      responses:
+        "200":
+          description: Intento completo persistido durablemente, incluso si contiene aplazamientos.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FederationDataBatchResponse"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/AuthenticationRejected"}
+        "403": {$ref: "#/components/responses/SessionNotLive"}
+        "409": {$ref: "#/components/responses/DataConflict"}
+        "413": {$ref: "#/components/responses/DataBatchTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /api/federacion/v1/datos/flujos/{flujoId}/generaciones/{generacionId}/progreso:
+    get:
+      tags: [Datos federados]
+      operationId: obtenerProgresoRecepcionFederadaV1
+      summary: Consulta el cursor durable de una generación receptora.
+      description: >
+        posicionTerminalContigua expresa exclusivamente el prefijo continuo
+        1..N. Los rangos terminales dispersos posteriores se informan, pero no
+        permiten saltar huecos ni equivalen a completitud o materialización.
+      security:
+        - federationBearer: []
+      parameters:
+        - name: flujoId
+          in: path
+          required: true
+          schema: {$ref: "#/components/schemas/FederationFlowId"}
+        - name: generacionId
+          in: path
+          required: true
+          schema: {$ref: "#/components/schemas/FederationGenerationId"}
+      responses:
+        "200":
+          description: Progreso durable conocido para la generación.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FederationReceptionProgress"}
+        "401": {$ref: "#/components/responses/AuthenticationRejected"}
+        "403": {$ref: "#/components/responses/SessionNotLive"}
+        "404": {$ref: "#/components/responses/DataProgressNotFound"}
+        "409": {$ref: "#/components/responses/DataConflict"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /api/federacion/v1/datos/flujos/{flujoId}/generaciones/{generacionId}/disponibilidad:
+    parameters:
+      - name: flujoId
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/FederationFlowId"}
+      - name: generacionId
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/FederationGenerationId"}
+    post:
+      tags: [Datos federados]
+      operationId: registrarDisponibilidadFederadaV1
+      summary: Registra un rango disponible o un hueco declarado por el emisor.
+      description: >
+        Los rangos disponibles y huecos recuperables son informativos. Solo un
+        hueco irrecuperable con rutas alternativas agotadas puede degradar la
+        completitud histórica; nunca crea ocurrencias ni estado operativo.
+      security:
+        - federationBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/FederationAvailabilityDeclaration"}
+      responses:
+        "200":
+          description: Declaración persistida y, cuando corresponde, aplicada idempotentemente.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FederationAvailabilityRegistrationResult"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/AuthenticationRejected"}
+        "403": {$ref: "#/components/responses/SessionNotLive"}
+        "409": {$ref: "#/components/responses/DataConflict"}
+        "413":
+          description: La declaración supera el límite físico del receptor.
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+    get:
+      tags: [Datos federados]
+      operationId: listarDisponibilidadFederadaV1
+      summary: Consulta las declaraciones durables de una generación receptora.
+      security:
+        - federationBearer: []
+      responses:
+        "200":
+          description: Declaraciones de la relación, flujo y generación autenticados.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [declaraciones]
+                properties:
+                  declaraciones:
+                    type: array
+                    items: {$ref: "#/components/schemas/FederationAvailabilityDeclarationState"}
+        "401": {$ref: "#/components/responses/AuthenticationRejected"}
+        "403": {$ref: "#/components/responses/SessionNotLive"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+components:
+  securitySchemes:
+    federationBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+  schemas:
+    FederationAvailabilityDeclaration:
+      type: object
+      additionalProperties: false
+      required:
+        - perfil
+        - version
+        - declaracionId
+        - relacionId
+        - flujoId
+        - generacionId
+        - installationDeclaranteId
+        - familia
+        - tipo
+        - inicioPosicion
+        - finPosicion
+        - causa
+        - rutasAlternativasAgotadas
+        - declaradaEnOrigenUtc
+      properties:
+        perfil: {type: string, const: sentinelia-federacion-disponibilidad-v1}
+        version: {type: integer, const: 1}
+        declaracionId: {type: string, format: uuid}
+        relacionId: {$ref: "#/components/schemas/FederationRelationId"}
+        flujoId: {$ref: "#/components/schemas/FederationFlowId"}
+        generacionId: {$ref: "#/components/schemas/FederationGenerationId"}
+        installationDeclaranteId: {$ref: "#/components/schemas/FederationInstallationId"}
+        familia: {type: string}
+        tipo:
+          type: string
+          enum: [rangoDisponible, huecoRecuperable, huecoIrrecuperable]
+        inicioPosicion: {type: string, pattern: '^[1-9][0-9]*$'}
+        finPosicion: {type: string, pattern: '^[1-9][0-9]*$'}
+        causa:
+          type: string
+          enum: [inventarioFuente, retencionEmisor, saturacionRetencion, ausenciaConfirmada, restauracionIncoherente]
+        rutasAlternativasAgotadas: {type: boolean}
+        declaradaEnOrigenUtc: {type: string, format: date-time}
+    FederationAvailabilityDeclarationState:
+      type: object
+      additionalProperties: false
+      required:
+        - declaracionId
+        - relacionId
+        - flujoId
+        - generacionId
+        - installationDeclaranteId
+        - familia
+        - tipo
+        - inicioPosicion
+        - finPosicion
+        - causa
+        - rutasAlternativasAgotadas
+        - declaradaEnOrigenUtc
+        - recibidaEnUtc
+        - aplicadaCursor
+        - yaConocida
+      properties:
+        declaracionId: {type: string, format: uuid}
+        relacionId: {$ref: "#/components/schemas/FederationRelationId"}
+        flujoId: {$ref: "#/components/schemas/FederationFlowId"}
+        generacionId: {$ref: "#/components/schemas/FederationGenerationId"}
+        installationDeclaranteId: {$ref: "#/components/schemas/FederationInstallationId"}
+        familia: {type: string}
+        tipo:
+          type: string
+          enum: [rangoDisponible, huecoRecuperable, huecoIrrecuperable]
+        inicioPosicion: {type: string, pattern: '^[1-9][0-9]*$'}
+        finPosicion: {type: string, pattern: '^[1-9][0-9]*$'}
+        causa: {type: string}
+        rutasAlternativasAgotadas: {type: boolean}
+        declaradaEnOrigenUtc: {type: string, format: date-time}
+        recibidaEnUtc: {type: string, format: date-time}
+        aplicadaCursor: {type: boolean}
+        yaConocida: {type: boolean}
+    FederationAvailabilityRegistrationResult:
+      type: object
+      additionalProperties: false
+      required: [declaracion, progreso, avisoPlataformaActualizado]
+      properties:
+        declaracion: {$ref: "#/components/schemas/FederationAvailabilityDeclarationState"}
+        progreso:
+          oneOf:
+            - {$ref: "#/components/schemas/FederationReceptionProgress"}
+            - {type: "null"}
+        avisoPlataformaActualizado: {type: boolean}
+    FederationInstallationId:
+      type: string
+      pattern: '^sfid1\.instalacion\.[A-Za-z0-9_-]{21}[AQgw]$'
+      examples: [sfid1.instalacion.AAAAAAAAAAAAAAAAAAAAAA]
+    FederationBootId:
+      type: string
+      pattern: '^sfid1\.arranque\.[A-Za-z0-9_-]{21}[AQgw]$'
+      examples: [sfid1.arranque.BBBBBBBBBBBBBBBBBBBBBQ]
+    FederationRelationId:
+      type: string
+      pattern: '^sfid1\.relacion\.[A-Za-z0-9_-]{21}[AQgw]$'
+      examples: [sfid1.relacion.CCCCCCCCCCCCCCCCCCCCCg]
+    FederationConcessionRevisionId:
+      type: string
+      pattern: '^sfid1\.revision_concesion\.[A-Za-z0-9_-]{21}[AQgw]$'
+    FederationInvitationId:
+      type: string
+      pattern: '^sfinv1_[A-Za-z0-9_-]{21}[AQgw]$'
+      examples: [sfinv1_DDDDDDDDDDDDDDDDDDDDDw]
+    TemporaryEstablishmentCredential:
+      type: string
+      writeOnly: true
+      pattern: '^sft1_[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$'
+      description: Secreto temporal de alta, visible una vez y no reutilizable.
+    TemporaryRecoveryCredential:
+      type: string
+      writeOnly: true
+      pattern: '^sfrt1_[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$'
+    FederationRecoveryId:
+      type: string
+      pattern: '^sfrec1_[A-Za-z0-9_-]{21}[AQgw]$'
+    FederationUuidV7:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+    FederationUtcInstant:
+      type: string
+      format: date-time
+      pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$'
+    FederationFlowId:
+      type: string
+      pattern: '^sfid1\.flujo\.[A-Za-z0-9_-]{21}[AQgw]$'
+    FederationGenerationId:
+      type: string
+      pattern: '^sfid1\.generacion\.[A-Za-z0-9_-]{21}[AQgw]$'
+    FederationBatchId:
+      type: string
+      pattern: '^sfid1\.lote\.[A-Za-z0-9_-]{21}[AQgw]$'
+    FederationDeliveryId:
+      type: string
+      pattern: '^sfid1\.entrega\.[A-Za-z0-9_-]{21}[AQgw]$'
+    FederationOriginElementId:
+      type: string
+      pattern: '^sfid1\.elemento_origen\.[A-Za-z0-9_-]{21}[AQgw]$'
+    FederationOriginOccurrenceId:
+      type: string
+      pattern: '^sfid1\.ocurrencia_origen\.[A-Za-z0-9_-]{21}[AQgw]$'
+    FederationUnsignedDecimal:
+      type: string
+      pattern: '^(0|[1-9][0-9]*)$'
+      description: Entero decimal sin pérdida de precisión JSON.
+    FederationPositiveDecimal:
+      type: string
+      pattern: '^[1-9][0-9]*$'
+      description: Entero decimal positivo sin pérdida de precisión JSON.
+    FederationUint64Decimal:
+      type: string
+      pattern: '^([1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]|1844674407370955161[0-5])$'
+      description: Entero decimal positivo dentro del rango SQL UNSIGNED BIGINT.
+    FederationUint64OrZeroDecimal:
+      oneOf:
+        - {const: "0"}
+        - {$ref: "#/components/schemas/FederationUint64Decimal"}
+    FederationFamily:
+      type: string
+      enum:
+        - estructuraOrganizativa
+        - monitores
+        - telemetria
+        - triggersInformativos
+        - auditoria
+        - avisosFederados
+        - contextoOperativoAgentesSesiones
+    FederationScope:
+      type: object
+      additionalProperties: false
+      required: [nivel, tenantId, empresaId, sitioId]
+      properties:
+        nivel: {enum: [portal, tenant, empresa, sitio]}
+        tenantId: {type: [string, "null"], minLength: 1, maxLength: 20}
+        empresaId: {type: [string, "null"], minLength: 1, maxLength: 20}
+        sitioId: {type: [string, "null"], minLength: 1, maxLength: 20}
+      description: >
+        Jerarquía coherente: portal no declara identidades; tenant declara
+        tenantId; empresa añade empresaId; sitio añade sitioId.
+    FederationPresentField:
+      type: object
+      additionalProperties: false
+      required: [estado, sensibilidad, valor]
+      properties:
+        estado: {const: presente}
+        sensibilidad: {enum: [ordinario, sensible]}
+        valor: {}
+    FederationOmittedField:
+      type: object
+      additionalProperties: false
+      required: [estado, causa]
+      properties:
+        estado: {const: omitido}
+        causa:
+          enum: [omitidoPorSeleccion, protegido, noAutorizado, ausenteEnOrigen]
+    FederationWithdrawnField:
+      type: object
+      additionalProperties: false
+      required: [estado]
+      properties:
+        estado: {const: retirado}
+    FederationFieldDeclaration:
+      oneOf:
+        - {$ref: "#/components/schemas/FederationPresentField"}
+        - {$ref: "#/components/schemas/FederationOmittedField"}
+        - {$ref: "#/components/schemas/FederationWithdrawnField"}
+    FederationOriginOccurrence:
+      type: object
+      additionalProperties: false
+      required:
+        - perfil
+        - perfilCanonico
+        - protocoloVersion
+        - familia
+        - familiaVersion
+        - installationOrigenId
+        - elementoOrigenId
+        - ocurrenciaOrigenId
+        - secuenciaElemento
+        - operacion
+        - tiempoOrigenUtc
+        - scopeOrigenDeclarado
+        - vigenciaRestanteMs
+        - campos
+        - evidenciaIntegridad
+      properties:
+        perfil: {const: sentinelia-federacion-ocurrencia-origen-v1}
+        perfilCanonico: {const: sentinelia-federacion-json-canonico-v1}
+        protocoloVersion: {const: 1}
+        familia: {$ref: "#/components/schemas/FederationFamily"}
+        familiaVersion: {const: 1}
+        installationOrigenId: {$ref: "#/components/schemas/FederationInstallationId"}
+        elementoOrigenId: {$ref: "#/components/schemas/FederationOriginElementId"}
+        ocurrenciaOrigenId: {$ref: "#/components/schemas/FederationOriginOccurrenceId"}
+        secuenciaElemento: {$ref: "#/components/schemas/FederationPositiveDecimal"}
+        operacion: {enum: [actualizacion, retirada, salidaProyeccion]}
+        tiempoOrigenUtc: {$ref: "#/components/schemas/FederationUtcInstant"}
+        scopeOrigenDeclarado: {$ref: "#/components/schemas/FederationScope"}
+        vigenciaRestanteMs:
+          oneOf:
+            - {$ref: "#/components/schemas/FederationUnsignedDecimal"}
+            - {type: "null"}
+        campos:
+          type: object
+          additionalProperties: {$ref: "#/components/schemas/FederationFieldDeclaration"}
+        evidenciaIntegridad:
+          type: array
+          items: {}
+      description: >
+        Una actualización contiene al menos un campo. Retirada y salida de
+        proyección no contienen campos ni vigencia. Auditoría no admite retirada.
+    FederationDataDelivery:
+      type: object
+      additionalProperties: false
+      required: [entregaId, posicionFlujo, ocurrencia]
+      properties:
+        entregaId: {$ref: "#/components/schemas/FederationDeliveryId"}
+        posicionFlujo: {$ref: "#/components/schemas/FederationUint64Decimal"}
+        ocurrencia: {$ref: "#/components/schemas/FederationOriginOccurrence"}
+    FederationDataBatchRequest:
+      type: object
+      additionalProperties: false
+      required: [loteId, relacionId, flujoId, generacionId, entregas]
+      properties:
+        loteId: {$ref: "#/components/schemas/FederationBatchId"}
+        relacionId: {$ref: "#/components/schemas/FederationRelationId"}
+        flujoId: {$ref: "#/components/schemas/FederationFlowId"}
+        generacionId: {$ref: "#/components/schemas/FederationGenerationId"}
+        entregas:
+          type: array
+          minItems: 1
+          maxItems: 5000
+          items: {$ref: "#/components/schemas/FederationDataDelivery"}
+          description: entregaId y posicionFlujo no pueden repetirse dentro del lote.
+    FederationFamilyVersions:
+      type: object
+      minProperties: 1
+      propertyNames:
+        enum:
+          - estructuraOrganizativa
+          - monitores
+          - telemetria
+          - triggersInformativos
+          - auditoria
+          - avisosFederados
+          - contextoOperativoAgentesSesiones
+      additionalProperties:
+        const: 1
+    FederationReceiverCapacity:
+      type: object
+      additionalProperties: false
+      required:
+        - perfil
+        - protocoloVersion
+        - disponible
+        - prioridadOperativaActual
+        - maximoOcurrenciasPorLote
+        - maximoBytesPorLote
+        - maximoBytesPorOcurrencia
+        - capacidadTemporalOcurrencias
+        - toleranciaTemporalMs
+        - familiasSoportadas
+        - versionesFamilia
+      properties:
+        perfil: {const: sentinelia-federacion-capacidad-receptora-v1}
+        protocoloVersion: {const: 1}
+        disponible: {type: boolean}
+        prioridadOperativaActual: {type: boolean}
+        maximoOcurrenciasPorLote: {type: integer, minimum: 1, maximum: 5000}
+        maximoBytesPorLote: {type: integer, minimum: 1024, maximum: 16777216}
+        maximoBytesPorOcurrencia: {type: integer, minimum: 512, maximum: 2097152}
+        capacidadTemporalOcurrencias: {type: integer, minimum: 0, maximum: 100000}
+        toleranciaTemporalMs: {type: integer, minimum: 0, maximum: 300000}
+        familiasSoportadas:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/FederationFamily"}
+        versionesFamilia: {$ref: "#/components/schemas/FederationFamilyVersions"}
+    FederationAppliedCapacity:
+      type: object
+      additionalProperties: false
+      required:
+        - versionConfiguracion
+        - disponible
+        - familiasSoportadas
+        - versionesFamilia
+        - maximoOcurrenciasPorLote
+        - maximoBytesPorLote
+        - maximoBytesPorOcurrencia
+        - capacidadTemporalOcurrencias
+      properties:
+        versionConfiguracion: {$ref: "#/components/schemas/FederationUint64OrZeroDecimal"}
+        disponible: {type: boolean}
+        familiasSoportadas:
+          oneOf:
+            - type: array
+              uniqueItems: true
+              items: {$ref: "#/components/schemas/FederationFamily"}
+            - {type: "null"}
+        versionesFamilia:
+          oneOf:
+            - {$ref: "#/components/schemas/FederationFamilyVersions"}
+            - {type: "null"}
+        maximoOcurrenciasPorLote: {type: integer, minimum: 1, maximum: 5000}
+        maximoBytesPorLote: {type: integer, minimum: 1024, maximum: 16777216}
+        maximoBytesPorOcurrencia: {type: integer, minimum: 512, maximum: 2097152}
+        capacidadTemporalOcurrencias: {type: integer, minimum: 0, maximum: 100000}
+    FederationDeliveryResult:
+      type: object
+      additionalProperties: false
+      required:
+        - entregaId
+        - posicionFlujo
+        - clasificacion
+        - resultado
+        - errorTerminal
+        - errorTemporal
+        - confirmada
+        - reutilizado
+        - persistidoDurablemente
+      properties:
+        entregaId: {$ref: "#/components/schemas/FederationDeliveryId"}
+        posicionFlujo: {$ref: "#/components/schemas/FederationUint64Decimal"}
+        clasificacion: {enum: [terminal, temporal]}
+        resultado:
+          enum:
+            - aceptada
+            - yaConocida
+            - retiradaAceptada
+            - salidaAceptada
+            - descartadaPorRetencion
+            - rechazadaDefinitiva
+            - divergente
+            - aplazadaCapacidad
+            - aplazadaValidacion
+        errorTerminal:
+          oneOf:
+            - {$ref: "#/components/schemas/FederationTerminalError"}
+            - {type: "null"}
+        errorTemporal:
+          oneOf:
+            - {$ref: "#/components/schemas/FederationTemporaryError"}
+            - {type: "null"}
+        confirmada:
+          type: boolean
+          description: Solo true tras persistencia durable de una aceptación terminal.
+        reutilizado:
+          type: boolean
+          description: Indica recuperación de un resultado terminal anterior.
+        persistidoDurablemente: {const: true}
+    FederationTerminalError:
+      type: string
+      enum:
+        - identidadNoVinculada
+        - identidadDuplicada
+        - retornoPropioIncompatible
+        - credencialInvalida
+        - credencialVencida
+        - autoridadActualInsuficiente
+        - concesionInexistente
+        - concesionRevocada
+        - scopeIncompatible
+        - versionProtocoloIncompatible
+        - versionFamiliaIncompatible
+        - recorridoCiclicoDestino
+        - ocurrenciaInvalida
+        - divergenciaContenido
+        - descarteRetencionDivergente
+        - loteExcedeLimites
+        - ocurrenciaExcedeLimite
+    FederationTemporaryError:
+      type: string
+      enum:
+        - desfaseTemporalNoTolerable
+        - capacidadTemporalAgotada
+        - dependenciaValidacionTemporal
+        - relacionTemporalmenteDetenida
+    FederationTerminalRange:
+      type: object
+      additionalProperties: false
+      required: [inicio, fin, contieneDegradacion]
+      properties:
+        inicio: {$ref: "#/components/schemas/FederationUint64Decimal"}
+        fin: {$ref: "#/components/schemas/FederationUint64Decimal"}
+        contieneDegradacion: {type: boolean}
+    FederationReceptionProgress:
+      type: object
+      additionalProperties: false
+      required:
+        - flujoId
+        - generacionId
+        - posicionTerminalContigua
+        - fronteraInicial
+        - fronteraInicialRecorrida
+        - fronteraInicialDegradada
+        - prefijoDegradado
+        - version
+        - rangosTerminalesDispersos
+      properties:
+        flujoId: {$ref: "#/components/schemas/FederationFlowId"}
+        generacionId: {$ref: "#/components/schemas/FederationGenerationId"}
+        posicionTerminalContigua: {$ref: "#/components/schemas/FederationUint64OrZeroDecimal"}
+        fronteraInicial: {$ref: "#/components/schemas/FederationUnsignedDecimal"}
+        fronteraInicialRecorrida: {type: boolean}
+        fronteraInicialDegradada: {type: boolean}
+        prefijoDegradado: {type: boolean}
+        version: {$ref: "#/components/schemas/FederationUint64Decimal"}
+        rangosTerminalesDispersos:
+          type: array
+          items: {$ref: "#/components/schemas/FederationTerminalRange"}
+    FederationDataBatchResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - loteId
+        - intentoId
+        - numeroIntento
+        - clase
+        - estado
+        - persistidoDurablemente
+        - capacidad
+        - progreso
+        - resultados
+      properties:
+        loteId: {$ref: "#/components/schemas/FederationBatchId"}
+        intentoId: {$ref: "#/components/schemas/FederationUint64Decimal"}
+        numeroIntento: {$ref: "#/components/schemas/FederationUint64Decimal"}
+        clase: {enum: [inicial, reintento, replayTerminal]}
+        estado: {enum: [terminal, parcialTemporal]}
+        persistidoDurablemente: {const: true}
+        capacidad: {$ref: "#/components/schemas/FederationAppliedCapacity"}
+        progreso: {$ref: "#/components/schemas/FederationReceptionProgress"}
+        resultados:
+          type: array
+          minItems: 1
+          items: {$ref: "#/components/schemas/FederationDeliveryResult"}
+    PortableFederationRecovery:
+      type: object
+      additionalProperties: false
+      required: [perfil, version, destino, recuperacionId, credencialTemporal, expiraEnUtc]
+      properties:
+        perfil: {const: sentinelia-federacion-recuperacion-v1}
+        version: {const: 1}
+        destino:
+          type: object
+          additionalProperties: false
+          required: [origenPublico, installationId, relacionId]
+          properties:
+            origenPublico: {type: string, format: uri, pattern: '^https://[^/@?#]+$'}
+            installationId: {$ref: "#/components/schemas/FederationInstallationId"}
+            relacionId: {$ref: "#/components/schemas/FederationRelationId"}
+        recuperacionId: {$ref: "#/components/schemas/FederationRecoveryId"}
+        credencialTemporal: {$ref: "#/components/schemas/TemporaryRecoveryCredential"}
+        expiraEnUtc: {$ref: "#/components/schemas/FederationUtcInstant"}
+    PortableFederationInvitation:
+      type: object
+      additionalProperties: false
+      required:
+        - perfil
+        - version
+        - destino
+        - invitacionId
+        - credencialTemporal
+        - expiraEnUtc
+      properties:
+        perfil:
+          const: sentinelia-federacion-invitacion-v1
+        version:
+          const: 1
+        destino:
+          type: object
+          additionalProperties: false
+          required: [origenPublico, installationId, relacionId]
+          properties:
+            origenPublico:
+              type: string
+              format: uri
+              pattern: '^https://[^/@?#]+$'
+            installationId:
+              $ref: "#/components/schemas/FederationInstallationId"
+            relacionId:
+              $ref: "#/components/schemas/FederationRelationId"
+        invitacionId:
+          $ref: "#/components/schemas/FederationInvitationId"
+        credencialTemporal:
+          $ref: "#/components/schemas/TemporaryEstablishmentCredential"
+        expiraEnUtc:
+          $ref: "#/components/schemas/FederationUtcInstant"
+    ExchangeInvitationRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - invitacion
+        - installationEmisoraId
+        - bootEmisorId
+        - nombreEmisorDeclarado
+        - compatibilidad
+        - solicitudCanjeId
+      properties:
+        invitacion:
+          $ref: "#/components/schemas/PortableFederationInvitation"
+        installationEmisoraId:
+          $ref: "#/components/schemas/FederationInstallationId"
+        bootEmisorId:
+          $ref: "#/components/schemas/FederationBootId"
+        nombreEmisorDeclarado:
+          type: string
+          minLength: 1
+          maxLength: 191
+        compatibilidad:
+          type: object
+          additionalProperties: false
+          required: [protocoloVersion, productoVersion]
+          properties:
+            protocoloVersion:
+              type: integer
+              minimum: 1
+            productoVersion:
+              type: string
+              minLength: 1
+              maxLength: 64
+        solicitudCanjeId:
+          $ref: "#/components/schemas/FederationUuidV7"
+          description: Identidad UUIDv7 nueva para este intento irrepetible de canje.
+    ExchangeInvitationResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - ok
+        - relacionReceptoraId
+        - installationReceptoraId
+        - secretoPersistente
+        - estado
+      properties:
+        ok:
+          const: true
+        relacionReceptoraId:
+          $ref: "#/components/schemas/FederationRelationId"
+        installationReceptoraId:
+          $ref: "#/components/schemas/FederationInstallationId"
+        secretoPersistente:
+          type: string
+          pattern: '^sfr1_[A-Za-z0-9_-]{64}$'
+          x-sentinelia-backend-only: true
+          description: >
+            Se entrega una vez al backend y nunca debe llegar al navegador,
+            logs, URL ni auditoría.
+        estado:
+          const: pendienteConfirmacionIdentidad
+    FederationLoginRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - relacionId
+        - installationEmisoraId
+        - bootEmisorId
+        - loginRequestId
+        - secretoPersistente
+      properties:
+        relacionId: {$ref: "#/components/schemas/FederationRelationId"}
+        installationEmisoraId: {$ref: "#/components/schemas/FederationInstallationId"}
+        bootEmisorId: {$ref: "#/components/schemas/FederationBootId"}
+        loginRequestId:
+          $ref: "#/components/schemas/FederationUuidV7"
+        nombreEmisorDeclarado:
+          type: string
+          minLength: 1
+          maxLength: 191
+          description: Nombre visible autenticado; no forma parte de la identidad ni de la concesion.
+        secretoPersistente:
+          type: string
+          writeOnly: true
+          pattern: '^sfr1_[A-Za-z0-9_-]{64}$'
+    FederationRefreshRequest:
+      type: object
+      additionalProperties: false
+      required: [relacionId, sesionId, bootEmisorId, refreshRequestId]
+      properties:
+        relacionId: {$ref: "#/components/schemas/FederationRelationId"}
+        sesionId:
+          $ref: "#/components/schemas/FederationUuidV7"
+        bootEmisorId: {$ref: "#/components/schemas/FederationBootId"}
+        refreshRequestId:
+          $ref: "#/components/schemas/FederationUuidV7"
+        nombreEmisorDeclarado:
+          type: string
+          minLength: 1
+          maxLength: 191
+          description: Nombre visible autenticado; permite propagar cambios sin renovar la relacion.
+    FederationSessionResponse:
+      type: object
+      additionalProperties: false
+      required: [ok, requestId, serverTimeUtc, sesion]
+      properties:
+        ok: {const: true}
+        requestId: {$ref: "#/components/schemas/FederationUuidV7"}
+        serverTimeUtc: {$ref: "#/components/schemas/FederationUtcInstant"}
+        sesion:
+          type: object
+          additionalProperties: false
+          required:
+            - sessionId
+            - token
+            - expiresInSeconds
+            - fencingToken
+            - versionRevocacion
+          properties:
+            sessionId: {$ref: "#/components/schemas/FederationUuidV7"}
+            token:
+              type: string
+              readOnly: true
+              pattern: '^sfop1_[A-Za-z0-9_-]{64}$'
+            expiresInSeconds: {type: integer, minimum: 1}
+            fencingToken: {type: string, pattern: '^[1-9][0-9]*$'}
+            versionRevocacion: {type: string, pattern: '^[1-9][0-9]*$'}
+    FederationRecoveryExchangeRequest:
+      type: object
+      additionalProperties: false
+      required: [recuperacion, installationEmisoraId, bootEmisorId, solicitudCanjeId]
+      properties:
+        recuperacion: {$ref: "#/components/schemas/PortableFederationRecovery"}
+        installationEmisoraId: {$ref: "#/components/schemas/FederationInstallationId"}
+        bootEmisorId: {$ref: "#/components/schemas/FederationBootId"}
+        solicitudCanjeId: {$ref: "#/components/schemas/FederationUuidV7"}
+    FederationPersistentCredentialRotationRequest:
+      type: object
+      additionalProperties: false
+      required: [relacionId, sesionId, bootEmisorId, solicitudRotacionId]
+      properties:
+        relacionId: {$ref: "#/components/schemas/FederationRelationId"}
+        sesionId: {$ref: "#/components/schemas/FederationUuidV7"}
+        bootEmisorId: {$ref: "#/components/schemas/FederationBootId"}
+        solicitudRotacionId: {$ref: "#/components/schemas/FederationUuidV7"}
+    FederationPersistentCredentialResponse:
+      type: object
+      additionalProperties: false
+      required: [ok, secretoPersistente, versionCredencial, estado]
+      properties:
+        ok: {const: true}
+        relacionReceptoraId: {$ref: "#/components/schemas/FederationRelationId"}
+        installationReceptoraId: {$ref: "#/components/schemas/FederationInstallationId"}
+        solicitudRotacionId: {$ref: "#/components/schemas/FederationUuidV7"}
+        secretoPersistente:
+          type: string
+          pattern: '^sfr1_[A-Za-z0-9_-]{64}$'
+          x-sentinelia-backend-only: true
+        versionCredencial: {type: integer, minimum: 1}
+        estado: {enum: [recuperada, rotada]}
+    FederationConcessionSelection:
+      type: object
+      additionalProperties: false
+      required: [activa, nivelesScope, familias]
+      properties:
+        activa: {type: boolean}
+        nivelesScope:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {enum: [portal, tenant, empresa, sitio]}
+        familias:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: false
+            required: [campos, permiteContenidoSensible, permiteRefederacion]
+            properties:
+              campos:
+                type: array
+                uniqueItems: true
+                items: {type: string, minLength: 1, maxLength: 128}
+              permiteContenidoSensible: {type: boolean}
+              permiteRefederacion: {type: boolean}
+    FederationConcessionDeclarationExchange:
+      type: object
+      additionalProperties: false
+      required:
+        - perfil
+        - protocoloVersion
+        - intercambioId
+        - relacionId
+        - installationEmisoraId
+        - installationReceptoraId
+        - papel
+        - revisionId
+        - revisionOrdinal
+        - versionAutoridad
+        - seleccion
+        - emitidaEnUtc
+      properties:
+        perfil: {const: sentinelia-federacion-intercambio-declaracion-concesion-v1}
+        protocoloVersion: {const: 1}
+        intercambioId: {$ref: "#/components/schemas/FederationUuidV7"}
+        relacionId: {$ref: "#/components/schemas/FederationRelationId"}
+        installationEmisoraId: {$ref: "#/components/schemas/FederationInstallationId"}
+        installationReceptoraId: {$ref: "#/components/schemas/FederationInstallationId"}
+        papel: {enum: [oferta, aceptacion]}
+        revisionId: {$ref: "#/components/schemas/FederationConcessionRevisionId"}
+        revisionOrdinal: {type: string, pattern: '^[1-9][0-9]*$', maxLength: 20}
+        versionAutoridad: {type: string, pattern: '^[1-9][0-9]*$', maxLength: 20}
+        seleccion: {$ref: "#/components/schemas/FederationConcessionSelection"}
+        emitidaEnUtc: {$ref: "#/components/schemas/FederationUtcInstant"}
+    FederationConcessionDeclarationConfirmation:
+      type: object
+      additionalProperties: false
+      required:
+        - ok
+        - intercambioId
+        - relacionId
+        - revisionId
+        - estado
+        - confirmacionId
+        - recibidaEnUtc
+        - huellaSeleccion
+      properties:
+        ok: {const: true}
+        intercambioId: {$ref: "#/components/schemas/FederationUuidV7"}
+        relacionId: {$ref: "#/components/schemas/FederationRelationId"}
+        revisionId: {$ref: "#/components/schemas/FederationConcessionRevisionId"}
+        estado: {enum: [persistida, yaConocida]}
+        confirmacionId: {$ref: "#/components/schemas/FederationUuidV7"}
+        recibidaEnUtc: {$ref: "#/components/schemas/FederationUtcInstant"}
+        huellaSeleccion: {type: string, pattern: '^[0-9a-f]{64}$'}
+    FederationConcessionDeclarationPublicationResult:
+      type: object
+      additionalProperties: false
+      required:
+        - ok
+        - intercambioId
+        - relacionId
+        - revisionId
+        - estado
+        - confirmacionId
+        - recibidaEnUtc
+        - huellaSeleccion
+        - declaracionLocal
+      properties:
+        ok: {const: true}
+        intercambioId: {$ref: "#/components/schemas/FederationUuidV7"}
+        relacionId: {$ref: "#/components/schemas/FederationRelationId"}
+        revisionId: {$ref: "#/components/schemas/FederationConcessionRevisionId"}
+        estado: {enum: [persistida, yaConocida]}
+        confirmacionId: {$ref: "#/components/schemas/FederationUuidV7"}
+        recibidaEnUtc: {$ref: "#/components/schemas/FederationUtcInstant"}
+        huellaSeleccion: {type: string, pattern: '^[0-9a-f]{64}$'}
+        declaracionLocal:
+          oneOf:
+            - {$ref: "#/components/schemas/FederationConcessionDeclarationExchange"}
+            - {type: 'null'}
+    FederationInitialFlowManifest:
+      type: object
+      additionalProperties: false
+      required: [perfil, version, relacionId, ofertaId, aceptacionId, familia,
+        versionFamilia, scopeOrigenDeclarado, flujoId, generacionId, installationEmisoraId,
+        bootEmisorId, fronteraInicial]
+      properties:
+        perfil: {const: sentinelia-federacion-manifiesto-flujo-inicial-v1}
+        version: {const: 1}
+        relacionId: {$ref: "#/components/schemas/FederationRelationId"}
+        ofertaId: {$ref: "#/components/schemas/FederationConcessionRevisionId"}
+        aceptacionId: {$ref: "#/components/schemas/FederationConcessionRevisionId"}
+        familia: {$ref: "#/components/schemas/FederationFamily"}
+        versionFamilia: {type: integer, minimum: 1}
+        scopeOrigenDeclarado:
+          allOf:
+            - {$ref: "#/components/schemas/FederationScope"}
+          description: Scope concreto de la instalación emisora; no es una identidad local del receptor.
+        flujoId: {$ref: "#/components/schemas/FederationFlowId"}
+        generacionId: {$ref: "#/components/schemas/FederationGenerationId"}
+        installationEmisoraId: {$ref: "#/components/schemas/FederationInstallationId"}
+        bootEmisorId: {$ref: "#/components/schemas/FederationBootId"}
+        fronteraInicial: {$ref: "#/components/schemas/FederationUnsignedDecimal"}
+    FederationInitialFlowReconciliation:
+      type: object
+      additionalProperties: false
+      required: [estado, flujoId, generacionId, relacionId, familia,
+        revisionEfectivaId, ofertaId, aceptacionId, direccion,
+        fronteraInicial, version]
+      properties:
+        estado: {enum: [reconciliada]}
+        flujoId: {$ref: "#/components/schemas/FederationFlowId"}
+        generacionId: {$ref: "#/components/schemas/FederationGenerationId"}
+        relacionId: {$ref: "#/components/schemas/FederationRelationId"}
+        familia: {$ref: "#/components/schemas/FederationFamily"}
+        revisionEfectivaId: {$ref: "#/components/schemas/FederationConcessionRevisionId"}
+        ofertaId: {$ref: "#/components/schemas/FederationConcessionRevisionId"}
+        aceptacionId: {$ref: "#/components/schemas/FederationConcessionRevisionId"}
+        direccion: {const: recepcion}
+        fronteraInicial: {$ref: "#/components/schemas/FederationUint64OrZeroDecimal"}
+        version: {type: string, pattern: '^[1-9][0-9]*$'}
+    FederationInitialFlowManifestList:
+      type: object
+      additionalProperties: false
+      required: [relacionId, manifiestos]
+      properties:
+        relacionId: {$ref: "#/components/schemas/FederationRelationId"}
+        manifiestos:
+          type: array
+          items: {$ref: "#/components/schemas/FederationInitialFlowManifest"}
+    FederationCompatibilityDeclaration:
+      type: object
+      additionalProperties: false
+      required: [protocoloVersion, productoVersion, familiasSoportadas, versionesFamilia]
+      properties:
+        protocoloVersion: {type: integer, minimum: 1}
+        productoVersion: {type: string, minLength: 1, maxLength: 64}
+        familiasSoportadas:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^[a-z][A-Za-z0-9]{0,63}$'
+        versionesFamilia:
+          type: object
+          additionalProperties: {type: integer, minimum: 1}
+    FederationClosedTimeSample:
+      type: object
+      additionalProperties: false
+      required: [muestraId, clienteEnviaEnUtc, servidorRecibeEnUtc, servidorEnviaEnUtc, clienteRecibeEnUtc]
+      properties:
+        muestraId: {$ref: "#/components/schemas/FederationUuidV7"}
+        clienteEnviaEnUtc: {$ref: "#/components/schemas/FederationUtcInstant"}
+        servidorRecibeEnUtc: {$ref: "#/components/schemas/FederationUtcInstant"}
+        servidorEnviaEnUtc: {$ref: "#/components/schemas/FederationUtcInstant"}
+        clienteRecibeEnUtc: {$ref: "#/components/schemas/FederationUtcInstant"}
+    FederationHeartbeatRequest:
+      type: object
+      additionalProperties: false
+      required: [heartbeatRequestId, relacionId, sesionId, bootEmisorId, seq, clienteEnviaEnUtc, compatibilidad, muestraTemporalAnterior]
+      properties:
+        heartbeatRequestId: {$ref: "#/components/schemas/FederationUuidV7"}
+        relacionId: {$ref: "#/components/schemas/FederationRelationId"}
+        sesionId: {$ref: "#/components/schemas/FederationUuidV7"}
+        bootEmisorId: {$ref: "#/components/schemas/FederationBootId"}
+        seq: {type: string, pattern: '^[1-9][0-9]*$'}
+        clienteEnviaEnUtc: {$ref: "#/components/schemas/FederationUtcInstant"}
+        compatibilidad: {$ref: "#/components/schemas/FederationCompatibilityDeclaration"}
+        muestraTemporalAnterior:
+          oneOf:
+            - {$ref: "#/components/schemas/FederationClosedTimeSample"}
+            - {type: "null"}
+    FederationHeartbeatResponse:
+      type: object
+      additionalProperties: false
+      required: [ok, heartbeatRequestId, seq, presenciaTtlSeconds, relacion, muestraTemporal]
+      properties:
+        ok: {const: true}
+        heartbeatRequestId: {$ref: "#/components/schemas/FederationUuidV7"}
+        seq: {type: string, pattern: '^[1-9][0-9]*$'}
+        presenciaTtlSeconds: {type: integer, minimum: 1}
+        relacion:
+          type: object
+          additionalProperties: false
+          required: [relacionId, estado, compatibilidad, temporal]
+          properties:
+            relacionId: {$ref: "#/components/schemas/FederationRelationId"}
+            estado: {enum: [pendienteAutenticacion, vinculada]}
+            compatibilidad: {enum: [compatible, incompatible]}
+            temporal:
+              type: object
+              additionalProperties: false
+              required: [estado, desfaseEstimadoMs, rttEstimadoMs, toleranciaTemporalMs]
+              properties:
+                estado: {enum: [pendiente, tolerable, noTolerable]}
+                desfaseEstimadoMs: {type: [integer, "null"]}
+                rttEstimadoMs: {type: [integer, "null"], minimum: 0}
+                toleranciaTemporalMs: {type: integer, minimum: 0}
+        muestraTemporal:
+          type: object
+          additionalProperties: false
+          required: [muestraId, clienteEnviaEnUtc, servidorRecibeEnUtc, servidorEnviaEnUtc]
+          properties:
+            muestraId: {$ref: "#/components/schemas/FederationUuidV7"}
+            clienteEnviaEnUtc: {$ref: "#/components/schemas/FederationUtcInstant"}
+            servidorRecibeEnUtc: {$ref: "#/components/schemas/FederationUtcInstant"}
+            servidorEnviaEnUtc: {$ref: "#/components/schemas/FederationUtcInstant"}
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [ok, codigo, mensaje]
+      properties:
+        ok:
+          const: false
+        codigo:
+          type: string
+        mensaje:
+          type: string
+    DataCapacityProblem:
+      type: object
+      additionalProperties: false
+      required: [ok, codigo, mensaje, capacidad]
+      properties:
+        ok: {const: false}
+        codigo: {const: lote_excede_limites}
+        mensaje: {type: string}
+        capacidad: {$ref: "#/components/schemas/FederationAppliedCapacity"}
+  responses:
+    BadRequest:
+      description: Representación sintácticamente inválida.
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    InvitationRejected:
+      description: La credencial temporal no autentica esta invitación.
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    AuthenticationRejected:
+      description: El secreto persistente o la relación no permiten autenticar el salto.
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    SessionNotLive:
+      description: La credencial operativa caducó, fue sustituida o quedó revocada.
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    SessionResponseGone:
+      description: La operación existe, pero su respuesta secreta ya no vive en Redis.
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    IdentityConflict:
+      description: La identidad presentada entra en conflicto con conocimiento previo.
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    InvitationGone:
+      description: La invitación expiró, fue revocada, consumida o perdió su respuesta irrepetible.
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    UnprocessableEntity:
+      description: El contrato es reconocible, pero sus datos no son coherentes.
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    ServiceUnavailable:
+      description: >
+        La recepción pública no está preparada por la configuración vigente
+        (`RECEPCION_FEDERACION_NO_PREPARADA`) o una dependencia durable necesaria
+        para completar la operación no está disponible.
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    DataConflict:
+      description: >
+        La identidad, composición, generación, autoridad o compatibilidad
+        vigente entra en conflicto con la operación solicitada.
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    DataBatchTooLarge:
+      description: >
+        El lote supera los límites vigentes y debe reagruparse respetando la
+        capacidad receptora comunicada en la respuesta saneada.
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/DataCapacityProblem"}
+    ConcessionConfirmationNotFound:
+      description: No existe una confirmación durable para ese intercambio y relación.
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    DataProgressNotFound:
+      description: No existe cursor receptor durable para ese flujo y generación.
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}

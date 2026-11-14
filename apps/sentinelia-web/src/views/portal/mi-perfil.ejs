@@ -1,0 +1,654 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const contexto = perfil.contextoActual || {};
+  const estaImpersonado = Boolean(contexto.impersonacionActiva);
+  const permisosActivos = perfil.permisosActivosDetalle || [];
+  const gestionPerfil =
+    typeof autogestionPerfil !== 'undefined' ? autogestionPerfil : {};
+  const autorizada = Boolean(gestionPerfil.autorizada);
+  const gestionDisponible = Boolean(gestionPerfil.disponible);
+  const estadoEmail = gestionPerfil.email || {};
+  const operacionEmail = estadoEmail.operacionPendiente || null;
+  const etiquetaScope = {
+    portal: 'Portal',
+    tenant: 'Tenant',
+    empresa: 'Empresa',
+    sitio: 'Sitio'
+  }[perfil.nivelScope] || perfil.nivelScope || 'Sin alcance';
+  const escaparHtmlTooltip = (valor) => String(valor ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+  const nombreTenantAlcance = perfil.tenantNombre || 'Tenant';
+  const nombreEmpresaAlcance = perfil.empresaNombre || 'Empresa';
+  const nombreSitioAlcance = perfil.sitioNombre || 'Sitio';
+  const nombreAlcanceHero = perfil.nivelScope === 'sitio'
+    ? nombreSitioAlcance
+    : (perfil.nivelScope === 'empresa'
+        ? nombreEmpresaAlcance
+        : (perfil.nivelScope === 'tenant' ? nombreTenantAlcance : 'Portal completo'));
+  const descripcionEntidadAlcance = (tipo, nombre, id) => {
+    const nombreSeguro = escaparHtmlTooltip(nombre);
+    const idSeguro = escaparHtmlTooltip(id ?? 'no disponible');
+    return `${tipo} <strong>${nombreSeguro}</strong>, que tiene la ID <strong>${idSeguro}</strong>`;
+  };
+  let detalleAlcanceTooltip = 'Esta sesión puede operar sobre todo el portal; no está limitada a un tenant, empresa o sitio concreto.';
+  if (perfil.nivelScope === 'tenant') {
+    detalleAlcanceTooltip = `Esta sesión está limitada al ${descripcionEntidadAlcance('tenant', nombreTenantAlcance, perfil.tenantId)}.`;
+  } else if (perfil.nivelScope === 'empresa') {
+    detalleAlcanceTooltip = `Esta sesión está limitada a la ${descripcionEntidadAlcance('empresa', nombreEmpresaAlcance, perfil.empresaId)}. Pertenece al ${descripcionEntidadAlcance('tenant', nombreTenantAlcance, perfil.tenantId)}.`;
+  } else if (perfil.nivelScope === 'sitio') {
+    detalleAlcanceTooltip = `Esta sesión está limitada al ${descripcionEntidadAlcance('sitio', nombreSitioAlcance, perfil.sitioId)}. Pertenece a la ${descripcionEntidadAlcance('empresa', nombreEmpresaAlcance, perfil.empresaId)} y al ${descripcionEntidadAlcance('tenant', nombreTenantAlcance, perfil.tenantId)}.`;
+  }
+  const contenidoAyudaAlcance = `
+    <div class="tooltip-html-denso">
+      <strong>Alcance de la sesión</strong>
+      <p>Determina qué información y operaciones puedes consultar o gestionar.</p>
+      <p>${detalleAlcanceTooltip}</p>
+    </div>
+  `;
+  let instruccionesEmailNoValidado;
+  if (operacionEmail) {
+    instruccionesEmailNoValidado = `Abre el mensaje enviado a <strong>${escaparHtmlTooltip(operacionEmail.emailCandidato)}</strong> y utiliza el enlace de verificación antes de que expire.`;
+  } else if (estadoEmail.correoOperativo) {
+    instruccionesEmailNoValidado = 'Desbloquea la edición y pulsa <strong>Enviar verificación</strong>. Recibirás un mensaje con el enlace que confirma que esta dirección te pertenece.';
+  } else {
+    instruccionesEmailNoValidado = 'La verificación no puede iniciarse mientras el correo saliente del portal no esté operativo. Contacta con la persona que administra la plataforma.';
+  }
+  const contenidoAyudaEmailNoValidado = `
+    <div class="tooltip-html-denso">
+      <strong>Correo sin validar</strong>
+      <p>La dirección está guardada, pero todavía no se ha confirmado que te pertenece.</p>
+      <p>${instruccionesEmailNoValidado}</p>
+    </div>
+  `;
+  const presentacionPermisos = {
+    ver: {
+      etiqueta: 'Acceder al panel',
+      descripcion: 'Consultar el panel operativo.'
+    },
+    verTriggers: {
+      etiqueta: 'Ver acciones',
+      descripcion: 'Consultar el catálogo y la actividad registrada de las automatizaciones.'
+    },
+    editarTriggers: {
+      etiqueta: 'Editar acciones',
+      descripcion: 'Crear y administrar acciones automáticas reutilizables.'
+    },
+    gestionarVinculosTriggers: {
+      etiqueta: 'Gestionar enlaces monitor–acción',
+      descripcion: 'Crear y mantener los enlaces entre monitores y acciones automáticas.'
+    },
+    publicarDns: {
+      descripcion: 'Publicar configuraciones DNS válidas en el servidor autorizado.'
+    },
+    administrarConfiguracion: {
+      descripcion: 'Modificar la configuración del portal y del correo.'
+    },
+    administrarOrganizacion: {
+      descripcion: 'Administrar toda la estructura organizativa.'
+    },
+    configurarEmisionesFederacion: {
+      descripcion: 'Elegir qué datos se comparten con otras instalaciones.'
+    },
+    configurarRecepcionesFederacion: {
+      descripcion: 'Elegir qué datos se aceptan desde otras instalaciones.'
+    },
+    transferirResponsabilidadFederacion: {
+      descripcion: 'Transferir a otra instalación la responsabilidad sobre una relación.'
+    },
+    verDiagnosticoFederacion: {
+      descripcion: 'Consultar el estado y la continuidad de las relaciones con otras instalaciones.'
+    },
+    verAlertasRemotas: {
+      descripcion: 'Consultar alertas recibidas desde otras instalaciones autorizadas.'
+    }
+  };
+  const presentarPermiso = (permiso) => {
+    const presentacion = presentacionPermisos[permiso.claveModelo] || {};
+    return {
+      ...permiso,
+      etiqueta: presentacion.etiqueta || permiso.etiqueta,
+      descripcion: (presentacion.descripcion || permiso.descripcion || '')
+        .replaceAll('scope', 'alcance')
+        .replaceAll('triggers', 'acciones')
+        .replaceAll('bindings', 'enlaces')
+    };
+  };
+  const definicionesGruposPermisos = [
+    {
+      clave: 'consulta',
+      titulo: 'Consulta y supervisión',
+      icono: 'eye',
+      permisos: ['ver', 'verMonitores', 'verAuditoria', 'verAvisosPlataforma', 'verAlertasRemotas']
+    },
+    {
+      clave: 'automatizacion',
+      titulo: 'Automatización y DNS',
+      icono: 'lightning-charge',
+      permisos: ['verTriggers', 'editarTriggers', 'gestionarVinculosTriggers', 'verDns', 'editarDns', 'publicarDns', 'administrarDnsAvanzado']
+    },
+    {
+      clave: 'administracion',
+      titulo: 'Administración',
+      icono: 'sliders',
+      permisos: ['editar', 'administrarUsuarios', 'administrarConfiguracion', 'verAgentes', 'modificarAgentes', 'eliminarAgentes', 'administrarOrganizacion', 'administrarTenants', 'administrarEmpresas', 'administrarSitios']
+    },
+    {
+      clave: 'federacion',
+      titulo: 'Federación',
+      icono: 'diagram-2',
+      permisos: ['configurarEmisionesFederacion', 'configurarRecepcionesFederacion', 'activarRelacionesFederacion', 'gestionarCredencialesFederacion', 'transferirResponsabilidadFederacion', 'resolverConflictosFederacion', 'verDiagnosticoFederacion']
+    }
+  ];
+  const gruposPermisos = definicionesGruposPermisos
+    .map((grupo) => ({
+      ...grupo,
+      permisos: grupo.permisos
+        .map((clave) => permisosActivos.find((permiso) => permiso.claveModelo === clave))
+        .filter(Boolean)
+        .map(presentarPermiso)
+    }))
+    .filter((grupo) => grupo.permisos.length > 0);
+%>
+
+<section
+  class="panel-general perfil-usuario"
+  data-perfil-autogestion
+  data-autorizada="<%= autorizada ? 'true' : 'false' %>"
+  data-disponible="<%= gestionDisponible ? 'true' : 'false' %>"
+  data-expira-en="<%= gestionPerfil.expiraEn || '' %>"
+>
+  <section class="hero-operativo hero-monitores perfil-usuario__hero card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-person-badge" aria-hidden="true"></i>
+              <span>Perfil operativo</span>
+            </span>
+            <div class="perfil-usuario__identidad-hero">
+              <span class="perfil-usuario__avatar" aria-hidden="true"><%= perfil.inicial %></span>
+              <div>
+                <h1 data-perfil-nombre-principal><%= perfil.nombreMostrar || perfil.nombreCompleto || perfil.usuario %></h1>
+                <p>
+                  Identidad activa en esta sesión y alcance con el que estás operando ahora.
+                </p>
+              </div>
+            </div>
+            <div class="hero-etiquetas hero-monitores__etiquetas">
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-at" aria-hidden="true"></i>
+                <span><%= perfil.usuario %></span>
+              </span>
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                <span>Alcance <%= etiquetaScope %></span>
+              </span>
+              <button
+                type="button"
+                class="insignia perfil-usuario__permisos-acceso d-inline-flex align-items-center gap-2"
+                data-bs-toggle="modal"
+                data-bs-target="#modal-permisos-perfil"
+                aria-label="Ver los <%= perfil.totalPermisosActivos %> permisos activos"
+              >
+                <i class="bi bi-shield-check" aria-hidden="true"></i>
+                <span>Ver permisos (<%= perfil.totalPermisosActivos %>)…</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis">
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-person" aria-hidden="true"></i>
+                <span class="etiqueta">Usuario</span>
+              </span>
+              <strong><%= perfil.usuario %></strong>
+              <small><%= perfil.email || 'Sin correo registrado' %></small>
+            </article>
+            <article class="kpi-resumen <%= perfil.activo ? 'kpi-resumen--ok' : 'kpi-resumen--alerta' %> hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-toggle-on" aria-hidden="true"></i>
+                <span class="etiqueta">Estado</span>
+              </span>
+              <strong><%= perfil.activo ? 'Activo' : 'Inactivo' %></strong>
+              <small><%= perfil.requiereCambioPassword ? 'Cambio de contraseña pendiente.' : 'Sesión permitida.' %></small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--neutro hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-clock-history" aria-hidden="true"></i>
+                <span class="etiqueta">Último acceso</span>
+              </span>
+              <% if (perfil.ultimoAcceso) { %>
+                <strong><time data-fecha-utc="<%= perfil.ultimoAcceso %>"><%= perfil.ultimoAcceso %></time></strong>
+              <% } else { %>
+                <strong>Sin registro</strong>
+              <% } %>
+              <small><%= Number(perfil.contadorAccesos || 0) %> accesos registrados.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--advertencia hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-bounding-box" aria-hidden="true"></i>
+                <span class="etiqueta">Alcance</span>
+              </span>
+              <strong><%= etiquetaScope %></strong>
+              <small class="perfil-usuario__alcance-detalle">
+                <span><%= nombreAlcanceHero %></span>
+                <button
+                  type="button"
+                  class="resumen-card__ayuda"
+                  data-bs-toggle="tooltip"
+                  data-bs-html="true"
+                  data-bs-placement="top"
+                  data-bs-custom-class="tooltip-html-denso-wrap"
+                  data-bs-title="<%= contenidoAyudaAlcance %>"
+                  aria-label="Explicación del alcance y sus identificadores"
+                >
+                  <i class="bi bi-info-circle" aria-hidden="true"></i>
+                </button>
+              </small>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <% if (estaImpersonado) { %>
+    <section class="perfil-usuario__aviso-impersonacion">
+      <i class="bi bi-person-check" aria-hidden="true"></i>
+      <div>
+        <strong>Modo verificación activo</strong>
+        <p>
+          Estás viendo el perfil operativo de <strong><%= contexto.nombreVisible %></strong>
+          sobre la identidad real <strong><%= contexto.nombreVisibleReal %></strong>.
+        </p>
+      </div>
+    </section>
+  <% } %>
+
+  <section class="tarjeta perfil-editor__estado" aria-labelledby="perfil-editor-titulo">
+    <div class="perfil-editor__estado-identidad">
+      <span class="perfil-editor__estado-icono" aria-hidden="true">
+        <i class="bi bi-<%= autorizada ? 'unlock' : 'lock' %>" data-perfil-estado-icono></i>
+      </span>
+      <div>
+        <h2 id="perfil-editor-titulo" data-perfil-estado-titulo>
+          <%= estaImpersonado ? 'Edición no disponible' : (autorizada ? 'Edición habilitada' : 'Editar tu perfil') %>
+        </h2>
+        <p class="texto-apoyo" data-perfil-estado-texto>
+          <% if (estaImpersonado) { %>
+            La edición del perfil no está disponible durante una impersonación.
+          <% } else if (autorizada) { %>
+            Edición autorizada temporalmente para esta sesión.
+          <% } else { %>
+            Confirma tu contraseña antes de modificar datos personales.
+          <% } %>
+        </p>
+        <% if (gestionDisponible) { %>
+          <span class="perfil-editor__vigencia <%= autorizada ? '' : 'd-none' %>" data-perfil-vigencia aria-live="polite">
+            <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+            <span data-perfil-vigencia-texto></span>
+          </span>
+        <% } %>
+      </div>
+    </div>
+    <% if (gestionDisponible) { %>
+      <div class="perfil-editor__estado-acciones">
+        <button
+          type="button"
+          class="boton-primario <%= autorizada ? 'd-none' : '' %>"
+          data-perfil-abrir-edicion
+          data-bs-toggle="modal"
+          data-bs-target="#modal-desbloquear-perfil"
+        >
+          <i class="bi bi-pencil-square" aria-hidden="true"></i>
+          <span>Editar perfil…</span>
+        </button>
+        <button
+          type="button"
+          class="boton-secundario <%= autorizada ? '' : 'd-none' %>"
+          data-perfil-cerrar-edicion
+        >
+          <i class="bi bi-lock" aria-hidden="true"></i>
+          <span>Cerrar edición</span>
+        </button>
+      </div>
+    <% } %>
+  </section>
+
+  <div class="perfil-editor__feedback" data-perfil-feedback aria-live="polite"></div>
+
+  <section class="perfil-usuario__grid perfil-editor__grid">
+    <article class="tarjeta perfil-usuario__tarjeta">
+      <div class="perfil-usuario__tarjeta-cabecera">
+        <i class="bi bi-card-heading" aria-hidden="true"></i>
+        <div>
+          <h2>Datos personales</h2>
+          <p class="texto-apoyo">Cada atributo se guarda de forma independiente.</p>
+        </div>
+      </div>
+
+      <div class="perfil-editor__campos">
+        <div class="perfil-editor__campo perfil-editor__campo--solo-lectura">
+          <span class="etiqueta">Usuario</span>
+          <strong><%= perfil.usuario %></strong>
+        </div>
+
+        <div class="perfil-editor__campo">
+          <div class="perfil-editor__campo-cabecera">
+            <div>
+              <span class="etiqueta">Nombre visible</span>
+              <strong data-perfil-valor="nombre_visible"><%= perfil.nombreMostrar || 'Sin nombre visible específico' %></strong>
+            </div>
+          </div>
+          <form
+            class="perfil-editor__formulario <%= autorizada ? '' : 'd-none' %>"
+            data-perfil-formulario="nombre_visible"
+            data-requiere-edicion
+          >
+            <label for="perfil-nombre-visible">Nuevo nombre visible</label>
+            <div class="perfil-editor__control-accion">
+              <input id="perfil-nombre-visible" name="nombre_visible" type="text" maxlength="120" required value="<%= perfil.nombreMostrar || '' %>">
+              <button type="submit" class="boton-primario">Guardar</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="perfil-editor__campo">
+          <div class="perfil-editor__campo-cabecera">
+            <div>
+              <span class="etiqueta">Nombre completo</span>
+              <strong data-perfil-valor="nombre_completo"><%= perfil.nombreCompleto || 'Sin nombre completo registrado' %></strong>
+            </div>
+          </div>
+          <form
+            class="perfil-editor__formulario <%= autorizada ? '' : 'd-none' %>"
+            data-perfil-formulario="nombre_completo"
+            data-requiere-edicion
+          >
+            <label for="perfil-nombre-completo">Nuevo nombre completo</label>
+            <div class="perfil-editor__control-accion">
+              <input id="perfil-nombre-completo" name="nombre_completo" type="text" maxlength="160" required value="<%= perfil.nombreCompleto || '' %>">
+              <button type="submit" class="boton-primario">Guardar</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="perfil-editor__campo perfil-editor__campo--email">
+          <div class="perfil-editor__campo-cabecera">
+            <div>
+              <span class="etiqueta">Correo actual</span>
+              <strong data-perfil-valor="email"><%= estadoEmail.email || perfil.email || 'Sin correo registrado' %></strong>
+            </div>
+            <span class="perfil-editor__estado-email">
+              <span class="estado-badge <%= estadoEmail.emailValidado ? 'estado-badge--activo' : 'estado-badge--pendiente' %>">
+                <%= estadoEmail.emailValidado ? 'Validado' : 'No validado' %>
+              </span>
+              <% if (!estadoEmail.emailValidado) { %>
+                <button
+                  type="button"
+                  class="resumen-card__ayuda"
+                  data-bs-toggle="tooltip"
+                  data-bs-html="true"
+                  data-bs-placement="top"
+                  data-bs-custom-class="tooltip-html-denso-wrap"
+                  data-bs-title="<%= contenidoAyudaEmailNoValidado %>"
+                  aria-label="Cómo validar el correo actual"
+                >
+                  <i class="bi bi-info-circle" aria-hidden="true"></i>
+                </button>
+              <% } %>
+            </span>
+          </div>
+
+          <% if (operacionEmail) { %>
+            <div class="perfil-editor__email-pendiente">
+              <i class="bi bi-envelope-arrow-up" aria-hidden="true"></i>
+              <div>
+                <strong>
+                  <% if (operacionEmail.pendienteAceptacionSmtp) { %>
+                    Envío de verificación pendiente
+                  <% } else { %>
+                    <%= operacionEmail.esValidacionEmailActual ? 'Validación pendiente' : 'Cambio pendiente de validación' %>
+                  <% } %>
+                </strong>
+                <p><%= operacionEmail.emailCandidato %></p>
+                <small>
+                  <% if (operacionEmail.pendienteAceptacionSmtp) { %>
+                    El plazo de 15 minutos comenzará cuando el servidor de correo acepte el mensaje.
+                  <% } else { %>
+                    Expira <time data-fecha-utc="<%= operacionEmail.expiraEn %>"><%= operacionEmail.expiraEn %></time>.
+                  <% } %>
+                </small>
+              </div>
+            </div>
+          <% } %>
+
+          <% if (gestionDisponible && !estadoEmail.correoOperativo && !estadoEmail.emailValidado) { %>
+            <p class="perfil-editor__nota">
+              <i class="bi bi-info-circle" aria-hidden="true"></i>
+              El correo saliente no está validado; los cambios se guardarán como no verificados.
+            </p>
+          <% } %>
+
+          <div class="perfil-editor__acciones-email <%= autorizada ? '' : 'd-none' %>" data-requiere-edicion>
+            <% if (!estadoEmail.emailValidado && !operacionEmail && estadoEmail.correoOperativo) { %>
+              <button type="button" class="boton-secundario" data-perfil-validar-email>
+                <i class="bi bi-envelope-check" aria-hidden="true"></i>
+                <span>Enviar verificación</span>
+              </button>
+            <% } %>
+            <% if (operacionEmail && operacionEmail.reenviable) { %>
+              <button type="button" class="boton-secundario" data-perfil-reenviar-email>
+                <i class="bi bi-send" aria-hidden="true"></i>
+                <span>Reenviar verificación</span>
+              </button>
+            <% } %>
+          </div>
+
+          <form
+            class="perfil-editor__formulario <%= autorizada ? '' : 'd-none' %>"
+            data-perfil-formulario="email"
+            data-requiere-edicion
+          >
+            <label for="perfil-email">Nuevo correo electrónico</label>
+            <div class="perfil-editor__control-accion">
+              <input id="perfil-email" name="email" type="email" maxlength="190" required value="<%= estadoEmail.email || perfil.email || '' %>">
+              <button type="submit" class="boton-primario">Guardar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </article>
+
+    <article class="tarjeta perfil-usuario__tarjeta perfil-editor__password-card" data-perfil-password-card>
+      <div class="perfil-usuario__tarjeta-cabecera">
+        <i class="bi bi-key" aria-hidden="true"></i>
+        <div>
+          <h2>Contraseña</h2>
+          <p class="texto-apoyo perfil-editor__password-descripcion">La nueva contraseña se guarda como una operación independiente.</p>
+        </div>
+      </div>
+
+      <div class="perfil-editor__bloqueado <%= autorizada ? 'd-none' : '' %>" data-perfil-bloqueado>
+        <i class="bi bi-shield-lock" aria-hidden="true"></i>
+        <p>Para cambiarla, desbloquea primero la edición de tu perfil.</p>
+      </div>
+
+      <form
+        class="perfil-editor__password <%= autorizada ? '' : 'd-none' %>"
+        data-perfil-formulario="password"
+        data-requiere-edicion
+      >
+        <input id="perfil-password-usuario" type="hidden" autocomplete="username" value="<%= perfil.usuario %>">
+        <div class="perfil-editor__advertencia-password">
+          <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+          <p>Al guardar se cerrarán esta sesión y todas las demás sesiones de tu usuario.</p>
+        </div>
+        <label for="perfil-password-nueva">Nueva contraseña</label>
+        <input id="perfil-password-nueva" name="password_nuevo" type="password" autocomplete="new-password" required>
+        <label for="perfil-password-confirmacion">Confirmar contraseña</label>
+        <input id="perfil-password-confirmacion" name="password_confirmacion" type="password" autocomplete="new-password" required>
+        <button type="submit" class="boton-peligro">
+          <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+          <span>Cambiar y cerrar sesiones</span>
+        </button>
+      </form>
+    </article>
+  </section>
+
+  <% if (perfil.permisos?.verAlertasRemotas) { %>
+    <section class="tarjeta perfil-usuario__tarjeta">
+      <div class="perfil-usuario__tarjeta-cabecera">
+        <i class="bi bi-bell" aria-hidden="true"></i>
+        <div>
+          <h2>Alertas remotas</h2>
+          <p class="texto-apoyo">Elige si las alertas de otras instalaciones aparecen en tu panel principal.</p>
+        </div>
+      </div>
+      <div class="perfil-editor__campo">
+        <div class="perfil-preferencia-alertas__resumen" data-perfil-bloqueado>
+          <div>
+            <strong>Mostrar en el panel principal</strong>
+            <p>Aunque las ocultes, seguirás pudiendo consultarlas desde las pantallas correspondientes.</p>
+          </div>
+          <span class="perfil-preferencia-alertas__estado" data-activo="<%= perfil.preferenciaMostrarAlertasRemotas ? 'true' : 'false' %>">
+            <%= perfil.preferenciaMostrarAlertasRemotas ? 'Mostradas' : 'Ocultas' %>
+          </span>
+        </div>
+        <form class="perfil-editor__formulario perfil-preferencia-alertas <%= autorizada ? '' : 'd-none' %>"
+              data-perfil-formulario="preferencia_mostrar_alertas_remotas"
+              data-perfil-preferencia-alertas
+              data-requiere-edicion>
+          <div class="perfil-preferencia-alertas__cabecera">
+            <label for="perfil-mostrar-alertas-remotas">
+              <strong>Mostrar en el panel principal</strong>
+            </label>
+            <div class="perfil-preferencia-alertas__control">
+              <span class="perfil-preferencia-alertas__estado"
+                    data-perfil-preferencia-alertas-estado
+                    data-activo="<%= perfil.preferenciaMostrarAlertasRemotas ? 'true' : 'false' %>"
+                    aria-live="polite">
+                <%= perfil.preferenciaMostrarAlertasRemotas ? 'Mostradas' : 'Ocultas' %>
+              </span>
+              <span class="form-check form-switch m-0">
+                <input id="perfil-mostrar-alertas-remotas"
+                       class="form-check-input"
+                       type="checkbox"
+                       role="switch"
+                       name="mostrar"
+                       aria-describedby="perfil-alertas-remotas-ayuda"
+                       <%= perfil.preferenciaMostrarAlertasRemotas ? 'checked' : '' %>>
+              </span>
+            </div>
+          </div>
+          <p id="perfil-alertas-remotas-ayuda" class="texto-apoyo mb-0">
+            Aunque las ocultes, seguirás pudiendo consultarlas desde las pantallas correspondientes.
+          </p>
+          <div class="perfil-preferencia-alertas__acciones">
+            <span class="texto-apoyo" data-perfil-preferencia-alertas-cambios aria-live="polite">Sin cambios pendientes.</span>
+            <button type="submit" class="boton-primario" data-perfil-preferencia-alertas-guardar disabled>
+              Guardar cambio
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+  <% } %>
+
+</section>
+
+<div class="modal fade" id="modal-permisos-perfil" tabindex="-1" aria-labelledby="modal-permisos-perfil-titulo" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+    <div class="modal-content perfil-editor__modal perfil-permisos-modal">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title fs-4" id="modal-permisos-perfil-titulo">Permisos activos</h2>
+          <p class="texto-apoyo mb-0">
+            <%= perfil.totalPermisosActivos %> permisos disponibles dentro de tu alcance actual.
+          </p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <% if (gruposPermisos.length > 0) { %>
+          <div class="perfil-permisos-modal__grupos">
+            <% for (const grupo of gruposPermisos) { %>
+              <section class="perfil-permisos-modal__grupo" aria-labelledby="permisos-grupo-<%= grupo.clave %>">
+                <header>
+                  <i class="bi bi-<%= grupo.icono %>" aria-hidden="true"></i>
+                  <div>
+                    <h3 id="permisos-grupo-<%= grupo.clave %>"><%= grupo.titulo %></h3>
+                    <span><%= grupo.permisos.length %> permiso<%= grupo.permisos.length === 1 ? '' : 's' %></span>
+                  </div>
+                </header>
+                <div class="perfil-usuario__permisos">
+                  <% for (const permiso of grupo.permisos) { %>
+                    <article class="perfil-usuario__permiso">
+                      <i class="bi bi-<%= permiso.icono %>" aria-hidden="true"></i>
+                      <div>
+                        <strong><%= permiso.etiqueta %></strong>
+                        <p><%= permiso.descripcion %></p>
+                      </div>
+                    </article>
+                  <% } %>
+                </div>
+              </section>
+            <% } %>
+          </div>
+        <% } else { %>
+          <div class="estado-vacio estado-vacio--compacto">
+            No hay permisos operativos disponibles para esta identidad.
+          </div>
+        <% } %>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="boton-secundario" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<% if (gestionDisponible) { %>
+  <div class="modal fade" id="modal-desbloquear-perfil" tabindex="-1" aria-labelledby="modal-desbloquear-perfil-titulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content perfil-editor__modal">
+        <form data-perfil-desbloquear>
+          <input id="perfil-desbloquear-usuario" type="hidden" autocomplete="username" value="<%= perfil.usuario %>">
+          <div class="modal-header">
+            <div>
+              <span class="etiqueta">Autorización temporal</span>
+              <h2 class="modal-title fs-5" id="modal-desbloquear-perfil-titulo">Confirma tu contraseña</h2>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <p>La autorización permitirá editar tu perfil durante 15 minutos y solo en esta sesión.</p>
+            <label for="perfil-password-actual">Contraseña actual</label>
+            <input id="perfil-password-actual" name="password_actual" type="password" autocomplete="current-password" required>
+            <div class="perfil-editor__modal-feedback" data-perfil-modal-feedback aria-live="polite"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="boton-secundario" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="boton-primario">
+              <i class="bi bi-unlock" aria-hidden="true"></i>
+              <span>Desbloquear edición</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+<% } %>
+
+<script src="/js/mi-perfil.js?v=perfil-alertas-ux-20260912"></script>
+
+<%- include('../parciales/pie') %>

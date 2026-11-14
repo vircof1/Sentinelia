@@ -1,0 +1,235 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+const puedeModificar = Boolean(contextoUsuarioActual?.permisos?.modificarAgentes);
+const etiquetasResultado = {
+  coincide: 'Requiere atención',
+  no_coincide: 'Dentro de lo esperado',
+  no_evaluable: 'Sin datos suficientes'
+};
+const etiquetasTrabajo = {
+  pendiente: 'Pendiente de evaluar',
+  procesando: 'Evaluando',
+  completado: 'Evaluación completada',
+  error: 'Se volverá a intentar'
+};
+const etiquetaResultado = (resultado) =>
+  etiquetasResultado[resultado] || 'Todavía sin evaluar';
+const etiquetaTrabajo = (estado) =>
+  etiquetasTrabajo[estado] || 'Todavía sin procesar';
+const filtroSenalActual = typeof filtroSenal !== 'undefined' ? filtroSenal : null;
+const vueltaGestionAgente = typeof retornoGestionAgente === 'string'
+  ? retornoGestionAgente : '/agentes';
+const contextoGestionAgente = vueltaGestionAgente === '/agentes'
+  ? '' : `?return_to=${encodeURIComponent(vueltaGestionAgente)}`;
+const vueltaReglas = typeof retornoReglas === 'string' ? retornoReglas : vueltaGestionAgente;
+const senalesEnReglas = [...new Map(reglas.map((regla) => [regla.senal.id, regla.senal])).values()];
+const reglasConMonitores = (monitoresPorRegla || []).filter((relacion) => relacion.total > 0);
+const totalVinculosMonitores = reglasConMonitores.reduce((total, relacion) => total + relacion.total, 0);
+const etiquetaVolver = vueltaReglas.includes('/telemetria')
+  ? 'Volver a telemetría'
+  : vueltaReglas === '/agentes' ? 'Volver a agentes' : 'Volver a gestionar agente';
+const vueltaDesdeDetalle = typeof retornoListadoReglas === 'string'
+  ? retornoListadoReglas
+  : `/agentes/${agente.id}/reglas`;
+const contextoDetalle = `?return_to=${encodeURIComponent(vueltaDesdeDetalle)}`;
+const eventos = reglas.flatMap((regla) =>
+  regla.eventosRecientes.map((evento) => ({ ...evento, regla }))
+).sort((a, b) =>
+  String(b.observadoEnUtc || '').localeCompare(String(a.observadoEnUtc || ''))
+);
+%>
+
+<section class="panel-general">
+  <section class="hero-operativo hero-monitores agente-reglas-hero card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <span class="insignia-suave hero-monitores__insignia"><i class="bi bi-bezier2" aria-hidden="true"></i> Interpretación de señales</span>
+          <h1>Reglas de interpretación de <%= agente.nombre %></h1>
+          <p>Interpreta las señales del agente. Los monitores pueden usar estas reglas para decidir cuándo actuar.</p>
+          <div class="hero-etiquetas hero-monitores__etiquetas">
+            <span class="insignia"><i class="bi bi-building" aria-hidden="true"></i> <%= agente.empresaNombre || `Empresa #${agente.empresaId}` %></span>
+            <span class="insignia"><i class="bi bi-geo-alt" aria-hidden="true"></i> <%= agente.sitioNombre || `Sitio #${agente.sitioId}` %></span>
+            <% if (filtroSenalActual) { %>
+              <span class="insignia"><i class="bi bi-funnel" aria-hidden="true"></i> Señal: <%= filtroSenalActual.codigoSenal %></span>
+              <a class="insignia" href="/agentes/<%= agente.id %>/reglas<%= vueltaReglas === '/agentes' ? '' : `?return_to=${encodeURIComponent(vueltaReglas)}` %>">Ver todas</a>
+            <% } %>
+          </div>
+          <div class="hero-monitores__acciones">
+            <a href="<%= vueltaReglas %>" class="btn btn-outline-light btn-sm">
+              <i class="bi bi-arrow-left" aria-hidden="true"></i> <%= etiquetaVolver %>
+            </a>
+            <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="collapse" data-bs-target="#agente-reglas-relaciones" aria-expanded="false" aria-controls="agente-reglas-relaciones">
+              <i class="bi bi-diagram-3" aria-hidden="true"></i> Relaciones cruzadas
+              <% if (monitoresPorRegla && totalVinculosMonitores > 0) { %><span class="badge text-bg-light ms-1"><%= totalVinculosMonitores %></span><% } %>
+            </button>
+          </div>
+          <div id="agente-reglas-relaciones" class="collapse agente-telemetria-hero__relaciones">
+            <div class="agente-telemetria-hero__relaciones-cuerpo">
+              <section class="agente-telemetria-hero__relacion agente-telemetria-hero__relacion--entrada">
+                <span class="agente-telemetria-hero__relacion-tipo"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Entradas de datos</span>
+                <strong>Agente y señales</strong>
+                <span><%= agente.nombre %> · <%= senalesEnReglas.length %> <%= senalesEnReglas.length === 1 ? 'señal' : 'señales' %> con reglas<%= filtroSenalActual ? ' en este filtro' : '' %>.</span>
+                <% for (const senal of senalesEnReglas.slice(0, 3)) { %>
+                  <span class="text-break"><i class="bi bi-activity" aria-hidden="true"></i> <%= senal.codigoSenal %></span>
+                <% } %>
+                <% if (senalesEnReglas.length > 3) { %><span>Y <%= senalesEnReglas.length - 3 %> más en el listado.</span><% } %>
+                <a href="/agentes/<%= agente.id %>/telemetria<%= contextoGestionAgente %>" class="btn btn-outline-light btn-sm">Ver telemetría</a>
+              </section>
+              <section class="agente-telemetria-hero__relacion agente-telemetria-hero__relacion--salida">
+                <span class="agente-telemetria-hero__relacion-tipo"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Salidas</span>
+                <strong>Monitores que usan estas reglas</strong>
+                <% if (monitoresPorRegla === null) { %>
+                  <span>Sin acceso para consultar monitores vinculados.</span>
+                <% } else if (reglasConMonitores.length === 0) { %>
+                  <span>Ningún monitor visible usa <%= filtroSenalActual ? 'las reglas de esta señal' : 'estas reglas' %> todavía.</span>
+                <% } else { %>
+                  <% for (const relacion of reglasConMonitores.slice(0, 3)) { const reglaRelacionada = reglas.find((regla) => regla.id === relacion.reglaId); %>
+                    <span>Regla: <%= reglaRelacionada.revisionVigente?.nombre || `#${relacion.reglaId}` %></span>
+                    <a class="btn btn-outline-light btn-sm agente-reglas-hero__enlace-relacion" href="/monitores?tipo=telemetria&amp;agente_id=<%= agente.id %>&amp;senal_id=<%= reglaRelacionada.senal.id %>&amp;regla_id=<%= relacion.reglaId %>">Ver <%= relacion.total === 1 ? 'monitor vinculado' : 'monitores vinculados' %> <span class="badge text-bg-light ms-1"><%= relacion.total %></span></a>
+                  <% } %>
+                  <% if (reglasConMonitores.length > 3) { %><span>Y <%= reglasConMonitores.length - 3 %> reglas vinculadas más.</span><% } %>
+                <% } %>
+              </section>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis">
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi"><span class="etiqueta">Reglas<%= filtroSenalActual ? ' de la señal' : '' %></span><strong><%= resumen.totalReglas %></strong></article>
+            <article class="kpi-resumen kpi-resumen--ok hero-monitores__kpi"><span class="etiqueta">Activas</span><strong><%= resumen.activas %></strong></article>
+            <article class="kpi-resumen kpi-resumen--advertencia hero-monitores__kpi"><span class="etiqueta">Requieren atención</span><strong><%= resumen.coincidentes %></strong></article>
+            <article class="kpi-resumen kpi-resumen--neutro hero-monitores__kpi"><span class="etiqueta">Incidencias técnicas</span><strong><%= resumen.conErrorTecnico %></strong></article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <% if (flashReglasTelemetria) { %>
+    <div class="alert <%= flashReglasTelemetria.tipo === 'exito' ? 'alert-success' : 'alert-danger' %> mt-4" role="alert">
+      <%= flashReglasTelemetria.mensaje %>
+    </div>
+  <% } %>
+
+  <section class="seccion-panel" id="reglas-disponibles">
+    <div class="d-flex justify-content-between align-items-end gap-3 mb-3">
+      <div><h2 class="h4 mb-1">Reglas disponibles</h2><p class="text-body-secondary mb-0">Consulta qué comprueba cada regla y el resultado de su última evaluación.</p></div>
+      <% if (puedeModificar && catalogoSenales.length > 0 && reglas.length > 0) { %>
+        <a class="btn btn-outline-primary btn-sm flex-shrink-0" href="#crear-interpretacion" data-abrir-crear-regla><i class="bi bi-plus-circle" aria-hidden="true"></i> Crear regla</a>
+      <% } %>
+    </div>
+    <% if (reglas.length === 0) { %>
+      <div class="alert alert-light border">
+        <%= filtroSenalActual
+          ? 'Esta señal todavía no tiene reglas de interpretación. Puedes crear la primera al final de esta página.'
+          : 'Este agente todavía no tiene reglas de interpretación. Puedes crear la primera al final de esta página.' %>
+      </div>
+    <% } %>
+    <div class="row g-3">
+      <% for (const regla of reglas) { %>
+        <div class="col-12 col-xl-6">
+          <article class="card shadow-sm h-100 regla-catalogo">
+            <div class="card-body">
+              <div class="d-flex justify-content-between gap-3">
+                <div>
+                  <span class="badge <%= regla.estado === 'activa' ? 'text-bg-success' : 'text-bg-secondary' %>"><%= regla.estado === 'activa' ? 'Activa' : 'Deshabilitada' %></span>
+                  <h3 class="h5 mt-2 mb-1"><%= regla.revisionVigente?.nombre || `Regla #${regla.id}` %></h3>
+                  <p class="small text-body-secondary mb-2"><%= regla.senal.codigoSenal %> · <%= regla.senal.tipoDato %><%= regla.senal.unidad ? ` · ${regla.senal.unidad}` : '' %></p>
+                </div>
+                <a href="/agentes/<%= agente.id %>/reglas/<%= regla.id %><%= contextoDetalle %>" class="btn btn-sm btn-outline-primary align-self-start">Abrir</a>
+              </div>
+              <span class="small text-body-secondary d-block">Requiere atención cuando...</span>
+              <p class="regla-catalogo__condicion mb-2"><%= regla.condicionLegible %></p>
+              <div class="small"><span class="text-body-secondary">Última evaluación:</span> <strong><%= etiquetaResultado(regla.estadoActual?.resultado) %></strong></div>
+              <% if (regla.ultimoErrorTecnico) { %>
+                <div class="alert alert-warning small mt-3 mb-0">La última evaluación tuvo una incidencia técnica. Abre los detalles para ver el diagnóstico.</div>
+              <% } %>
+              <details class="regla-catalogo__detalles mt-3">
+                <summary>Ver evaluación y datos técnicos</summary>
+                <div class="pt-3">
+                  <% if (regla.interpretacionTemporalRelativa) { %>
+                    <p class="small mb-2"><%= regla.interpretacionTemporalRelativa.resumenHumano %></p>
+                    <dl class="row small mb-3">
+                      <dt class="col-5"><%- include('parciales/ayuda-campo-temporal-relativo', { campo: 'momento' }) %></dt><dd class="col-7"><% if (regla.interpretacionTemporalRelativa.momentoUtc) { %><time data-fecha-utc="<%= regla.interpretacionTemporalRelativa.momentoUtc %>"><%= regla.interpretacionTemporalRelativa.momentoUtc %></time><% } else { %>Sin fotografía evaluada<% } %></dd>
+                      <dt class="col-5"><%- include('parciales/ayuda-campo-temporal-relativo', { campo: 'presente' }) %></dt><dd class="col-7"><% if (regla.interpretacionTemporalRelativa.ahoraUtc) { %><time data-fecha-utc="<%= regla.interpretacionTemporalRelativa.ahoraUtc %>"><%= regla.interpretacionTemporalRelativa.ahoraUtc %></time><% } else { %>Sin evaluación<% } %></dd>
+                      <dt class="col-5"><%- include('parciales/ayuda-campo-temporal-relativo', { campo: 'desviacion' }) %></dt><dd class="col-7"><%= regla.interpretacionTemporalRelativa.desviacionSegundos == null ? 'Sin evaluación' : `${regla.interpretacionTemporalRelativa.desviacionSegundos} segundos` %></dd>
+                      <dt class="col-5"><%- include('parciales/ayuda-campo-temporal-relativo', { campo: 'frontera' }) %></dt><dd class="col-7"><% if (regla.interpretacionTemporalRelativa.proximaFronteraUtc) { %><time data-fecha-utc="<%= regla.interpretacionTemporalRelativa.proximaFronteraUtc %>"><%= regla.interpretacionTemporalRelativa.proximaFronteraUtc %></time><% } else { %>No programada<% } %></dd>
+                    </dl>
+                  <% } %>
+                  <dl class="row small mb-2">
+                    <dt class="col-5">Lectura analizada</dt><dd class="col-7"><%= regla.estadoActual ? `#${regla.estadoActual.observacionId}` : 'Aún no hay datos' %></dd>
+                    <dt class="col-5">Procesamiento</dt><dd class="col-7"><%= etiquetaTrabajo(regla.ultimoTrabajo?.estado) %></dd>
+                    <dt class="col-5">Coincidencias recientes</dt><dd class="col-7"><%= regla.eventosRecientes.length %> mostradas (máximo 5)</dd>
+                  </dl>
+                  <% if (regla.ultimoErrorTecnico) { %>
+                    <p class="small mb-2"><strong><%= regla.ultimoErrorTecnico.ultimoCodigoError %></strong>: <%= regla.ultimoErrorTecnico.ultimoMensajeError %></p>
+                  <% } %>
+                  <span class="small text-body-secondary d-block mb-1">Definición técnica</span>
+                  <pre class="regla-catalogo__json mb-0"><code><%= regla.revisionVigente?.condicionCanonica || 'Sin versión activa' %></code></pre>
+                </div>
+              </details>
+            </div>
+          </article>
+        </div>
+      <% } %>
+    </div>
+  </section>
+
+  <section class="seccion-panel">
+    <% if (eventos.length === 0) { %>
+      <div class="regla-coincidencias-vacio"><i class="bi bi-check-circle" aria-hidden="true"></i> Sin coincidencias recientes en las reglas mostradas.</div>
+    <% } else { %>
+      <details class="card shadow-sm regla-coincidencias">
+        <summary class="card-body">
+          <span><strong>Coincidencias recientes</strong> <span class="badge text-bg-secondary"><%= eventos.length %></span></span>
+          <span class="small text-body-secondary">Ver lecturas que han cumplido alguna regla</span>
+        </summary>
+        <div class="card-body border-top">
+          <p class="text-body-secondary small">Son evidencia de evaluación, no alertas ni mensajes enviados por el agente.</p>
+          <div class="table-responsive"><table class="table align-middle">
+            <thead><tr><th>Regla y versión</th><th>Señal y lectura</th><th>Valor recibido</th><th>Explicación</th><th>Fecha de la lectura</th></tr></thead>
+            <tbody>
+              <% for (const item of eventos) { %>
+                <tr>
+                  <td><a href="/agentes/<%= agente.id %>/reglas/<%= item.reglaId %><%= contextoDetalle %>">Regla #<%= item.reglaId %></a><br><small>Versión #<%= item.revisionId %></small></td>
+                  <td><a href="/agentes/<%= agente.id %>/telemetria?senalId=<%= item.senalId %>&orden=desc">Señal #<%= item.senalId %></a><br><small>Lectura #<%= item.observacionId %></small></td>
+                  <td><code><%= JSON.stringify(item.valorEvaluado) %><%= item.unidad ? ` ${item.unidad}` : '' %></code></td>
+                  <td><strong><%= item.mensajeOperativo %></strong><br><small><%= item.explicacion %></small></td>
+                  <td><time data-fecha-utc="<%= item.observadoEnUtc %>"><%= item.observadoEnUtc %></time></td>
+                </tr>
+              <% } %>
+            </tbody>
+          </table></div>
+        </div>
+      </details>
+    <% } %>
+  </section>
+
+  <% if (puedeModificar) { %>
+    <section class="seccion-panel" id="crear-interpretacion">
+      <details class="card shadow-sm regla-crear" <%= reglas.length === 0 ? 'open' : '' %>>
+        <summary class="card-body">
+          <span><strong>Crear una regla de interpretación</strong><small>Define cuándo una señal requiere atención.</small></span>
+          <span class="regla-crear__accion">Ver formulario <i class="bi bi-chevron-down" aria-hidden="true"></i></span>
+        </summary>
+        <div class="card-body border-top">
+        <p class="text-body-secondary">La regla evaluará nuevas lecturas. Solo generará alertas si un monitor la utiliza.</p>
+        <% if (catalogoSenales.length === 0) { %>
+          <div class="alert alert-warning mb-0">El agente debe publicar primero su catálogo de señales.</div>
+        <% } else { %>
+          <form method="post" action="/agentes/<%= agente.id %>/reglas/crear" class="row g-3" data-regla-telemetria-form data-preview-url="/agentes/<%= agente.id %>/reglas/previsualizar">
+            <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+            <div class="col-12 col-lg-6"><label class="form-label">Señal que quieres interpretar</label><select class="form-select" name="senal_id" required data-regla-senal><% for (const senal of catalogoSenales) { %><option value="<%= senal.id %>" data-tipo="<%= senal.tipoDato %>" data-unidad="<%= senal.unidad || '' %>" data-admite-valor="<%= senal.admiteCondicionValor %>" <%= Number(filtroSenalActual?.id) === Number(senal.id) ? 'selected' : '' %>><%= senal.codigoSenal %> · <%= senal.tipoDato %><%= senal.unidad ? ` (${senal.unidad})` : '' %></option><% } %></select></div>
+            <%- include('../parciales/formulario-revision-regla-telemetria', { revision: null }) %>
+          </form>
+        <% } %>
+        </div>
+      </details>
+    </section>
+  <% } %>
+</section>
+
+<script src="/js/agente-reglas.js?v=momento-relativo-20260905"></script>
+<%- include('../parciales/pie') %>

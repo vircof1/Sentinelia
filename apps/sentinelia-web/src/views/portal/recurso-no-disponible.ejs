@@ -1,0 +1,11 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+<section class="panel-general py-5">
+  <div class="seccion-panel mx-auto" style="max-width: 760px">
+    <span class="badge text-bg-secondary mb-3">Sin acceso</span>
+    <h1>Recurso no disponible</h1>
+    <p class="lead text-body-secondary"><%= mensajeRecurso %></p>
+    <p>No se distingue entre un identificador inexistente y uno situado fuera del alcance actual.</p>
+    <a href="/agentes" class="btn btn-primary">Volver a agentes</a>
+  </div>
+</section>
+<%- include('../parciales/pie') %>

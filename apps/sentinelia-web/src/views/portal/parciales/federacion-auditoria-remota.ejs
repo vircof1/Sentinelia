@@ -1,0 +1,213 @@
+<%
+  const auditoria = typeof auditoriaRemota === 'undefined' || !auditoriaRemota
+    ? { eventos: [], cadenas: [], anclajes: [], resumen: {
+      eventos: 0, verificadas: 0, noVerificables: 0, invalidas: 0,
+      cadenas: 0, eventosSinCadena: 0, fragmentosConAtencion: 0, anclajesRetencion: 0
+    }, filtros: {} }
+    : auditoriaRemota;
+  const scopeAuditoria = (scope) => scope?.sitioId
+    ? `Tenant #${scope.tenantId} · Empresa #${scope.empresaId} · Sitio #${scope.sitioId}`
+    : scope?.empresaId
+      ? `Tenant #${scope.tenantId} · Empresa #${scope.empresaId}`
+      : scope?.tenantId
+        ? `Tenant #${scope.tenantId}`
+        : 'Portal completo';
+  const etiquetaTecnica = (valor) => String(valor || 'no declarado')
+    .replaceAll(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replaceAll(/[._-]+/g, ' ');
+  const claseValidacion = (estado) => estado === 'verificada'
+    ? 'insignia-monitor--ok'
+    : estado === 'invalida'
+      ? 'insignia-monitor--alerta'
+      : 'insignia-monitor--advertencia';
+  const claseFragmento = (estado) => estado === 'fragmentoVerificado'
+    ? 'insignia-monitor--ok'
+    : estado === 'fragmentoInvalido'
+      ? 'insignia-monitor--alerta'
+      : 'insignia-monitor--advertencia';
+  const describirActorAuditoria = (actor) => actor?.tipo && actor?.id
+    ? `${actor.tipo} · ${actor.id}`
+    : 'No declarado en la vista recibida';
+  const eventosPresentados = navegacion.subvista === 'resumen'
+    ? auditoria.eventos.slice(0, 10)
+    : auditoria.eventos;
+  const urlBaseAuditoria = `/federacion/datos-remotos?procedencia=${encodeURIComponent(auditoria.installationOrigenId || navegacion.installationOrigenId)}&vista=auditoria&subvista=${encodeURIComponent(navegacion.subvista)}`;
+%>
+
+<span class="insignia-suave">Evidencia auditable remota · solo lectura</span>
+<h2 class="mt-2"><i class="bi <%= seccionActual?.icono %>" aria-hidden="true"></i> Auditoría federada</h2>
+<p>
+  Cronología autorizada por la instalación de origen. Cada evento conserva su
+  identidad, contexto, scope y evidencia recibida sin incorporarse a la cadena
+  de auditoría local de este portal.
+</p>
+
+<div class="alert alert-warning" role="status">
+  <strong>Lectura prudente.</strong> «Verificada» confirma que el receptor pudo
+  recalcular la evidencia individual recibida. Los resúmenes de cadena describen
+  únicamente el fragmento visible; no prometen integridad global de la instancia remota.
+</div>
+
+<nav class="submenus-remotos mt-4" aria-label="Vistas de auditoría federada">
+  <% for (const subseccion of subsecciones) { %>
+    <a href="<%= urlSubvista(subseccion.id) %>"
+      class="<%= navegacion.subvista === subseccion.id ? 'activo' : '' %>"
+      <%= navegacion.subvista === subseccion.id ? 'aria-current="page"' : '' %>>
+      <%= subseccion.etiqueta %>
+    </a>
+  <% } %>
+</nav>
+
+<section class="row g-3 mt-1" aria-label="Resumen de auditoría federada">
+  <div class="col-6 col-xl"><article class="kpi-resumen kpi-resumen--suave h-100">
+    <span class="etiqueta">Eventos</span><strong><%= auditoria.resumen.eventos %></strong>
+    <small>Eventos visibles en esta lectura.</small>
+  </article></div>
+  <div class="col-6 col-xl"><article class="kpi-resumen kpi-resumen--suave h-100">
+    <span class="etiqueta">Verificados</span><strong><%= auditoria.resumen.verificadas %></strong>
+    <small>Evidencia individual recalculada.</small>
+  </article></div>
+  <div class="col-6 col-xl"><article class="kpi-resumen kpi-resumen--suave h-100">
+    <span class="etiqueta">No verificables</span><strong><%= auditoria.resumen.noVerificables %></strong>
+    <small>Limitados por la vista del origen.</small>
+  </article></div>
+  <div class="col-6 col-xl"><article class="kpi-resumen kpi-resumen--suave h-100">
+    <span class="etiqueta">Inválidos</span><strong><%= auditoria.resumen.invalidas %></strong>
+    <small>Evidencia individual incoherente.</small>
+  </article></div>
+  <div class="col-6 col-xl"><article class="kpi-resumen kpi-resumen--suave h-100">
+    <span class="etiqueta">Cadenas</span><strong><%= auditoria.resumen.cadenas %></strong>
+    <small>Fragmentos visibles diferenciados.</small>
+  </article></div>
+</section>
+
+<% if (navegacion.subvista !== 'resumen') { %>
+  <form method="get" action="/federacion/datos-remotos" class="auditoria-filtros mt-4">
+    <input type="hidden" name="procedencia" value="<%= auditoria.installationOrigenId || navegacion.installationOrigenId %>">
+    <input type="hidden" name="vista" value="auditoria">
+    <input type="hidden" name="subvista" value="<%= navegacion.subvista %>">
+    <label><span>Desde (UTC)</span><input class="form-control" type="date" name="desdeUtc" value="<%= auditoria.filtros.desdeUtc || '' %>"></label>
+    <label><span>Hasta (UTC, inclusive)</span><input class="form-control" type="date" name="hastaUtc" value="<%= auditoria.filtros.hastaUtc || '' %>"></label>
+    <label><span>Resultado</span><select class="form-select" name="resultado">
+      <option value="">Todos</option>
+      <% for (const estado of ['verificada', 'noVerificable', 'invalida']) { %><option value="<%= estado %>" <%= auditoria.filtros.resultadoValidacion === estado ? 'selected' : '' %>><%= etiquetaTecnica(estado) %></option><% } %>
+    </select></label>
+    <label><span>Clave de cadena exacta</span><input class="form-control" name="cadena" maxlength="128" value="<%= auditoria.filtros.claveCadenaOrigen || '' %>" placeholder="monitores:tenant:9"></label>
+    <label><span>Límite</span><select class="form-select" name="limiteActividad">
+      <% for (const limite of [50, 100, 200, 500]) { %><option value="<%= limite %>" <%= auditoria.filtros.limite === limite ? 'selected' : '' %>><%= limite %> eventos</option><% } %>
+    </select></label>
+    <div class="auditoria-filtros__acciones">
+      <button type="submit" class="btn btn-primary"><i class="bi bi-search" aria-hidden="true"></i> Aplicar</button>
+      <a class="btn btn-outline-secondary" href="<%= urlBaseAuditoria %>">Restablecer</a>
+    </div>
+  </form>
+<% } %>
+
+<% if (navegacion.subvista === 'resumen') { %>
+  <section class="mt-4" aria-labelledby="cadenas-auditoria-remota">
+    <h3 id="cadenas-auditoria-remota" class="h5">Integridad del fragmento visible</h3>
+    <% if (auditoria.cadenas.length === 0) { %>
+      <div class="estado-vacio-remoto mt-3"><i class="bi bi-shield-slash" aria-hidden="true"></i><div><strong>No hay fragmentos de cadena verificables visibles.</strong><br><%= auditoria.resumen.eventosSinCadena ? `${auditoria.resumen.eventosSinCadena} eventos conservan contenido auditable, pero no exponen evidencia de cadena suficiente.` : 'La instalación no ha publicado eventos auditables dentro de esta concesión y scope.' %></div></div>
+    <% } else { %>
+      <div class="row g-3 mt-1">
+        <% for (const cadena of auditoria.cadenas) { %>
+          <div class="col-12 col-xl-6"><article class="tarjeta h-100">
+            <div class="d-flex flex-wrap justify-content-between gap-2">
+              <code class="text-break"><%= cadena.claveCadenaOrigen %></code>
+              <span class="insignia-monitor <%= claseFragmento(cadena.estadoFragmento) %>"><%= etiquetaTecnica(cadena.estadoFragmento) %></span>
+            </div>
+            <div class="metadatos-configuracion mt-3">
+              <span>Eventos: <code><%= cadena.eventos %></code></span>
+              <span>Rango visible: <code><%= cadena.primeraSecuenciaVisible ?? '?' %> → <%= cadena.ultimaSecuenciaVisible ?? '?' %></code></span>
+              <span>Huecos visibles: <code><%= cadena.huecosVisibles %></code></span>
+              <span>Enlaces incoherentes: <code><%= cadena.enlacesIncoherentes %></code></span>
+            </div>
+          </article></div>
+        <% } %>
+      </div>
+    <% } %>
+  </section>
+<% } %>
+
+<% if (navegacion.subvista === 'historico') { %>
+  <section class="mt-4" aria-labelledby="retencion-auditoria-remota">
+    <h3 id="retencion-auditoria-remota" class="h5">Anclajes de retención del receptor</h3>
+    <p class="texto-apoyo">Testimonian recortes aplicados por la política local; no reconstruyen los eventos retirados.</p>
+    <% if (auditoria.anclajes.length === 0) { %>
+      <div class="estado-vacio-remoto mt-3"><i class="bi bi-archive" aria-hidden="true"></i><div><strong>No hay anclajes de retención visibles.</strong><br>No se han recortado fragmentos dentro de este scope o la política aún no lo ha requerido.</div></div>
+    <% } else { %>
+      <div class="d-grid gap-3 mt-3">
+        <% for (const anclaje of auditoria.anclajes) { %>
+          <article class="tarjeta">
+            <div class="d-flex flex-wrap justify-content-between gap-2">
+              <code class="text-break"><%= anclaje.claveCadenaOrigen %></code>
+              <span class="insignia-monitor <%= anclaje.estadoContinuidad === 'verificadaDesdeAncla' ? 'insignia-monitor--ok' : anclaje.estadoContinuidad === 'invalida' ? 'insignia-monitor--alerta' : 'insignia-monitor--advertencia' %>"><%= etiquetaTecnica(anclaje.estadoContinuidad) %></span>
+            </div>
+            <dl class="row mt-3 mb-0">
+              <dt class="col-sm-4">Eventos retirados</dt><dd class="col-sm-8"><%= anclaje.eventosRetiradosAcumulados %></dd>
+              <dt class="col-sm-4">Última secuencia retirada</dt><dd class="col-sm-8"><code><%= anclaje.ultimaSecuenciaRetirada %></code></dd>
+              <dt class="col-sm-4">Primera conservada</dt><dd class="col-sm-8"><code><%= anclaje.primeraSecuenciaConservada ?? 'ninguna' %></code></dd>
+              <dt class="col-sm-4">Scope</dt><dd class="col-sm-8"><%= scopeAuditoria(anclaje.scopeRecepcion) %></dd>
+              <dt class="col-sm-4">Política</dt><dd class="col-sm-8"><%= anclaje.politicaDias %> días · versión <%= anclaje.versionPolitica %></dd>
+              <dt class="col-sm-4">Aplicada</dt><dd class="col-sm-8"><time data-fecha-utc="<%= anclaje.aplicadoEnUtc || '' %>"><%= anclaje.aplicadoEnUtc || 'No declarada' %></time></dd>
+              <% if (anclaje.causaContinuidad) { %><dt class="col-sm-4">Límite declarado</dt><dd class="col-sm-8"><%= etiquetaTecnica(anclaje.causaContinuidad) %></dd><% } %>
+            </dl>
+            <details class="mt-3"><summary>Hashes del anclaje</summary><pre class="p-3 rounded bg-dark text-light text-break mt-2 mb-0"><%= JSON.stringify({ hashActualUltimoRetirado: anclaje.hashActualUltimoRetirado, hashAnclaLocal: anclaje.hashAnclaLocal }, null, 2) %></pre></details>
+          </article>
+        <% } %>
+      </div>
+    <% } %>
+  </section>
+<% } %>
+
+<section class="mt-4" aria-labelledby="eventos-auditoria-remota">
+  <div class="d-flex flex-wrap justify-content-between gap-2 align-items-end">
+    <div><h3 id="eventos-auditoria-remota" class="h5 mb-1"><%= navegacion.subvista === 'resumen' ? 'Eventos recientes' : 'Cronología remota' %></h3><p class="texto-apoyo mb-0">Ordenada por el tiempo registrado en la instalación de origen.</p></div>
+    <% if (auditoria.resumen.limiteAlcanzado) { %><span class="insignia-monitor insignia-monitor--advertencia">Límite alcanzado</span><% } %>
+  </div>
+  <% if (eventosPresentados.length === 0) { %>
+    <div class="estado-vacio-remoto mt-3"><i class="bi bi-inbox" aria-hidden="true"></i><div><strong>No hay eventos auditables visibles.</strong><br>Prueba otros filtros o revisa la concesión y el scope recibido.</div></div>
+  <% } else { %>
+    <div class="auditoria-lista mt-3"><table class="auditoria-tabla">
+      <caption class="visually-hidden">Eventos de auditoría federada visibles</caption>
+      <thead><tr><th>Fecha</th><th>Evento / flujo</th><th>Sujeto</th><th>Actor / origen</th><th>Evidencia</th></tr></thead>
+      <tbody>
+        <% for (const evento of eventosPresentados) { %>
+          <tr class="auditoria-tabla__fila">
+            <td data-label="Fecha"><time data-fecha-utc="<%= evento.registradoEnOrigenUtc || '' %>"><%= evento.registradoEnOrigenUtc || 'No declarada' %></time><small>Efectivo: <time data-fecha-utc="<%= evento.efectivoEnOrigenUtc || '' %>"><%= evento.efectivoEnOrigenUtc || 'No declarada' %></time></small></td>
+            <td data-label="Evento / flujo"><strong><%= etiquetaTecnica(evento.tipoEvento) %></strong><small><%= evento.flujo %> · v<%= evento.versionContrato %></small></td>
+            <td data-label="Sujeto"><%= evento.sujeto?.tipo || 'sujeto' %><small class="text-break"><%= evento.sujeto?.id || 'sin identidad' %></small></td>
+            <td data-label="Actor / origen"><span><%= describirActorAuditoria(evento.actorEfectivo || evento.actorReal) %></span><small><%= evento.origen || 'origen no declarado' %></small></td>
+            <td data-label="Evidencia"><span class="insignia-monitor <%= claseValidacion(evento.resultadoValidacionReceptor) %>"><%= etiquetaTecnica(evento.resultadoValidacionReceptor) %></span></td>
+          </tr>
+          <tr class="auditoria-tabla__fila-detalle"><td colspan="5">
+            <details class="auditoria-evento__tecnico"><summary>Ver contexto y evidencia autorizados</summary>
+              <div class="auditoria-tabla__detalle mt-3">
+                <dl>
+                  <div><dt>Evento de origen</dt><dd><code class="text-break"><%= evento.eventoOrigenId %></code></dd></div>
+                  <div><dt>Scope histórico de origen</dt><dd><%= scopeAuditoria(evento.scopeOrigen) %></dd></div>
+                  <div><dt>Scope de recepción</dt><dd><%= scopeAuditoria(evento.scopeRecepcion) %></dd></div>
+                  <div><dt>Cadena verificable / secuencia</dt><dd><code><%= evento.claveCadenaOrigen || 'no disponible' %> / <%= evento.secuenciaCadenaOrigen ?? '?' %></code></dd></div>
+                  <% if (evento.claveCadenaDeclaradaOrigen && !evento.claveCadenaOrigen) { %><div><dt>Cadena declarada, no verificable</dt><dd><code><%= evento.claveCadenaDeclaradaOrigen %> / <%= evento.secuenciaDeclaradaOrigen ?? '?' %></code></dd></div><% } %>
+                  <div><dt>Actor real</dt><dd><%= describirActorAuditoria(evento.actorReal) %></dd></div>
+                  <div><dt>Actor efectivo</dt><dd><%= describirActorAuditoria(evento.actorEfectivo) %></dd></div>
+                  <div><dt>Modo</dt><dd><%= evento.modoActuacion || 'no declarado' %></dd></div>
+                  <div><dt>Correlación</dt><dd><code><%= evento.correlacionId || 'no declarada' %></code></dd></div>
+                  <div><dt>Productor / rol</dt><dd><%= evento.productor || 'no declarado' %> / <%= evento.rolEvento || 'no declarado' %></dd></div>
+                  <div><dt>Verificabilidad de origen</dt><dd><%= etiquetaTecnica(evento.estadoVerificabilidadOrigen) %></dd></div>
+                  <div><dt>Resultado receptor</dt><dd><%= evento.resultadoValidacionReceptor %><% if (evento.causaValidacion) { %> · <%= evento.causaValidacion %><% } %></dd></div>
+                  <div><dt>Completitud</dt><dd><code><%= evento.completitud.interpretable %>/<%= evento.completitud.observable %>/<%= evento.completitud.reconstruible %></code></dd></div>
+                  <div><dt>Estado de la copia</dt><dd><code><%= evento.estadoProyeccion.vigencia %>/<%= evento.estadoProyeccion.soporte %>/<%= evento.estadoProyeccion.autorizacion %></code></dd></div>
+                </dl>
+                <% if (evento.causalidad) { %><details class="mt-3"><summary>Causalidad autorizada</summary><pre class="p-3 rounded bg-dark text-light text-break mt-2"><%= JSON.stringify(evento.causalidad, null, 2) %></pre></details><% } %>
+                <details class="mt-3"><summary>Contenido auditable recibido</summary><pre class="p-3 rounded bg-dark text-light text-break mt-2"><%= JSON.stringify(evento.payload, null, 2) %></pre></details>
+                <details class="mt-3"><summary>Hashes y ancla del receptor</summary><pre class="p-3 rounded bg-dark text-light text-break mt-2"><%= JSON.stringify({ hashesOrigen: evento.hashesOrigen, anclaReceptor: evento.anclaReceptor }, null, 2) %></pre></details>
+                <details class="mt-3"><summary>Identidades técnicas de la copia</summary><pre class="p-3 rounded bg-dark text-light text-break mt-2"><%= JSON.stringify({ proyeccionId: evento.proyeccionId, generacionId: evento.generacionId, elementoOrigenId: evento.elementoOrigenId, ocurrenciaOrigenId: evento.ocurrenciaOrigenId }, null, 2) %></pre></details>
+              </div>
+            </details>
+          </td></tr>
+        <% } %>
+      </tbody>
+    </table></div>
+  <% } %>
+</section>

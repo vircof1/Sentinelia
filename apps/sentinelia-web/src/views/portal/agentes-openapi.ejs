@@ -1,0 +1,122 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<link rel="stylesheet" href="/vendor/swagger-ui/swagger-ui.css">
+
+<section class="panel-general panel-openapi">
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h1>Swagger OpenAPI · Agentes</h1>
+        <p class="texto-apoyo">
+          Contrato técnico servido desde <code>openapi/agentes.v1.yaml</code>.
+          Swagger UI se carga desde dependencias locales, sin CDN.
+        </p>
+      </div>
+      <a href="/agentes" class="boton-secundario enlace-boton">
+        Volver a agentes
+      </a>
+    </div>
+
+    <div class="tarjeta openapi-swagger-shell">
+      <div id="swagger-ui"></div>
+    </div>
+  </section>
+</section>
+
+<script src="/vendor/swagger-ui/swagger-ui-bundle.js"></script>
+<script src="/vendor/swagger-ui/swagger-ui-standalone-preset.js"></script>
+<script>
+  window.addEventListener('DOMContentLoaded', () => {
+    const urlContratoOpenApi = new URL('openapi.yaml', window.location.href);
+    urlContratoOpenApi.hash = '';
+    urlContratoOpenApi.search = '';
+    const raizSwagger = document.getElementById('swagger-ui');
+    const traduccionesSwagger = new Map([
+      ['Authorize', 'Autorizar'],
+      ['Servers', 'Servidores'],
+      ['No links', 'Sin enlaces'],
+      ['Example Value', 'Valor de ejemplo'],
+      ['Schema', 'Esquema'],
+      ['Schemas', 'Esquemas'],
+      ['Responses', 'Respuestas'],
+      ['Parameters', 'Parámetros'],
+      ['Request body', 'Cuerpo de petición'],
+      ['Media type', 'Tipo de medio'],
+      ['Examples', 'Ejemplos'],
+      ['Example', 'Ejemplo'],
+      ['Description', 'Descripción'],
+      ['Code', 'Código'],
+      ['Links', 'Enlaces'],
+      ['Name', 'Nombre'],
+      ['Required', 'Obligatorio'],
+      ['Available authorizations', 'Autorizaciones disponibles'],
+      ['Value', 'Valor'],
+      ['Close', 'Cerrar'],
+      ['Cancel', 'Cancelar'],
+      ['Logout', 'Cerrar autorización'],
+      ['Authorize application', 'Autorizar aplicación'],
+      ['Response content type', 'Tipo de contenido de respuesta']
+    ]);
+
+    function debeOmitirTraduccion(nodo) {
+      return Boolean(
+        nodo.parentElement?.closest(
+          'pre, code, .microlight, .highlight-code, .model, .model-example'
+        )
+      );
+    }
+
+    function traducirTextosSwagger() {
+      if (!raizSwagger) {
+        return;
+      }
+
+      const walker = document.createTreeWalker(
+        raizSwagger,
+        NodeFilter.SHOW_TEXT
+      );
+
+      while (walker.nextNode()) {
+        const nodo = walker.currentNode;
+        if (debeOmitirTraduccion(nodo)) {
+          continue;
+        }
+
+        const texto = nodo.nodeValue.trim();
+        const traducido = traduccionesSwagger.get(texto);
+        if (traducido) {
+          nodo.nodeValue = nodo.nodeValue.replace(texto, traducido);
+        }
+      }
+    }
+
+    let traduccionPendiente = null;
+    const programarTraduccionSwagger = () => {
+      window.clearTimeout(traduccionPendiente);
+      traduccionPendiente = window.setTimeout(traducirTextosSwagger, 50);
+    };
+
+    window.ui = SwaggerUIBundle({
+      url: urlContratoOpenApi.toString(),
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      presets: [
+        SwaggerUIBundle.presets.apis,
+        SwaggerUIStandalonePreset
+      ],
+      layout: 'StandaloneLayout',
+      docExpansion: 'list',
+      defaultModelsExpandDepth: 1,
+      displayRequestDuration: true,
+      tryItOutEnabled: false
+    });
+
+    traducirTextosSwagger();
+    new MutationObserver(programarTraduccionSwagger).observe(raizSwagger, {
+      childList: true,
+      subtree: true
+    });
+  });
+</script>
+
+<%- include('../parciales/pie') %>

@@ -1,0 +1,503 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+const presentacionTelemetria = typeof presentacion !== 'undefined'
+  ? presentacion
+  : {
+      senalesActuales: [],
+      tablaSenales: [],
+      historico: {
+        observaciones: [],
+        tieneSerieTemporal: false,
+        tipoSerieTemporal: null
+      }
+    };
+const puedeModificarInterpretaciones = Boolean(
+  contextoUsuarioActual?.permisos?.modificarAgentes
+);
+const tiposSerieTemporal = new Set([
+  'numero',
+  'booleano',
+  'duracion',
+  'momento_utc'
+]);
+const senalesSerieTemporal = catalogoSenales.filter((senal) =>
+  tiposSerieTemporal.has(senal.tipoDato)
+);
+const senalSeleccionadaGrafico = catalogoSenales.find((senal) =>
+  Number(senal.id) === Number(filtros.senalId)
+) || null;
+const idsSenalesComparables = new Set(
+  tiposSerieTemporal.has(senalSeleccionadaGrafico?.tipoDato)
+    ? catalogoSenales
+        .filter((senal) =>
+          Number(senal.id) !== Number(senalSeleccionadaGrafico.id) &&
+          senal.tipoDato === senalSeleccionadaGrafico.tipoDato &&
+          (
+            ['duracion', 'momento_utc'].includes(senal.tipoDato) ||
+            (senal.unidad || '') === (senalSeleccionadaGrafico.unidad || '')
+          )
+        )
+        .map((senal) => Number(senal.id))
+    : []
+);
+const idsSenalesComparadas = Array.isArray(filtros.senalIdsComparadas)
+  ? filtros.senalIdsComparadas.map((id) => Number(id))
+  : [];
+const datosGraficoTelemetria = typeof grafico !== 'undefined'
+  ? grafico
+  : {
+      agente: { id: agente.id, nombre: agente.nombre },
+      senal: null,
+      tieneSerieTemporal: false,
+      tipoSerieTemporal: null,
+      observaciones: []
+    };
+const datosGraficoTelemetriaJson = JSON.stringify(datosGraficoTelemetria)
+  .replace(/</g, '\\u003c')
+  .replace(/>/g, '\\u003e')
+  .replace(/&/g, '\\u0026');
+const vueltaGestionAgente = typeof retornoGestionAgente === 'string'
+  ? retornoGestionAgente : '/agentes';
+const contextoGestionAgente = vueltaGestionAgente === '/agentes'
+  ? '' : `?return_to=${encodeURIComponent(vueltaGestionAgente)}`;
+const enlaceGestionAgente = vueltaGestionAgente === '/agentes'
+  ? `/agentes/${agente.id}/editar?return_to=${encodeURIComponent(`/agentes/${agente.id}/telemetria`)}`
+  : vueltaGestionAgente;
+const parametrosRetornoTelemetria = new URLSearchParams();
+if (filtros.senalId) parametrosRetornoTelemetria.set('senalId', String(filtros.senalId));
+if (vueltaGestionAgente !== '/agentes') parametrosRetornoTelemetria.set('return_to', vueltaGestionAgente);
+const retornoDesdeReglas = `/agentes/${agente.id}/telemetria${parametrosRetornoTelemetria.size ? `?${parametrosRetornoTelemetria}` : ''}`;
+%>
+
+<section class="panel-general agente-telemetria">
+  <section class="hero-operativo hero-monitores agente-telemetria-hero card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7 agente-telemetria-hero__principal">
+          <span class="insignia-suave hero-monitores__insignia">
+            <i class="bi bi-activity" aria-hidden="true"></i>
+            <span>Lectura operativa</span>
+          </span>
+          <h1>Telemetría de <%= agente.nombre %></h1>
+          <p>Consulta las señales del agente y su evolución en el tiempo.</p>
+          <div class="hero-etiquetas hero-monitores__etiquetas">
+            <span class="insignia d-inline-flex align-items-center gap-2">
+              <i class="bi bi-building" aria-hidden="true"></i>
+              <span><%= agente.empresaNombre || `Empresa #${agente.empresaId}` %></span>
+            </span>
+            <span class="insignia d-inline-flex align-items-center gap-2">
+              <i class="bi bi-geo-alt" aria-hidden="true"></i>
+              <span><%= agente.sitioNombre || `Sitio #${agente.sitioId}` %></span>
+            </span>
+          </div>
+          <div class="hero-monitores__acciones">
+            <a href="<%= vueltaGestionAgente %>" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2">
+              <i class="bi bi-arrow-left" aria-hidden="true"></i>
+              <span><%= vueltaGestionAgente === '/agentes' ? 'Volver a agentes' : 'Volver a gestionar agente' %></span>
+            </a>
+            <%- include('parciales/enlace-actividad-auditada', {
+              sujetoTipo: 'agente',
+              sujetoId: agente.id,
+              retorno: `/agentes/${agente.id}/telemetria`,
+              permisoFuncional: contextoUsuarioActual?.permisos?.verAgentes
+            }) %>
+            <button type="button" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2" data-bs-toggle="collapse" data-bs-target="#agente-telemetria-relaciones" aria-expanded="false" aria-controls="agente-telemetria-relaciones">
+              <i class="bi bi-diagram-3" aria-hidden="true"></i>
+              <span>Relaciones cruzadas</span>
+            </button>
+          </div>
+          <div id="agente-telemetria-relaciones" class="collapse agente-telemetria-hero__relaciones">
+            <div class="agente-telemetria-hero__relaciones-cuerpo">
+              <section class="agente-telemetria-hero__relacion agente-telemetria-hero__relacion--entrada">
+                <span class="agente-telemetria-hero__relacion-tipo"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Entrada de datos</span>
+                <strong>Agente emisor</strong>
+                <span><%= agente.nombre %></span>
+                <% if (puedeModificarInterpretaciones) { %>
+                  <a href="<%= enlaceGestionAgente %>" class="btn btn-outline-light btn-sm">Gestionar agente</a>
+                <% } %>
+              </section>
+              <section class="agente-telemetria-hero__relacion agente-telemetria-hero__relacion--salida">
+                <span class="agente-telemetria-hero__relacion-tipo"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Salidas</span>
+                <strong>Reglas de interpretación</strong>
+                <span>Consulta o define cómo interpretar sus señales.</span>
+                <a href="/agentes/<%= agente.id %>/reglas?return_to=<%= encodeURIComponent(retornoDesdeReglas) %>" class="btn btn-outline-light btn-sm">Ver reglas</a>
+              </section>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis">
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-list-check" aria-hidden="true"></i>
+                <span class="etiqueta">Catálogo</span>
+              </span>
+              <strong><%= resumen.totalSenalesCatalogadas %></strong>
+              <small>Señales conocidas.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--ok hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-speedometer2" aria-hidden="true"></i>
+                <span class="etiqueta">Actuales</span>
+              </span>
+              <strong><%= resumen.totalSenalesActuales %></strong>
+              <small>Lecturas materializadas.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--neutro hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-clock" aria-hidden="true"></i>
+                <span class="etiqueta">Histórico</span>
+              </span>
+              <strong data-agente-telemetria-total-hero><%= filtros.senalId ? resumen.totalObservacionesHistorico : '—' %></strong>
+              <small data-agente-telemetria-total-ayuda><%= filtros.senalId ? 'En la consulta actual.' : 'Elige una señal.' %></small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--<%= resumen.tieneTelemetria ? 'ok' : 'advertencia' %> hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-broadcast" aria-hidden="true"></i>
+                <span class="etiqueta">Última lectura</span>
+              </span>
+              <strong><%= resumen.tieneTelemetria ? 'Con datos' : 'Sin datos' %></strong>
+              <small><% if (resumen.ultimaObservacionVisibleUtc) { %><time data-fecha-utc="<%= resumen.ultimaObservacionVisibleUtc %>"><%= resumen.ultimaObservacionVisibleUtc %></time><% } else { %>Sin observaciones visibles.<% } %></small>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <details class="seccion-panel agente-telemetria-seccion" name="agente-telemetria-contenido" <%= filtros.senalId ? '' : 'open' %>>
+    <summary class="agente-telemetria-seccion__cabecera">
+      <div class="agente-telemetria-seccion__titulo"><i class="bi bi-chevron-down" aria-hidden="true"></i><div><h2 class="h4 mb-0">Señales actuales</h2><small>Último valor conocido de cada señal.</small></div></div>
+      <span class="badge text-bg-light"><%= presentacionTelemetria.senalesActuales.length %> actuales</span>
+    </summary>
+  <section data-telemetria-miniaturas>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <% if (presentacionTelemetria.senalesActuales.length === 0) { %>
+          <p class="text-body-secondary mb-0">Este agente todavía no tiene lecturas actuales.</p>
+        <% } else { %>
+          <div class="row g-3">
+            <% for (const senal of presentacionTelemetria.senalesActuales) { %>
+              <div class="col-12 col-lg-6 col-xxl-4">
+                <article class="card h-100 telemetria-senal-actual">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between gap-2 mb-2">
+                      <span class="badge text-bg-light"><%= senal.tipoDato === 'numero' ? 'Número' : senal.tipoDato === 'booleano' ? 'Sí/No' : senal.tipoDato === 'duracion' ? 'Duración' : senal.tipoDato === 'momento_utc' ? 'Fecha y hora' : senal.tipoDato.toUpperCase() %></span>
+                      <% if (senal.senalId) { %>
+                        <% const totalInterpretaciones = Number(senal.totalInterpretaciones || 0); %>
+                        <% const contextoInterpretacion = `agente_id=${encodeURIComponent(agente.id)}&senal_id=${encodeURIComponent(senal.senalId)}`; %>
+                        <div class="dropdown">
+                          <button type="button" class="btn btn-outline-secondary btn-sm usuarios-tabla__acciones-toggle telemetria-senal-actual__acciones-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Opciones de <%= senal.titulo %><%= totalInterpretaciones > 0 ? `, ${totalInterpretaciones} ${totalInterpretaciones === 1 ? 'interpretación' : 'interpretaciones'}` : '' %>" title="Opciones de la señal">
+                            <i class="bi bi-gear" aria-hidden="true"></i>
+                            <% if (totalInterpretaciones > 0) { %><span class="telemetria-senal-actual__contador" aria-hidden="true"><%= totalInterpretaciones %></span><% } %>
+                          </button>
+                          <div class="dropdown-menu dropdown-menu-end usuarios-tabla__acciones-menu">
+                            <% if (totalInterpretaciones > 0) { %>
+                              <a class="dropdown-item" href="/agentes/<%= agente.id %>/reglas?<%= contextoInterpretacion %>">Ver interpretaciones (<%= totalInterpretaciones %>)</a>
+                            <% } else { %>
+                              <span class="dropdown-item disabled" aria-disabled="true">Sin interpretaciones</span>
+                            <% } %>
+                            <% if (puedeModificarInterpretaciones) { %>
+                              <a class="dropdown-item" href="/agentes/<%= agente.id %>/reglas?<%= contextoInterpretacion %>&crear=1#crear-interpretacion">Crear interpretación</a>
+                            <% } %>
+                          </div>
+                        </div>
+                      <% } %>
+                    </div>
+                    <h3 class="h6 mb-1"><%= senal.titulo %></h3>
+                    <% if (senal.titulo !== senal.codigoSenal) { %><p class="text-body-secondary small mb-2"><%= senal.codigoSenal %></p><% } %>
+                    <% if (senal.tipoDato === 'momento_utc' && senal.valor.valorBruto) { %>
+                      <p class="display-6 fs-2 mb-2"><time data-fecha-utc="<%= senal.valor.valorBruto %>" title="UTC: <%= senal.valor.textoCompleto %>"><%= senal.valor.texto %></time></p>
+                    <% } else { %>
+                      <p class="display-6 fs-2 mb-2" <% if (senal.tipoDato === 'duracion') { %>title="Valor exacto: <%= senal.valor.textoCompleto %>" aria-label="<%= senal.valor.texto %>; valor exacto <%= senal.valor.textoCompleto %>"<% } %>><%= senal.valor.texto %></p>
+                    <% } %>
+                    <% if (senal.aptaVisualizacionTemporal && senal.senalId) { %>
+                      <div class="telemetria-miniatura" data-telemetria-miniatura data-tipo-dato="<%= senal.tipoDato %>" data-codigo-senal="<%= senal.codigoSenal %>" data-url-miniatura="/agentes/<%= agente.id %>/telemetria/api/miniatura?senalId=<%= senal.senalId %>" role="img" aria-label="Muestra temporal reciente de <%= senal.titulo %>">
+                        <div class="telemetria-miniatura__lienzo" data-telemetria-miniatura-lienzo></div>
+                        <small class="telemetria-miniatura__estado" data-telemetria-miniatura-estado>La tendencia se cargará al mostrar esta tarjeta.</small>
+                      </div>
+                    <% } %>
+                    <% if (senal.detalleHumano && senal.detalleHumano !== 'Sin detalle humano.') { %><p class="small mb-2"><%= senal.detalleHumano %></p><% } %>
+                    <p class="small text-body-secondary mb-0">Observado <% if (senal.observadoEnUtc) { %><time data-fecha-utc="<%= senal.observadoEnUtc %>"><%= senal.observadoEnUtc %></time><% } else { %>sin fecha<% } %></p>
+                    <details class="mt-2">
+                      <summary class="small">Detalles de la lectura</summary>
+                      <dl class="small text-body-secondary mb-0 mt-2">
+                        <dt>Calidad</dt><dd><%= senal.calidad %></dd>
+                        <dt>Severidad</dt><dd><%= senal.severidadDeclarada %></dd>
+                        <dt>Origen</dt><dd><%= senal.origen %></dd>
+                        <dt>Recibido</dt><dd><% if (senal.recibidoEnUtc) { %><time data-fecha-utc="<%= senal.recibidoEnUtc %>"><%= senal.recibidoEnUtc %></time><% } else { %>sin fecha<% } %></dd>
+                      </dl>
+                      <% if (senal.detalleAvanzado) { %><strong class="small"><%= senal.detalleAvanzado.etiqueta %></strong><pre class="bg-body-tertiary border rounded-3 p-3 small mt-2 mb-0 overflow-auto"><code><%= senal.detalleAvanzado.contenido %></code></pre><% } %>
+                    </details>
+                  </div>
+                </article>
+              </div>
+            <% } %>
+          </div>
+        <% } %>
+        <% if (presentacionTelemetria.tablaSenales.length > 0) { %>
+          <details class="agente-telemetria-catalogo mt-3">
+            <summary>Catálogo completo · <%= presentacionTelemetria.tablaSenales.length %> señales</summary>
+            <p class="small text-body-secondary mt-2 mb-2">Incluye las señales conocidas aunque aún no tengan una lectura actual.</p>
+            <ul class="list-unstyled mb-0">
+              <% for (const senal of presentacionTelemetria.tablaSenales) { %>
+                <li class="agente-telemetria-catalogo__fila">
+                  <span><strong><%= senal.titulo %></strong><% if (senal.titulo !== senal.codigoSenal) { %><small class="text-body-secondary d-block"><%= senal.codigoSenal %></small><% } %></span>
+                  <span class="badge text-bg-<%= senal.tieneFotografiaActual ? 'success' : 'secondary' %>"><%= senal.tieneFotografiaActual ? 'Con lectura' : 'Sin lectura actual' %></span>
+                </li>
+              <% } %>
+            </ul>
+          </details>
+        <% } %>
+      </div>
+    </div>
+  </section>
+  </details>
+
+  <details class="seccion-panel agente-telemetria-seccion" name="agente-telemetria-contenido" <%= filtros.senalId ? 'open' : '' %>>
+    <summary class="agente-telemetria-seccion__cabecera">
+      <div class="agente-telemetria-seccion__titulo"><i class="bi bi-chevron-down" aria-hidden="true"></i><div><h2 class="h4 mb-0">Consulta de histórico</h2><small>Señal, periodo y evolución.</small></div></div>
+      <span class="badge text-bg-light" data-agente-telemetria-resumen-historico><%= filtros.senalId ? `${historico.paginacion.totalDevuelto} ${historico.paginacion.totalDevuelto === 1 ? 'lectura' : 'lecturas'}` : 'Sin consulta' %></span>
+    </summary>
+  <section>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <p class="text-body-secondary">Elige una señal para ver su evolución.</p>
+        <form
+          method="get"
+          action="/agentes/<%= agente.id %>/telemetria"
+          class="row g-3"
+          data-agente-telemetria-filtros
+        >
+          <div class="col-12 col-lg-6">
+            <label class="form-label" for="senal_id">Señal</label>
+            <select class="form-select" id="senal_id" name="senalId" data-agente-telemetria-senal>
+              <option value="">Elige una señal</option>
+              <% for (const senal of senalesSerieTemporal) { %>
+                <option
+                  value="<%= senal.id %>"
+                  data-tipo-dato="<%= senal.tipoDato %>"
+                  data-unidad="<%= senal.unidad || '' %>"
+                  <%= Number(filtros.senalId) === Number(senal.id) ? 'selected' : '' %>
+                >
+                  <%= senal.codigoSenal %> · <%= senal.tipoDato %><%= senal.unidad ? ` (${senal.unidad})` : '' %>
+                </option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-12 col-lg-6 d-flex flex-column justify-content-end">
+            <span class="form-label">Periodo rápido</span>
+            <div class="d-flex flex-wrap gap-2">
+              <button class="btn btn-outline-secondary btn-sm" type="button" data-agente-telemetria-rango-horas="1" <%= filtros.senalId ? '' : 'disabled' %>>1 hora</button>
+              <button class="btn btn-outline-secondary btn-sm" type="button" data-agente-telemetria-rango-horas="7" <%= filtros.senalId ? '' : 'disabled' %>>7 horas</button>
+              <button class="btn btn-outline-secondary btn-sm" type="button" data-agente-telemetria-rango-horas="24" <%= filtros.senalId ? '' : 'disabled' %>>24 horas</button>
+            </div>
+          </div>
+          <details class="col-12 agente-telemetria-filtros-avanzados" <%= idsSenalesComparadas.length > 0 || filtros.desdeUtc || filtros.hastaUtc || filtros.limite !== 200 || filtros.orden !== 'desc' ? 'open' : '' %>>
+            <summary>Opciones avanzadas</summary>
+            <div class="row g-3 mt-1">
+          <div class="col-12 col-lg-4">
+            <label class="form-label" for="comparar_senal_ids">Comparar con</label>
+            <select
+              class="form-select"
+              id="comparar_senal_ids"
+              name="compararSenalIds"
+              multiple
+              size="3"
+              data-agente-telemetria-comparar
+              <%= idsSenalesComparables.size === 0 ? 'disabled' : '' %>
+            >
+              <% for (const senal of senalesSerieTemporal) { %>
+                <option
+                  value="<%= senal.id %>"
+                  <%= idsSenalesComparables.has(Number(senal.id)) && idsSenalesComparadas.includes(Number(senal.id)) ? 'selected' : '' %>
+                  <%= idsSenalesComparables.has(Number(senal.id)) ? '' : 'hidden disabled' %>
+                  data-tipo-dato="<%= senal.tipoDato %>"
+                  data-unidad="<%= senal.unidad || '' %>"
+                >
+                  <%= senal.codigoSenal %><%= senal.tipoDato === 'duracion' ? ' (segundos)' : senal.tipoDato === 'momento_utc' ? ' (UTC)' : senal.unidad ? ` (${senal.unidad})` : ' (sin unidad)' %>
+                </option>
+              <% } %>
+            </select>
+            <div class="form-text" data-agente-telemetria-comparar-ayuda>
+              <% if (!senalSeleccionadaGrafico) { %>
+                Selecciona una señal graficable para habilitar comparaciones.
+              <% } else if (!tiposSerieTemporal.has(senalSeleccionadaGrafico.tipoDato)) { %>
+                La señal seleccionada no admite comparación gráfica.
+              <% } else if (idsSenalesComparables.size === 0) { %>
+                No hay otras señales con el mismo tipo y unidad compatible.
+              <% } else { %>
+                Solo se muestran señales con el mismo tipo y unidad compatible.
+              <% } %>
+            </div>
+          </div>
+          <div class="col-12 col-md-6 col-lg-2">
+            <label class="form-label" for="desde_local">Desde</label>
+            <input type="hidden" name="desdeUtc" value="<%= filtros.desdeUtc || '' %>" data-agente-telemetria-desde-utc>
+            <input
+              class="form-control"
+              id="desde_local"
+              type="datetime-local"
+              step="1"
+              data-agente-telemetria-desde-local
+            >
+            <div class="form-text">Hora local.</div>
+          </div>
+          <div class="col-12 col-md-6 col-lg-2">
+            <label class="form-label" for="hasta_local">Hasta</label>
+            <input type="hidden" name="hastaUtc" value="<%= filtros.hastaUtc || '' %>" data-agente-telemetria-hasta-utc>
+            <input
+              class="form-control"
+              id="hasta_local"
+              type="datetime-local"
+              step="1"
+              data-agente-telemetria-hasta-local
+            >
+            <div class="form-text">Hora local.</div>
+          </div>
+          <div class="col-6 col-lg-2">
+            <label class="form-label" for="limite">Límite</label>
+            <input class="form-control" id="limite" name="limite" type="number" min="1" max="500" value="<%= filtros.limite %>" data-agente-telemetria-limite>
+          </div>
+          <div class="col-6 col-lg-2">
+            <label class="form-label" for="orden">Orden</label>
+            <select class="form-select" id="orden" name="orden" data-agente-telemetria-orden>
+              <option value="desc" <%= filtros.orden === 'desc' ? 'selected' : '' %>>Descendente</option>
+              <option value="asc" <%= filtros.orden === 'asc' ? 'selected' : '' %>>Ascendente</option>
+            </select>
+          </div>
+            </div>
+          </details>
+          <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
+            <button class="btn btn-primary" type="submit" data-agente-telemetria-consultar <%= filtros.senalId ? '' : 'disabled' %>>Consultar</button>
+            <a class="btn btn-outline-secondary" href="/agentes/<%= agente.id %>/telemetria">Limpiar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section class="agente-telemetria-seccion__resultados" data-agente-telemetria-resultados <%= filtros.senalId ? '' : 'hidden' %>>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+          <div>
+            <h2 class="h4 mb-1">Histórico acotado</h2>
+            <p class="text-body-secondary mb-0" data-agente-telemetria-resultados-descripcion>
+              <% if (presentacionTelemetria.historico.tipoSerieTemporal === 'booleano') { %>
+                Cronología booleana con estados Sí/No y contexto de prueba de vida.
+              <% } else if (presentacionTelemetria.historico.tipoSerieTemporal === 'duracion') { %>
+                Serie de duración expresada en formato humano y contextualizada con la prueba de vida.
+              <% } else if (presentacionTelemetria.historico.tipoSerieTemporal === 'momento_utc') { %>
+                Programación temporal escalonada: observación en X y momento informado en Y.
+              <% } else if (presentacionTelemetria.historico.tieneSerieTemporal) { %>
+                Serie numérica con contexto de prueba de vida.
+              <% } else { %>
+                Selecciona una señal graficable para activar la representación temporal.
+              <% } %>
+            </p>
+          </div>
+          <span class="badge text-bg-light align-self-start" data-agente-telemetria-total-resultados>
+            <%= historico.paginacion.totalDevuelto %> <%= historico.paginacion.totalDevuelto === 1 ? 'lectura' : 'lecturas' %>
+          </span>
+        </div>
+        <p class="text-body-secondary mb-0" data-agente-telemetria-sin-lecturas <%= historico.paginacion.totalDevuelto > 0 ? 'hidden' : '' %>>No hay lecturas de esta señal en el periodo consultado.</p>
+        <section
+          class="telemetria-grafico telemetria-grafico--compacto"
+          data-agente-telemetria-grafico
+          data-url-historico="/agentes/<%= agente.id %>/telemetria/api/historico"
+          <%= historico.paginacion.totalDevuelto > 0 ? '' : 'hidden' %>
+        >
+          <script type="application/json" data-agente-telemetria-grafico-datos><%- datosGraficoTelemetriaJson %></script>
+          <div class="telemetria-grafico__layout">
+            <div class="telemetria-grafico__principal">
+              <div class="telemetria-grafico__cabecera">
+                <div>
+                  <h3 class="h5 mb-1">Serie temporal</h3>
+                  <p class="text-body-secondary mb-0" data-agente-telemetria-grafico-descripcion>
+                    <% if (!senalSeleccionadaGrafico) { %>
+                      Selecciona una señal para consultar observaciones históricas.
+                    <% } else if (presentacionTelemetria.historico.tieneSerieTemporal) { %>
+                      Evolución de <%= senalSeleccionadaGrafico?.nombreHumano || senalSeleccionadaGrafico?.codigoSenal || 'la señal seleccionada' %>.
+                    <% } else { %>
+                      La señal seleccionada no admite representación temporal; se conserva como lectura estructurada.
+                    <% } %>
+                  </p>
+                </div>
+                <% if (senalSeleccionadaGrafico?.unidad) { %>
+                  <span class="badge text-bg-light align-self-start" data-agente-telemetria-grafico-unidad><%= senalSeleccionadaGrafico.unidad %></span>
+                <% } else { %>
+                  <span class="badge text-bg-light align-self-start" data-agente-telemetria-grafico-unidad hidden></span>
+                <% } %>
+              </div>
+              <div class="telemetria-grafico__canvas">
+                <canvas data-agente-telemetria-canvas aria-label="Gráfico histórico de telemetría del agente"></canvas>
+                <div class="telemetria-booleanos" data-agente-telemetria-booleanos hidden></div>
+                <div class="telemetria-grafico__estado" data-agente-telemetria-grafico-estado>
+                  Preparando gráfica...
+                </div>
+              </div>
+              <div
+                class="telemetria-grafico__pol-linea"
+                data-agente-telemetria-pol-linea
+                hidden
+              ></div>
+              <div class="telemetria-grafico__pol" data-agente-telemetria-pol-resumen>
+                <span class="telemetria-grafico__pol-chip telemetria-grafico__pol-chip--vivo">Cobertura POL</span>
+                <button
+                  type="button"
+                  class="telemetria-grafico__pol-ayuda"
+                  data-bs-toggle="tooltip"
+                  data-bs-title="POL significa Prueba de vida: confirma en qué tramos el agente estaba comunicado y operativo para enviar señales."
+                  aria-label="Qué significa POL"
+                >
+                  <i class="bi bi-info-circle" aria-hidden="true"></i>
+                </button>
+                <span class="telemetria-grafico__pol-texto">Preparando contexto de prueba de vida.</span>
+              </div>
+            </div>
+            <aside class="telemetria-grafico__detalle" data-agente-telemetria-detalle>
+              <span class="badge text-bg-light mb-2">Punto activo</span>
+              <div data-agente-telemetria-detalle-vacio>
+                <h3 class="h5 mb-2">Selecciona un punto de la serie</h3>
+                <p class="text-body-secondary mb-0">
+                  Aquí se mostrará el valor, fecha, calidad, detalle humano y metadatos de
+                  la observación más cercana.
+                </p>
+              </div>
+              <div data-agente-telemetria-detalle-contenido hidden>
+                <h3 class="h6 mb-1" data-agente-telemetria-detalle-titulo>Observación</h3>
+                <p class="telemetria-grafico__detalle-valor mb-3" data-agente-telemetria-detalle-valor>sin valor</p>
+                <dl class="telemetria-grafico__detalle-lista">
+                  <dt>Observado</dt>
+                  <dd data-agente-telemetria-detalle-observado>sin fecha</dd>
+                  <dt>Recibido</dt>
+                  <dd data-agente-telemetria-detalle-recibido>sin fecha</dd>
+                  <dt>Calidad</dt>
+                  <dd data-agente-telemetria-detalle-calidad>sin dato</dd>
+                  <dt>Severidad</dt>
+                  <dd data-agente-telemetria-detalle-severidad>sin dato</dd>
+                  <dt>Origen</dt>
+                  <dd data-agente-telemetria-detalle-origen>sin dato</dd>
+                </dl>
+                <p class="small mb-0" data-agente-telemetria-detalle-humano>Sin detalle.</p>
+                <details class="mt-3" data-agente-telemetria-detalle-metadatos hidden>
+                  <summary class="small">Metadatos</summary>
+                  <p class="small text-body-secondary mt-2 mb-2">Datos adicionales enviados por el agente para esta observación.</p>
+                  <div class="telemetria-grafico__metadatos bg-body-tertiary border rounded-3 p-3 small" data-agente-telemetria-detalle-metadatos-lista></div>
+                </details>
+              </div>
+            </aside>
+          </div>
+        </section>
+      </div>
+    </div>
+  </section>
+  </details>
+</section>
+
+<script src="/vendor/chartjs/chart.umd.js"></script>
+<script src="/js/agente-telemetria.js?v=metadatos-lista-20261021"></script>
+<script src="/js/agente-telemetria-miniaturas.js?v=momento-utc-graficable-20260826"></script>
+<%- include('../parciales/pie') %>

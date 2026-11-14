@@ -1,0 +1,304 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const ahoraReferenciaTimezone = new Date();
+  const obtenerOffsetMinutosTimezone = function (timezone) {
+    const parteTimezone = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      timeZoneName: 'shortOffset'
+    }).formatToParts(ahoraReferenciaTimezone).find((parte) => parte.type === 'timeZoneName');
+    const valor = parteTimezone?.value || 'GMT';
+
+    if (valor === 'GMT' || valor === 'UTC') {
+      return 0;
+    }
+
+    const coincidencia = valor.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/i);
+
+    if (!coincidencia) {
+      return 0;
+    }
+
+    const signo = coincidencia[1] === '-' ? -1 : 1;
+    const horas = Number.parseInt(coincidencia[2] || '0', 10);
+    const minutos = Number.parseInt(coincidencia[3] || '0', 10);
+
+    return signo * ((horas * 60) + minutos);
+  };
+  const formatearOffsetTimezone = function (offsetMinutos) {
+    const signo = offsetMinutos < 0 ? '-' : '+';
+    const totalMinutos = Math.abs(offsetMinutos);
+    const horas = String(Math.floor(totalMinutos / 60)).padStart(2, '0');
+    const minutos = String(totalMinutos % 60).padStart(2, '0');
+
+    return `UTC${signo}${horas}:${minutos}`;
+  };
+  const opcionesTimezoneSitio = Intl.supportedValuesOf('timeZone')
+    .map(function (timezone) {
+      const offsetMinutos = obtenerOffsetMinutosTimezone(timezone);
+
+      return {
+        valor: timezone,
+        offsetMinutos,
+        etiquetaOffset: formatearOffsetTimezone(offsetMinutos)
+      };
+    })
+    .sort(function (a, b) {
+      if (a.offsetMinutos !== b.offsetMinutos) {
+        return a.offsetMinutos - b.offsetMinutos;
+      }
+
+      return a.valor.localeCompare(b.valor, 'es');
+    });
+  const timezoneFormulario = String(formulario.timezone || 'UTC').trim() || 'UTC';
+  const timezoneFueraCatalogo = !opcionesTimezoneSitio.some(function (timezone) {
+    return timezone.valor === timezoneFormulario;
+  });
+  const rutaListadoSitios = empresaFiltro?.id
+    ? `/organizacion/sitios?tenant_id=${encodeURIComponent(empresaFiltro.tenantId)}&empresa_id=${encodeURIComponent(empresaFiltro.id)}`
+    : '/organizacion/sitios';
+%>
+
+<section class="panel-general">
+  <%- include('parciales/organizacion-cabecera', {
+    tituloSeccion: modo === 'editar' ? 'Gestionar sitio' : 'Crear sitio',
+    descripcionSeccion: modo === 'editar'
+      ? 'Consulta y ajusta los datos operativos del sitio dentro de su empresa.'
+      : 'Añade un sitio a una empresa para organizar sus recursos y su operación local.',
+    modoCreacion: modo !== 'editar',
+    hrefRetornoCreacion: rutaListadoSitios,
+    etiquetaRetornoCreacion: 'Volver a sitios',
+    resumen,
+    subnavegacionOrganizacion,
+    flashOrganizacion,
+    contextoUsuarioActual,
+    tenantFiltro,
+    empresaFiltro,
+    sitioObjetivo
+  }) %>
+
+  <section class="seccion-panel organizacion-formulario-detalle">
+    <% if (errorFormulario) { %>
+      <div class="mensaje-error"><%= errorFormulario %></div>
+    <% } %>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <form
+          method="post"
+          action="<%= modo === 'editar' ? '/organizacion/sitios/actualizar' : '/organizacion/sitios/crear' %>"
+          class="formulario-organizacion"
+          data-sitio-formulario
+          data-modo="<%= modo %>"
+          data-hay-error="<%= errorFormulario ? '1' : '0' %>"
+          data-url-restaurar="<%= sitioObjetivo ? `/organizacion/sitios/${encodeURIComponent(sitioObjetivo.id)}/editar` : '' %>"
+          <%= puedeElegirEmpresaEnFormulario ? 'data-organizacion-sitio-empresa-formulario' : '' %>
+          <%= puedeCambiarEmpresaSitio && sitioObjetivo ? 'data-organizacion-cambio-empresa-sitio-form' : '' %>
+          data-organizacion-sitio-id="<%= sitioObjetivo?.id || '' %>"
+          data-organizacion-empresa-actual-id="<%= sitioObjetivo?.empresaId || formulario.empresaId || '' %>"
+          data-organizacion-empresa-actual-texto="<%= selectorEmpresa?.textoActual || '' %>"
+          data-organizacion-url-impacto-cambio-empresa="<%= sitioObjetivo ? `/organizacion/sitios/${sitioObjetivo.id}/impacto-cambio-empresa` : '' %>"
+        >
+          <% if (formulario.id) { %>
+            <input type="hidden" name="id" value="<%= formulario.id %>">
+          <% } %>
+          <input
+            type="hidden"
+            name="confirmar_cambio_empresa"
+            value="<%= formulario.confirmarCambioEmpresa || '' %>"
+            data-organizacion-confirmar-cambio-empresa
+          >
+
+          <section class="organizacion-formulario-detalle__seccion" aria-labelledby="sitio_pertenencia_titulo">
+            <div class="organizacion-formulario-detalle__cabecera">
+              <h3 id="sitio_pertenencia_titulo">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                Pertenencia
+              </h3>
+              <p><%= contextoUsuarioActual?.nivelScope === 'tenant' ? `El sitio pertenecerá a una empresa de ${tenantFiltro?.nombre || 'tu tenant'}.` : 'El sitio pertenece a una empresa; el tenant se determina a partir de ella.' %></p>
+            </div>
+
+            <% if (puedeElegirEmpresaEnFormulario) { %>
+              <label for="sitio_empresa_texto" class="form-label">Empresa</label>
+              <input type="hidden" name="empresa_id" value="<%= formulario.empresaId %>" data-organizacion-sitio-empresa-id>
+              <div class="organizacion-input-icono">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <input
+                  id="sitio_empresa_texto"
+                  name="empresa_texto"
+                  type="text"
+                  class="form-control"
+                  value="<%= selectorEmpresa?.textoActual || '' %>"
+                  placeholder="Nombre · alias"
+                  autocomplete="off"
+                  list="sitio_empresa_sugerencias"
+                  aria-describedby="sitio_empresa_ayuda"
+                  data-organizacion-sitio-empresa-texto
+                  data-organizacion-url-empresas="<%= selectorEmpresa?.urlSugerencias %>"
+                >
+              </div>
+              <datalist id="sitio_empresa_sugerencias" data-organizacion-sitio-empresa-sugerencias></datalist>
+              <div id="sitio_empresa_ayuda" class="form-text mt-2 d-inline-flex align-items-center gap-2">
+                <i class="bi bi-buildings" aria-hidden="true"></i>
+                <span><%= contextoUsuarioActual?.nivelScope === 'tenant' ? 'Busca por nombre o alias y elige una empresa de tu tenant.' : 'Busca por nombre o alias y elige una empresa visible. La selección determina el tenant del sitio.' %></span>
+              </div>
+              <input type="text" class="form-control d-none" tabindex="-1" aria-hidden="true" required value="<%= formulario.empresaId %>" data-organizacion-sitio-empresa-validacion>
+              <% if (puedeCambiarEmpresaSitio && sitioObjetivo) { %>
+                <div class="form-text d-inline-flex align-items-center gap-2"><i class="bi bi-shuffle" aria-hidden="true"></i><span>Si eliges otra empresa, revisaremos el impacto antes de guardar.</span></div>
+              <% } %>
+            <% } else { %>
+              <% if (modo === 'nuevo') { %><input type="hidden" name="empresa_id" value="<%= formulario.empresaId %>"><% } %>
+              <label class="form-label">Empresa</label>
+              <div class="form-control bg-body-tertiary"><%= sitioObjetivo?.empresaNombre || empresaFiltro?.nombre || 'Sin empresa' %></div>
+              <div class="form-text">Empresa determinada por el alcance de tu sesión.</div>
+            <% } %>
+
+            <% if (puedeCambiarEmpresaSitio && sitioObjetivo) { %>
+              <div class="organizacion-formulario-detalle__advertencia mt-3" data-sitio-aviso-cambio-empresa hidden>
+                <i class="bi bi-shuffle" aria-hidden="true"></i>
+                <p class="mb-0">Has seleccionado otra empresa. El sitio y sus referencias vivas se reasignarán después de revisar el impacto.</p>
+              </div>
+            <% } %>
+          </section>
+
+          <section class="organizacion-formulario-detalle__seccion" aria-labelledby="sitio_datos_titulo">
+            <div class="organizacion-formulario-detalle__cabecera">
+              <h3 id="sitio_datos_titulo"><i class="bi bi-geo-alt" aria-hidden="true"></i>Datos generales</h3>
+              <p>Identidad, zona horaria, disponibilidad y contexto interno del sitio.</p>
+            </div>
+          <div class="row g-3">
+            <div class="col-12 col-lg-6">
+              <label for="sitio_nombre" class="form-label">Nombre</label>
+              <input
+                id="sitio_nombre"
+                name="nombre"
+                type="text"
+                class="form-control"
+                value="<%= formulario.nombre %>"
+                required
+                maxlength="160"
+                aria-describedby="sitio_nombre_ayuda"
+              >
+              <div id="sitio_nombre_ayuda" class="form-text">Nombre visible del sitio. Máximo 160 caracteres.</div>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <label for="sitio_alias" class="form-label">Alias</label>
+              <input
+                id="sitio_alias"
+                name="alias"
+                type="text"
+                class="form-control"
+                value="<%= formulario.alias %>"
+                required
+                maxlength="120"
+                pattern="[a-zA-Z0-9._\\-]+"
+                aria-describedby="sitio_alias_ayuda"
+              >
+              <div id="sitio_alias_ayuda" class="form-text">Identificador único dentro de la empresa. Usa letras, números, puntos, guiones o guiones bajos.</div>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <label for="sitio_timezone" class="form-label">Zona horaria</label>
+              <select
+                id="sitio_timezone"
+                name="timezone"
+                class="form-select"
+                required
+              >
+                <% if (timezoneFueraCatalogo) { %>
+                  <option value="<%= timezoneFormulario %>" selected>
+                    <%= timezoneFormulario %><%= modo === 'editar' ? ' (existente)' : '' %>
+                  </option>
+                <% } %>
+                <% for (const timezone of opcionesTimezoneSitio) { %>
+                  <option
+                    value="<%= timezone.valor %>"
+                    <%= timezoneFormulario === timezone.valor ? 'selected' : '' %>
+                  >
+                    <%= `${timezone.etiquetaOffset} · ${timezone.valor}` %>
+                  </option>
+                <% } %>
+              </select>
+              <div class="form-text">Se utiliza para presentar y planificar la operación local del sitio.</div>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <label for="sitio_estado" class="form-label">Estado</label>
+              <select
+                id="sitio_estado"
+                name="estado"
+                class="form-select"
+              >
+                <% for (const opcion of opcionesEstado) { %>
+                  <option
+                    value="<%= opcion.valor %>"
+                    <%= formulario.estado === opcion.valor ? 'selected' : '' %>
+                  >
+                    <%= opcion.etiqueta %>
+                  </option>
+                <% } %>
+              </select>
+              <div class="form-text">Determina si el sitio queda disponible para operar.</div>
+            </div>
+
+            <div class="col-12">
+              <div class="organizacion-formulario-detalle__advertencia" data-sitio-aviso-inactivo hidden>
+                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                <p class="mb-0"><%= modo === 'nuevo' ? 'El sitio se creará inactivo y no quedará disponible para operar hasta activarlo.' : 'El sitio quedará inactivo. Sus recursos asociados no se eliminarán.' %></p>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div class="d-flex align-items-center justify-content-between gap-3">
+                <label for="sitio_descripcion" class="form-label">Descripción</label>
+                <span class="organizacion-formulario-detalle__contador" data-sitio-descripcion-contador aria-live="polite">0/255</span>
+              </div>
+              <textarea
+                id="sitio_descripcion"
+                name="descripcion"
+                class="form-control"
+                rows="4"
+                maxlength="255"
+                placeholder="Contexto operativo, detalle de ubicación o nota funcional breve."
+              ><%= formulario.descripcion %></textarea>
+            </div>
+          </div>
+          </section>
+
+          <div class="acciones-formulario acciones-formulario--sticky organizacion-formulario-detalle__acciones mt-4">
+            <div class="acciones-formulario__estado" data-sitio-cambios-pendientes hidden aria-live="polite">
+              <strong>Cambios pendientes</strong>
+              <span>Revisa los datos antes de guardar.</span>
+            </div>
+            <div class="acciones-formulario__botones">
+              <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2" data-sitio-guardar>
+                <i class="bi bi-floppy" aria-hidden="true"></i>
+                <span><%= modo === 'editar' ? 'Guardar cambios' : 'Crear sitio' %></span>
+              </button>
+              <% if (modo === 'editar') { %>
+                <button type="reset" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" data-sitio-cancelar>
+                  <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+                  <span data-sitio-cancelar-texto>Cancelar</span>
+                </button>
+              <% } else { %>
+                <a href="<%= rutaListadoSitios %>" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" data-sitio-cancelar>
+                  <i class="bi bi-x-circle" aria-hidden="true"></i>
+                  <span>Cancelar</span>
+                </a>
+              <% } %>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+</section>
+
+<script src="/js/organizacion-sitio-cambio-empresa.js"></script>
+<script src="/js/organizacion-sitio-formulario.js"></script>
+<% if (puedeCambiarEmpresaSitio && sitioObjetivo) { %>
+  <%- include('parciales/organizacion-modal-cambio-empresa-sitio') %>
+<% } %>
+
+<%- include('../parciales/pie') %>

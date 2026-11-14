@@ -1,0 +1,821 @@
+<%- include('parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const dashboard = dashboardOperativo || null;
+  const dashboardResumen = dashboard?.resumenMonitores || null;
+  const dashboardResumenDns = dashboard?.resumenDns || null;
+  const dashboardResumenRuntime = dashboard?.resumenRuntime || null;
+  const dashboardSalud = dashboard?.resumenSalud || null;
+  const totalProblemas = Number(dashboardResumen?.totalIndisponiblesAlertables || 0) + Number(dashboardResumen?.totalDegradadosAlertables || 0);
+  const totalAlertasHero = Number(dashboardResumen?.totalAlertasActivas || 0);
+  const totalAlertasVisiblesHero = Number(dashboardResumen?.totalAlertasVisibles ?? dashboardResumen?.totalAlertasActivas ?? 0);
+  const totalAlertasDescartadasHero = Number(dashboardResumen?.totalAlertasDescartadas || 0);
+  const detalleAlertasHero = totalAlertasVisiblesHero > 0
+    ? `${totalAlertasVisiblesHero} ${totalAlertasVisiblesHero === 1 ? 'requiere' : 'requieren'} atención ahora.`
+    : (totalAlertasHero > 0
+      ? `Ninguna en el foco; ${totalAlertasHero} ${totalAlertasHero === 1 ? 'permanece activa e inhibida' : 'permanecen activas e inhibidas'}.`
+      : 'Ninguna requiere atención.');
+  const totalPendientesHero = Number(dashboardResumen?.totalPendientes || 0);
+  const totalMonitoresHero = Number(dashboardResumen?.totalMonitores || 0);
+  const totalMonitoresActivosHero = Number(dashboardResumen?.totalActivos || 0);
+  const tonoDashboard = dashboardSalud?.tono === 'ok'
+    ? 'ok'
+    : (dashboardSalud?.tono === 'advertencia'
+      ? 'advertencia'
+      : (dashboardSalud?.tono === 'pendiente' ? 'suave' : 'alerta'));
+  const tonoIncidenciasHero = !dashboard?.habilitado
+    ? 'suave'
+    : (totalProblemas > 0
+      ? 'advertencia'
+      : (totalAlertasDescartadasHero > 0 || totalPendientesHero > 0 ? 'advertencia' : 'ok'));
+  const tonoCorreoHero = estadoCorreo.operativo
+    ? 'ok'
+    : 'advertencia';
+  const tonoDnsHero = !dashboardResumenDns?.habilitado
+    ? 'suave'
+    : (Number(dashboardResumenDns?.totalRegistros || 0) > 0
+      ? 'ok'
+      : (Number(dashboardResumenDns?.totalZonas || 0) > 0 ? 'neutro' : 'suave'));
+  const tonoBadgeAlertasHero = !dashboard?.habilitado
+    ? ''
+    : (totalAlertasVisiblesHero > 0 ? 'insignia--alerta' : (totalAlertasDescartadasHero > 0 || totalPendientesHero > 0 ? 'insignia--advertencia' : 'insignia--ok'));
+  const tonoResumenMonitores = 'neutro';
+  const tonoResumenDisponibles = Number(dashboardResumen?.totalDisponibles || 0) > 0 ? 'ok' : 'suave';
+  const tonoResumenIncidencias = totalProblemas > 0 ? 'advertencia' : 'ok';
+  const tonoResumenPendientes = Number(dashboardResumen?.totalPendientes || 0) > 0 ? 'advertencia' : 'suave';
+  const tonoResumenAlertas = totalAlertasVisiblesHero > 0 ? 'alerta' : (totalAlertasDescartadasHero > 0 ? 'advertencia' : 'ok');
+  const alertasVisiblesDashboard = Array.isArray(dashboard?.alertasDestacadas) ? dashboard.alertasDestacadas : [];
+  const alertasDescartadasDashboard = Array.isArray(dashboard?.alertasDescartadas) ? dashboard.alertasDescartadas : [];
+  const puedeGestionarDescartesDashboard = Boolean(
+    dashboard?.permisosOperativos?.puedeGestionarDescartesAlertasActivas ||
+    accionesDisponibles?.gestionarDescartesAlertasActivas
+  );
+  const totalRuntimeHero = Number(dashboardResumenRuntime?.totalInstanciasActivas || 0);
+  const runtimeActivoHero = totalRuntimeHero > 0;
+  const runtimeVerificableHero = dashboardResumenRuntime?.disponible === true;
+  const coberturaScope = alcancePanel?.cobertura || 'Cobertura no resuelta';
+  const alertasRemotasDashboard = dashboard?.alertasRemotas || { permiso: false, preferencia: false, puedeGestionarDescartes: false, alertasVisibles: [], alertasDescartadas: [], alertasSinVigencia: [] };
+  const etiquetaEstadoAlertaRemota = (alerta) => {
+    if (alerta?.descarteLocal?.vigente) return 'Inhibida localmente';
+    if (alerta?.estadoPresentacion === 'activaEnOrigen') return 'Activa en origen';
+    if (alerta?.estadoPresentacion === 'vigenciaAgotada') return 'Información caducada';
+    return 'Estado no disponible';
+  };
+  const etiquetaAlcanceRemoto = (nivel) => ({
+    portal: 'Portal completo',
+    tenant: 'Tenant',
+    empresa: 'Empresa',
+    sitio: 'Sitio'
+  }[String(nivel || '').trim()] || 'No indicado');
+  const urlMonitorRemotoDashboard = (alerta) =>
+    `/federacion/datos-remotos?procedencia=${encodeURIComponent(alerta.installationOrigenId)}` +
+    `&vista=monitores&subvista=estado&monitor=${encodeURIComponent(alerta.monitorOrigenId)}`;
+%>
+
+<section
+  class="panel-general"
+  data-dashboard-shell
+  data-url-dashboard="/panel/api/dashboard"
+  data-url-dashboard-ws="/ws/panel-dashboard"
+  data-url-alertas-base="/panel/api/alertas-activas"
+  data-dashboard-tiempo-real="<%= dashboard?.habilitado || alertasRemotasDashboard.permiso || contextoUsuarioActual?.permisos?.verAvisosPlataforma ? 'true' : 'false' %>"
+  data-puede-gestionar-descartes="<%= puedeGestionarDescartesDashboard ? '1' : '0' %>"
+>
+  <section class="hero-operativo card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4">
+      <div class="hero-operativo__contenido row g-3">
+        <div class="col-12">
+          <div class="hero-operativo__textos">
+            <h1>Alertas operativas</h1>
+            <p data-dashboard-hero-detalle>
+              <%= dashboard?.habilitado
+                ? 'Estado actual de los monitores y sus alertas.'
+                : 'La sesión está activa, pero no tiene lectura operativa de monitores.' %>
+            </p>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="hero-operativo__metricas row g-3">
+            <div class="col-12 col-md-6 col-xl-3">
+              <article class="card resumen-card resumen-card--<%= runtimeActivoHero ? (dashboard?.habilitado && totalMonitoresHero > 0 ? 'ok' : 'suave') : (runtimeVerificableHero ? 'alerta' : 'advertencia') %> h-100 border-0 shadow-sm" data-dashboard-hero-card-supervision>
+                <div class="card-body resumen-card__body">
+                  <span class="etiqueta panel-etiqueta-icono">
+                    <i class="bi bi-broadcast" aria-hidden="true"></i><span>Monitores en supervisión</span>
+                    <button type="button" class="resumen-card__ayuda" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Monitores activos dentro de tu alcance. Solo están bajo supervisión efectiva cuando el motor de supervisión está funcionando." aria-label="Qué significa monitores en supervisión"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
+                  </span>
+                  <strong data-dashboard-hero-supervision><%= runtimeActivoHero ? (dashboard?.habilitado ? totalMonitoresActivosHero : 'Sin acceso') : (runtimeVerificableHero ? 'Detenida' : 'Sin verificar') %></strong>
+                  <small data-dashboard-hero-supervision-detalle>
+                    <% if (runtimeActivoHero && dashboard?.habilitado) { %>
+                      <%= totalMonitoresActivosHero %> monitores activos de <%= totalMonitoresHero %> visibles · <%= totalRuntimeHero %> proceso<%= totalRuntimeHero === 1 ? '' : 's' %> de supervisión.
+                    <% } else if (runtimeActivoHero) { %>
+                      El motor de supervisión está activo, pero no puedes consultar los monitores.
+                    <% } else if (!runtimeVerificableHero) { %>
+                      No puede confirmarse si el motor está ejecutando la supervisión.
+                    <% } else if (dashboard?.habilitado && totalMonitoresActivosHero > 0) { %>
+                      <%= totalMonitoresActivosHero %> monitores activos no se están ejecutando.
+                    <% } else { %>
+                      No hay ningún proceso ejecutando la supervisión.
+                    <% } %>
+                  </small>
+                </div>
+              </article>
+            </div>
+            <div class="col-12 col-md-6 col-xl-3">
+              <article class="card resumen-card resumen-card--<%= !dashboard?.habilitado || dashboardResumen.totalMonitores === 0 ? 'suave' : tonoResumenAlertas %> h-100 border-0 shadow-sm" data-dashboard-hero-card-alertas>
+                <div class="card-body resumen-card__body">
+                  <span class="etiqueta panel-etiqueta-icono">
+                    <i class="bi bi-bell-fill" aria-hidden="true"></i><span>Alertas visibles</span>
+                    <button type="button" class="resumen-card__ayuda" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Alertas activas que forman parte de tu foco actual. No incluye las alertas retiradas temporalmente mediante una inhibición operativa." aria-label="Qué significa alertas visibles"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
+                  </span>
+                  <strong data-dashboard-hero-alertas-visibles><%= dashboard?.habilitado ? totalAlertasVisiblesHero : '-' %></strong>
+                  <small data-dashboard-hero-alertas-detalle><%= dashboard?.habilitado ? detalleAlertasHero : 'Sin lectura operativa.' %></small>
+                </div>
+              </article>
+            </div>
+            <div class="col-12 col-md-6 col-xl-3">
+              <article class="card resumen-card resumen-card--<%= !dashboard?.habilitado || dashboardResumen.totalMonitores === 0 ? 'suave' : (totalAlertasDescartadasHero > 0 ? 'advertencia' : 'ok') %> h-100 border-0 shadow-sm" data-dashboard-hero-card-descartadas>
+                <div class="card-body resumen-card__body">
+                  <span class="etiqueta panel-etiqueta-icono">
+                    <i class="bi bi-bell-slash" aria-hidden="true"></i><span>Alertas inhibidas</span>
+                    <button type="button" class="resumen-card__ayuda" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Alertas que continúan activas, pero se han retirado del foco mediante una inhibición temporal o indefinida. No están resueltas ni cerradas." aria-label="Qué significa alertas inhibidas"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
+                  </span>
+                  <strong data-dashboard-hero-alertas-descartadas><%= dashboard?.habilitado ? totalAlertasDescartadasHero : '-' %></strong>
+                  <small>Siguen activas, pero están fuera del foco por inhibición operativa.</small>
+                </div>
+              </article>
+            </div>
+            <div class="col-12 col-md-6 col-xl-3">
+              <article class="card resumen-card resumen-card--<%= !dashboard?.habilitado || dashboardResumen.totalMonitores === 0 ? 'suave' : (totalPendientesHero > 0 ? 'advertencia' : 'ok') %> h-100 border-0 shadow-sm" data-dashboard-hero-card-pendientes>
+                <div class="card-body resumen-card__body">
+                  <span class="etiqueta panel-etiqueta-icono">
+                    <i class="bi bi-hourglass-split" aria-hidden="true"></i><span>Monitores pendientes</span>
+                    <button type="button" class="resumen-card__ayuda" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Monitores que todavía no han completado su primera evaluación y aún no tienen un estado operativo." aria-label="Qué significa monitores pendientes"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
+                  </span>
+                  <strong data-dashboard-hero-pendientes><%= dashboard?.habilitado ? totalPendientesHero : '-' %></strong>
+                  <small>Todavía no han completado su primera evaluación.</small>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="hero-etiquetas" aria-label="Estado de servicios auxiliares">
+            <span class="insignia"><i class="bi bi-globe2" aria-hidden="true"></i><span>DNS: <strong data-dashboard-hero-dns><%= dashboardResumenDns?.habilitado ? `${dashboardResumenDns.totalZonas} zonas` : 'sin acceso' %></strong></span></span>
+            <span class="insignia insignia--<%= tonoCorreoHero %>"><i class="bi <%= estadoCorreo.operativo ? 'bi-envelope-check' : 'bi-envelope-exclamation' %>" aria-hidden="true"></i><span>Correo: <strong><%= estadoCorreo.operativo ? 'operativo' : estadoCorreo.configurado ? 'sin verificar' : 'pendiente' %></strong></span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Resumen de monitores oculto temporalmente: sus métricas ya están sintetizadas en el hero.
+  <section class="seccion-panel">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 pb-0">
+        <div class="seccion-cabecera mb-0">
+          <div>
+            <h2 class="d-inline-flex align-items-center gap-2"><i class="bi bi-bar-chart-line" aria-hidden="true"></i><span>Resumen de monitores</span></h2>
+            <p class="texto-apoyo mb-0" data-dashboard-vision-descripcion>
+              <%= dashboard?.habilitado
+                ? 'Lectura agregada del estado actual de monitores dentro del alcance visible.'
+                : 'Esta sesión no puede leer monitores, así que el panel operativo queda oculto.' %>
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="card-body pt-3">
+        <div data-dashboard-resumen-contenido>
+          <% if (dashboard?.habilitado) { %>
+            <div class="rejilla-resumen">
+              <article class="card resumen-card resumen-card--<%= tonoResumenMonitores %> h-100 border-0 shadow-sm">
+                <div class="card-body resumen-card__body">
+                  <span class="etiqueta panel-etiqueta-icono"><i class="bi bi-hdd-network" aria-hidden="true"></i><span>Monitores</span></span>
+                  <strong><%= dashboardResumen.totalMonitores %></strong>
+                  <small><%= dashboardResumen.totalActivos %> activos · <%= dashboardResumen.totalInactivos %> inactivos</small>
+                </div>
+              </article>
+              <article class="card resumen-card resumen-card--<%= tonoResumenDisponibles %> h-100 border-0 shadow-sm">
+                <div class="card-body resumen-card__body">
+                  <span class="etiqueta panel-etiqueta-icono"><i class="bi bi-check-circle" aria-hidden="true"></i><span>Disponibles</span></span>
+                  <strong><%= dashboardResumen.totalDisponibles %></strong>
+                  <small>Con lectura operativa correcta.</small>
+                </div>
+              </article>
+              <article class="card resumen-card resumen-card--<%= tonoResumenIncidencias %> h-100 border-0 shadow-sm">
+                <div class="card-body resumen-card__body">
+                  <span class="etiqueta panel-etiqueta-icono"><i class="bi bi-exclamation-diamond" aria-hidden="true"></i><span>Con incidencia</span></span>
+                  <strong><%= totalProblemas %></strong>
+                  <small><%= dashboardResumen.totalIndisponiblesAlertables %> indisponibles · <%= dashboardResumen.totalDegradadosAlertables %> degradados</small>
+                </div>
+              </article>
+              <article class="card resumen-card resumen-card--<%= tonoResumenPendientes %> h-100 border-0 shadow-sm">
+                <div class="card-body resumen-card__body">
+                  <span class="etiqueta panel-etiqueta-icono"><i class="bi bi-hourglass-split" aria-hidden="true"></i><span>Pendientes</span></span>
+                  <strong><%= dashboardResumen.totalPendientes %></strong>
+                  <small>Todavía no han completado su primera evaluación.</small>
+                </div>
+              </article>
+              <article class="card resumen-card resumen-card--<%= tonoResumenAlertas %> h-100 border-0 shadow-sm">
+                <div class="card-body resumen-card__body">
+                  <span class="etiqueta panel-etiqueta-icono"><i class="bi bi-bell-fill" aria-hidden="true"></i><span>Alertas visibles</span></span>
+                  <strong><%= totalAlertasVisiblesHero %></strong>
+                  <small><%= totalAlertasHero %> activas · <%= totalAlertasDescartadasHero %> inhibidas.</small>
+                </div>
+              </article>
+            </div>
+          <% } else { %>
+            <div class="tarjeta">
+              <p class="texto-apoyo">
+                El panel general sigue disponible, pero la parte operativa de monitores exige el permiso granular de lectura de monitores.
+              </p>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </section>
+  -->
+
+  <section class="seccion-panel">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 pb-0">
+        <div class="seccion-cabecera mb-0">
+          <div>
+            <h2 class="d-inline-flex align-items-center gap-2"><i class="bi bi-bell" aria-hidden="true"></i><span>Alertas activas</span></h2>
+            <p class="texto-apoyo mb-0">
+              Problemas abiertos que siguen vigentes para esta sesión y su alcance visible.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="card-body pt-3">
+        <div data-dashboard-alertas-contenido>
+          <% if (!dashboard?.habilitado) { %>
+            <div class="tarjeta">
+              <p class="texto-apoyo">La sesión no tiene permiso para inspeccionar alertas activas de monitores.</p>
+            </div>
+          <% } else { %>
+            <div class="dashboard-alertas-operativas">
+              <% if (!runtimeActivoHero) { %>
+                <article class="dashboard-alerta-plataforma" role="alert">
+                  <span class="dashboard-alerta-plataforma__icono" aria-hidden="true"><i class="bi bi-cpu"></i></span>
+                  <div class="dashboard-alerta-plataforma__contenido">
+                    <div class="fila-monitor__etiquetas">
+                      <span class="insignia-monitor insignia-monitor--alerta">Plataforma</span>
+                      <span class="insignia-monitor insignia-monitor--suave"><%= runtimeVerificableHero ? 'Supervisión detenida' : 'Estado no verificable' %></span>
+                    </div>
+                    <h3><%= runtimeVerificableHero ? 'El motor de supervisión está detenido' : 'No se puede verificar el motor de supervisión' %></h3>
+                    <p>
+                      <% if (runtimeVerificableHero && totalMonitoresActivosHero > 0) { %>
+                        Hay <strong><%= totalMonitoresActivosHero %> monitores activos</strong> configurados, pero el proceso que debe evaluarlos no está funcionando.
+                      <% } else if (runtimeVerificableHero) { %>
+                        No hay ningún proceso ejecutando la supervisión. Los monitores no se evaluarán hasta que el motor vuelva a arrancar.
+                      <% } else if (totalMonitoresActivosHero > 0) { %>
+                        No puede confirmarse que los <strong><%= totalMonitoresActivosHero %> monitores activos</strong> se estén evaluando.
+                      <% } else { %>
+                        No puede confirmarse que el motor de supervisión esté funcionando.
+                      <% } %>
+                    </p>
+                  </div>
+                </article>
+              <% } %>
+              <% if (alertasVisiblesDashboard.length === 0) { %>
+                <div class="tarjeta">
+                  <div class="fila-monitor__etiquetas" style="margin-bottom: 12px;">
+                    <span class="insignia-monitor insignia-monitor--<%= tonoDashboard %>">Sin alertas de monitores</span>
+                  </div>
+                  <p class="texto-apoyo"><%= dashboardSalud?.detalle || 'No hay alertas activas visibles en este momento.' %></p>
+                </div>
+              <% } else { %>
+                <div class="table-responsive dashboard-alertas-tabla-wrap">
+                  <table class="table table-striped table-hover align-middle mb-0 tabla-alertas-operativas">
+                    <thead>
+                      <tr>
+                        <th>Monitor</th>
+                        <th>Estado actual</th>
+                        <th>Alerta activa</th>
+                        <th>Seguimiento</th>
+                        <th class="text-end">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% for (const alerta of alertasVisiblesDashboard) { %>
+                        <% const tonoAlerta = alerta.resumenHumano?.tono === 'ok'
+                          ? 'ok'
+                          : (alerta.resumenHumano?.tono === 'advertencia' ? 'advertencia' : 'alerta'); %>
+                        <tr>
+                          <td>
+                            <div class="d-grid gap-2">
+                              <strong><%= alerta.monitorNombre %></strong>
+                              <div class="fila-monitor__etiquetas">
+                                <span class="insignia-monitor insignia-monitor--<%= alerta.tipoMonitor || 'base' %>"><%= String(alerta.tipoMonitor || '').toUpperCase() %></span>
+                                <span class="insignia-monitor insignia-monitor--suave">#<%= alerta.monitorId %></span>
+                                <span class="insignia-monitor <%= alerta.monitorActivo ? 'insignia-monitor--ok' : 'insignia-monitor--off' %>"><%= alerta.monitorActivo ? 'Monitor activo' : 'Monitor inactivo' %></span>
+                                <% if (alerta.causalidadFederada?.contieneEntradasFederadas) { %>
+                                  <span class="insignia-monitor insignia-monitor--federada">Datos de otra instalación</span>
+                                <% } %>
+                              </div>
+                              <span class="etiqueta-secundaria">
+                                <%= alerta.empresaNombre || '-' %><% if (alerta.sitioNombre) { %> · <%= alerta.sitioNombre %><% } %>
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <div class="d-grid gap-2">
+                              <span class="insignia-monitor insignia-monitor--<%= tonoAlerta %>"><%= alerta.resumenHumano?.etiquetaEstado || alerta.estadoDetectado %></span>
+                              <span class="etiqueta-secundaria"><%= alerta.resumenHumano?.detalle || alerta.mensajeUltimoResultado || 'Sin detalle operativo adicional.' %></span>
+                            </div>
+                          </td>
+                          <td>
+                            <div class="metadatos-configuracion">
+                              <span>Visibilidad: <code>visible en el foco principal</code></span>
+                              <span>Destino: <code><%= alerta.protocolo?.host || alerta.destinoPrincipal || '-' %><% if (alerta.protocolo?.puerto) { %>:<%= alerta.protocolo.puerto %><% } %></code></span>
+                              <span>Resultado: <code><%= alerta.codigoUltimoResultado || 'sin_resultado' %></code></span>
+                            </div>
+                            <% if (alerta.causalidadFederada?.contieneEntradasFederadas) { %>
+                              <details class="dashboard-causalidad-federada mt-2">
+                                <summary>Ver origen de los datos (<%= alerta.causalidadFederada.totalEntradas %>)</summary>
+                                <ul class="mt-2 mb-0">
+                                  <% for (const entrada of alerta.causalidadFederada.entradas) { %>
+                                    <li>
+                                      Dato <code><%= entrada.variable %></code> ·
+                                      <% if (entrada.visibilidad === 'visible') { %>
+                                        <a href="<%= entrada.urlProyeccionRemota %>">ver monitor de origen</a>
+                                      <% } else { %>
+                                        <span>origen no disponible con tu alcance actual</span>
+                                      <% } %>
+                                    </li>
+                                  <% } %>
+                                </ul>
+                              </details>
+                            <% } %>
+                          </td>
+                          <td>
+                            <div class="metadatos-configuracion">
+                              <span>Repeticiones: <code><%= alerta.contadorRepeticiones %></code></span>
+                              <span>Desde: <code><time data-fecha-utc="<%= alerta.validoDesdeUtc %>"><%= alerta.validoDesdeUtc %></time></code></span>
+                              <span>Última confirmación: <code><time data-fecha-utc="<%= alerta.ultimaConfirmacionUtc %>"><%= alerta.ultimaConfirmacionUtc %></time></code></span>
+                              <span>Última ejecución: <code><time data-fecha-utc="<%= alerta.ultimaEjecucionUtc %>"><%= alerta.ultimaEjecucionUtc %></time></code></span>
+                            </div>
+                          </td>
+                          <td class="text-end">
+                            <div class="dropup tabla-acciones">
+                              <button
+                                type="button"
+                                class="btn btn-outline-secondary btn-sm tabla-acciones__toggle"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                                aria-label="Acciones de la alerta de <%= alerta.monitorNombre || 'Monitor' %>"
+                              >
+                                <i class="bi bi-gear" aria-hidden="true"></i>
+                              </button>
+                              <div class="dropdown-menu dropdown-menu-end tabla-acciones__menu">
+                                <a href="/monitores/<%= alerta.monitorId %>?return_to=<%= encodeURIComponent('/panel') %>" class="dropdown-item d-flex align-items-center gap-2">
+                                  <i class="bi bi-eye" aria-hidden="true"></i>
+                                  <span>Ver monitor</span>
+                                </a>
+                                <% if (puedeGestionarDescartesDashboard) { %>
+                                  <button
+                                    type="button"
+                                    class="dropdown-item dropdown-item--warning d-flex align-items-center gap-2"
+                                    data-dashboard-descartar-alerta
+                                    data-monitor-id="<%= alerta.monitorId %>"
+                                    data-monitor-nombre="<%= alerta.monitorNombre || 'Monitor' %>"
+                                  >
+                                    <i class="bi bi-bell-slash" aria-hidden="true"></i>
+                                    <span>Inhibir…</span>
+                                  </button>
+                                <% } %>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      <% } %>
+                    </tbody>
+                  </table>
+                </div>
+              <% } %>
+
+              <% if (alertasDescartadasDashboard.length > 0) { %>
+                <details class="dashboard-alertas-descartadas">
+                  <summary class="dashboard-alertas-descartadas__cabecera">
+                    <div>
+                      <span class="etiqueta panel-etiqueta-icono"><i class="bi bi-bell-slash" aria-hidden="true"></i><span>Alertas inhibidas</span></span>
+                      <p class="texto-apoyo mb-0">Siguen activas y registrando actividad, pero no aparecen en el foco principal hasta que finalice o se revierta la inhibición.</p>
+                    </div>
+                    <span class="dashboard-alertas-descartadas__acciones">
+                      <span class="insignia-monitor insignia-monitor--advertencia"><%= alertasDescartadasDashboard.length %> inhibidas</span>
+                      <span class="dashboard-alertas-descartadas__chevron" aria-hidden="true"><i class="bi bi-chevron-down"></i></span>
+                    </span>
+                  </summary>
+                  <div class="dashboard-alertas-descartadas__lista">
+                    <% for (const alerta of alertasDescartadasDashboard) { %>
+                      <% const descarte = alerta.descarteOperativo || {}; %>
+                      <%
+                        const usuarioDescarte = descarte.usuario || null;
+                        const nombreUsuarioDescarte = String(usuarioDescarte?.nombreVisible || usuarioDescarte?.usuario || '').trim();
+                        const loginUsuarioDescarte = String(usuarioDescarte?.usuario || '').trim();
+                      %>
+                      <article class="alerta-descartada-card">
+                        <div class="alerta-descartada-card__principal">
+                          <div class="d-grid gap-2">
+                            <strong><%= alerta.monitorNombre || 'Monitor' %></strong>
+                            <div class="fila-monitor__etiquetas">
+                              <span class="insignia-monitor insignia-monitor--<%= alerta.tipoMonitor || 'base' %>"><%= String(alerta.tipoMonitor || '').toUpperCase() %></span>
+                              <span class="insignia-monitor insignia-monitor--suave">#<%= alerta.monitorId %></span>
+                              <span class="insignia-monitor insignia-monitor--advertencia">Inhibida</span>
+                              <% if (alerta.causalidadFederada?.contieneEntradasFederadas) { %>
+                                <span class="insignia-monitor insignia-monitor--federada">Datos de otra instalación</span>
+                              <% } %>
+                            </div>
+                          </div>
+                          <p class="dashboard-descarte-motivo"><%= descarte.motivo || 'Sin motivo informado.' %></p>
+                          <div class="dashboard-descarte-meta">
+                            <span>Desde: <code><time data-fecha-utc="<%= descarte.descartadaEnUtc || '' %>"><%= descarte.descartadaEnUtc || '-' %></time></code></span>
+                            <span>Hasta: <code><% if (descarte.descartadaHastaUtc) { %><time data-fecha-utc="<%= descarte.descartadaHastaUtc %>"><%= descarte.descartadaHastaUtc %></time><% } else { %>indefinido<% } %></code></span>
+                            <span>
+                              Usuario:
+                              <% if (nombreUsuarioDescarte) { %>
+                                <strong><%= nombreUsuarioDescarte %></strong>
+                                <% if (loginUsuarioDescarte && loginUsuarioDescarte !== nombreUsuarioDescarte) { %>
+                                  <code>@<%= loginUsuarioDescarte %></code>
+                                <% } %>
+                              <% } else if (descarte.usuarioId) { %>
+                                <span class="text-body-secondary">Usuario #<%= descarte.usuarioId %></span>
+                              <% } else { %>
+                                <span class="text-body-secondary">No informado</span>
+                              <% } %>
+                            </span>
+                          </div>
+                          <% if (alerta.causalidadFederada?.contieneEntradasFederadas) { %>
+                            <details class="dashboard-causalidad-federada">
+                              <summary>Ver origen de los datos (<%= alerta.causalidadFederada.totalEntradas %>)</summary>
+                              <ul class="mt-2 mb-0">
+                                <% for (const entrada of alerta.causalidadFederada.entradas) { %>
+                                  <li>Dato <code><%= entrada.variable %></code> ·
+                                    <% if (entrada.visibilidad === 'visible') { %>
+                                      <a href="<%= entrada.urlProyeccionRemota %>">ver monitor de origen</a>
+                                    <% } else { %>
+                                      <span>origen no disponible con tu alcance actual</span>
+                                    <% } %>
+                                  </li>
+                                <% } %>
+                              </ul>
+                            </details>
+                          <% } %>
+                        </div>
+                        <div class="alerta-descartada-card__acciones">
+                          <div class="dropup tabla-acciones tabla-acciones--auto">
+                            <button
+                              type="button"
+                              class="btn btn-outline-secondary btn-sm tabla-acciones__toggle"
+                              data-bs-toggle="dropdown"
+                              aria-expanded="false"
+                              aria-label="Acciones de la alerta inhibida de <%= alerta.monitorNombre || 'Monitor' %>"
+                            >
+                              <i class="bi bi-gear" aria-hidden="true"></i>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end tabla-acciones__menu">
+                              <a href="/monitores/<%= alerta.monitorId %>?return_to=<%= encodeURIComponent('/panel') %>" class="dropdown-item d-flex align-items-center gap-2">
+                                <i class="bi bi-eye" aria-hidden="true"></i>
+                                <span>Ver monitor</span>
+                              </a>
+                              <% if (puedeGestionarDescartesDashboard) { %>
+                                <button
+                                  type="button"
+                                  class="dropdown-item d-flex align-items-center gap-2"
+                                  data-dashboard-revertir-descarte
+                                  data-monitor-id="<%= alerta.monitorId %>"
+                                  data-monitor-nombre="<%= alerta.monitorNombre || 'Monitor' %>"
+                                >
+                                  <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+                                  <span>Reactivar…</span>
+                                </button>
+                              <% } %>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    <% } %>
+                  </div>
+                </details>
+              <% } %>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <% if (alertasRemotasDashboard.permiso) { %>
+    <section class="seccion-panel">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pb-0">
+          <div class="seccion-cabecera mb-0"><div>
+            <h2 class="d-inline-flex align-items-center gap-2"><i class="bi bi-cloud-arrow-down" aria-hidden="true"></i><span>Alertas remotas</span></h2>
+            <p class="texto-apoyo mb-0">Alertas recibidas desde otras instalaciones. Se evalúan en su instalación de origen.</p>
+          </div></div>
+        </div>
+        <div class="card-body pt-3" data-dashboard-alertas-remotas>
+          <% if (!alertasRemotasDashboard.preferencia) { %>
+            <div class="tarjeta"><p class="texto-apoyo mb-2">Tienes permiso de consulta, pero estas alertas no se incluyen en el resumen principal según tu preferencia personal.</p><a href="/mi-perfil" class="btn btn-outline-secondary btn-sm">Configurar en mi perfil</a></div>
+          <% } else if (alertasRemotasDashboard.alertasVisibles.length === 0) { %>
+            <div class="tarjeta"><p class="texto-apoyo mb-0">No hay alertas remotas activas visibles dentro de tu alcance.</p></div>
+          <% } else { %>
+            <div class="dashboard-alertas-remotas-grid">
+              <% for (const alerta of alertasRemotasDashboard.alertasVisibles) { %>
+                <article class="tarjeta dashboard-alerta-remota dashboard-alerta-remota--<%= alerta.estadoPresentacion %>">
+                  <div class="fila-monitor__etiquetas">
+                    <span class="insignia-monitor insignia-monitor--alerta">Remota</span>
+                    <span class="insignia-monitor insignia-monitor--<%= alerta.estadoPresentacion === 'activaEnOrigen' ? 'alerta' : 'advertencia' %>"><%= etiquetaEstadoAlertaRemota(alerta) %></span>
+                  </div>
+                  <h3><%= alerta.monitorNombre %></h3>
+                  <p><%= alerta.payload.mensajeUltimoResultado || alerta.payload.estadoDetectado %></p>
+                  <div class="metadatos-configuracion">
+                    <span>Instalación: <code><%= alerta.installationNombre || alerta.installationOrigenId %></code></span>
+                    <span>Alcance: <code><%= etiquetaAlcanceRemoto(alerta.scope.nivel) %></code></span>
+                    <span>Última confirmación: <code><time data-fecha-utc="<%= alerta.frescura.ultimaConfirmacionUtc %>"><%= alerta.frescura.ultimaConfirmacionUtc %></time></code></span>
+                  </div>
+                  <div class="dropdown dashboard-alerta-remota__acciones">
+                    <button type="button" class="btn btn-outline-secondary btn-sm tabla-acciones__toggle"
+                      data-bs-toggle="dropdown" aria-expanded="false"
+                      aria-label="Acciones de la alerta remota de <%= alerta.monitorNombre || 'Monitor remoto' %>">
+                      <i class="bi bi-gear" aria-hidden="true"></i>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end tabla-acciones__menu">
+                      <a href="<%= urlMonitorRemotoDashboard(alerta) %>" class="dropdown-item d-flex align-items-center gap-2">
+                        <i class="bi bi-eye" aria-hidden="true"></i><span>Ver monitor</span>
+                      </a>
+                      <% if (alertasRemotasDashboard.puedeGestionarDescartes) { %>
+                        <button type="button" class="dropdown-item dropdown-item--warning d-flex align-items-center gap-2"
+                          data-dashboard-descartar-alerta-remota data-proyeccion-id="<%= alerta.proyeccionId %>"
+                          data-alerta-id="<%= alerta.alertaAuditoriaId %>"
+                          data-monitor-nombre="<%= alerta.monitorNombre || 'Monitor remoto' %>"
+                          data-installation-nombre="<%= alerta.installationNombre || alerta.installationOrigenId || 'la instalación remota' %>">
+                          <i class="bi bi-bell-slash" aria-hidden="true"></i><span>Inhibir…</span>
+                        </button>
+                      <% } %>
+                    </div>
+                  </div>
+                </article>
+              <% } %>
+            </div>
+          <% } %>
+          <% const alertasRemotasSecundarias = alertasRemotasDashboard.preferencia
+            ? alertasRemotasDashboard.alertasDescartadas
+            : []; %>
+          <% if (alertasRemotasSecundarias.length > 0) { %>
+            <details class="dashboard-alertas-descartadas mt-3">
+              <summary class="dashboard-alertas-descartadas__cabecera">
+                <strong>Alertas remotas inhibidas</strong>
+                <span><%= alertasRemotasSecundarias.length %></span>
+              </summary>
+              <div class="dashboard-alertas-remotas-grid mt-2">
+                <% for (const alerta of alertasRemotasSecundarias) { %>
+                  <article class="tarjeta dashboard-alerta-remota dashboard-alerta-remota--<%= alerta.estadoPresentacion %>">
+                    <div class="fila-monitor__etiquetas">
+                      <span class="insignia-monitor insignia-monitor--alerta">Remota</span>
+                      <span class="insignia-monitor insignia-monitor--advertencia"><%= etiquetaEstadoAlertaRemota(alerta) %></span>
+                    </div>
+                    <h3><%= alerta.monitorNombre %></h3>
+                    <p><%= alerta.payload.mensajeUltimoResultado || alerta.payload.estadoDetectado %></p>
+                    <div class="metadatos-configuracion">
+                      <span>Instalación: <code><%= alerta.installationNombre || alerta.installationOrigenId %></code></span>
+                      <span>Alcance: <code><%= etiquetaAlcanceRemoto(alerta.scope.nivel) %></code></span>
+                    </div>
+                    <% if (alerta.descarteLocal.vigente) { %>
+                      <p class="texto-apoyo">Motivo de la inhibición local: <%= alerta.descarteLocal.motivo %></p>
+                    <% } %>
+                    <div class="dropdown dashboard-alerta-remota__acciones">
+                      <button type="button" class="btn btn-outline-secondary btn-sm tabla-acciones__toggle"
+                        data-bs-toggle="dropdown" aria-expanded="false"
+                        aria-label="Acciones de la alerta remota de <%= alerta.monitorNombre || 'Monitor remoto' %>">
+                        <i class="bi bi-gear" aria-hidden="true"></i>
+                      </button>
+                      <div class="dropdown-menu dropdown-menu-end tabla-acciones__menu">
+                        <a href="<%= urlMonitorRemotoDashboard(alerta) %>" class="dropdown-item d-flex align-items-center gap-2">
+                          <i class="bi bi-eye" aria-hidden="true"></i><span>Ver monitor</span>
+                        </a>
+                        <% if (alerta.descarteLocal.vigente && alertasRemotasDashboard.puedeGestionarDescartes) { %>
+                          <button type="button" class="dropdown-item d-flex align-items-center gap-2"
+                            data-dashboard-revertir-alerta-remota data-proyeccion-id="<%= alerta.proyeccionId %>"
+                            data-alerta-id="<%= alerta.alertaAuditoriaId %>">
+                            <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i><span>Reactivar…</span>
+                          </button>
+                        <% } %>
+                      </div>
+                    </div>
+                  </article>
+                <% } %>
+              </div>
+            </details>
+          <% } %>
+          <% const alertasRemotasSinVigencia = alertasRemotasDashboard.preferencia &&
+            Array.isArray(alertasRemotasDashboard.alertasSinVigencia)
+              ? alertasRemotasDashboard.alertasSinVigencia
+              : []; %>
+          <% if (alertasRemotasSinVigencia.length > 0) { %>
+            <details class="dashboard-alertas-descartadas mt-3">
+              <summary class="dashboard-alertas-descartadas__cabecera">
+                <strong>Alertas remotas con información caducada</strong>
+                <span><%= alertasRemotasSinVigencia.length %></span>
+              </summary>
+              <p class="texto-apoyo mt-2 mb-2">La instalación de origen no comunicó el cierre y hace demasiado tiempo que no confirma estas alertas.</p>
+              <div class="dashboard-alertas-remotas-grid">
+                <% for (const alerta of alertasRemotasSinVigencia) { %>
+                  <article class="tarjeta dashboard-alerta-remota dashboard-alerta-remota--vigenciaAgotada">
+                    <div class="fila-monitor__etiquetas">
+                      <span class="insignia-monitor insignia-monitor--alerta">Remota</span>
+                      <span class="insignia-monitor insignia-monitor--advertencia">Información caducada</span>
+                    </div>
+                    <h3><%= alerta.monitorNombre %></h3>
+                    <p><%= alerta.payload.mensajeUltimoResultado || alerta.payload.estadoDetectado %></p>
+                    <div class="metadatos-configuracion">
+                      <span>Instalación: <code><%= alerta.installationNombre || alerta.installationOrigenId %></code></span>
+                      <span>Alcance: <code><%= etiquetaAlcanceRemoto(alerta.scope.nivel) %></code></span>
+                      <span>Última confirmación: <code><time data-fecha-utc="<%= alerta.frescura.ultimaConfirmacionUtc %>"><%= alerta.frescura.ultimaConfirmacionUtc %></time></code></span>
+                    </div>
+                    <div class="dropdown dashboard-alerta-remota__acciones">
+                      <button type="button" class="btn btn-outline-secondary btn-sm tabla-acciones__toggle"
+                        data-bs-toggle="dropdown" aria-expanded="false"
+                        aria-label="Acciones de la alerta remota con información caducada de <%= alerta.monitorNombre || 'Monitor remoto' %>">
+                        <i class="bi bi-gear" aria-hidden="true"></i>
+                      </button>
+                      <div class="dropdown-menu dropdown-menu-end tabla-acciones__menu">
+                        <a href="<%= urlMonitorRemotoDashboard(alerta) %>" class="dropdown-item d-flex align-items-center gap-2">
+                          <i class="bi bi-eye" aria-hidden="true"></i><span>Ver monitor</span>
+                        </a>
+                      </div>
+                    </div>
+                  </article>
+                <% } %>
+              </div>
+            </details>
+          <% } %>
+        </div>
+      </div>
+    </section>
+  <% } %>
+
+  <!-- Accesos rápidos ocultos temporalmente para mantener el dashboard centrado en alertas.
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h2 class="d-inline-flex align-items-center gap-2"><i class="bi bi-grid-1x2" aria-hidden="true"></i><span>Accesos rápidos</span></h2>
+        <p class="texto-apoyo">Puntos de entrada habituales dentro del alcance y permisos actuales.</p>
+      </div>
+    </div>
+
+    <div class="rejilla-resumen rejilla-acciones">
+      <a href="/panel" class="tarjeta-accion activa">
+        <span class="tarjeta-accion__icono" aria-hidden="true"><i class="bi bi-speedometer2"></i></span>
+        <span class="etiqueta">Estado general</span>
+        <strong>Panel</strong>
+        <span>Resumen de estado, alertas activas y lectura operativa visible.</span>
+      </a>
+
+      <% if (accionesDisponibles.monitores) { %>
+        <a href="/monitores" class="tarjeta-accion">
+          <span class="tarjeta-accion__icono" aria-hidden="true"><i class="bi bi-hdd-network"></i></span>
+          <span class="etiqueta">Supervisión</span>
+          <strong>Monitores</strong>
+          <span>Catálogo, detalle, comparador e histórico dentro del alcance visible.</span>
+        </a>
+      <% } %>
+
+      <% if (accionesDisponibles.organizacion) { %>
+        <a href="/organizacion" class="tarjeta-accion">
+          <span class="tarjeta-accion__icono" aria-hidden="true"><i class="bi bi-diagram-3"></i></span>
+          <span class="etiqueta">Jerarquía</span>
+          <strong>Organización</strong>
+          <span>Tenants, empresas y sitios visibles para la sesión actual.</span>
+        </a>
+      <% } %>
+
+      <% if (accionesDisponibles.administrarUsuarios) { %>
+        <a href="/usuarios" class="tarjeta-accion">
+          <span class="tarjeta-accion__icono" aria-hidden="true"><i class="bi bi-people"></i></span>
+          <span class="etiqueta">Identidades</span>
+          <strong>Usuarios</strong>
+          <span>Gestión de identidades, permisos y alcance operativo.</span>
+        </a>
+      <% } %>
+
+      <% if (accionesDisponibles.triggers) { %>
+        <a href="/automatizacion/acciones" class="tarjeta-accion">
+          <span class="tarjeta-accion__icono" aria-hidden="true"><i class="bi bi-lightning-charge"></i></span>
+          <span class="etiqueta">Automatización</span>
+          <strong>Acciones</strong>
+          <span>Catálogo de acciones reutilizables para la automatización.</span>
+        </a>
+      <% } %>
+
+      <% if (accionesDisponibles.verDns) { %>
+        <a href="/dns" class="tarjeta-accion">
+          <span class="tarjeta-accion__icono" aria-hidden="true"><i class="bi bi-globe2"></i></span>
+          <span class="etiqueta">DNS</span>
+          <strong>Zonas</strong>
+          <span>Catálogo DNS visible, publicación y registros por alcance.</span>
+        </a>
+      <% } %>
+
+      <% if (accionesDisponibles.administrarConfiguracion) { %>
+        <a href="/configuracion" class="tarjeta-accion">
+          <span class="tarjeta-accion__icono" aria-hidden="true"><i class="bi bi-gear"></i></span>
+          <span class="etiqueta">Ajustes</span>
+          <strong>Configuración</strong>
+          <span>Parámetros vivos del portal y estado de servicios base.</span>
+        </a>
+      <% } %>
+    </div>
+  </section>
+  -->
+
+  <!-- Alcance del usuario oculto temporalmente para mantener el dashboard centrado en alertas.
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h2 class="d-inline-flex align-items-center gap-2"><i class="bi bi-person-badge" aria-hidden="true"></i><span>Tu alcance</span></h2>
+        <p class="texto-apoyo">Resumen del ámbito operativo resuelto para esta sesión.</p>
+      </div>
+    </div>
+
+    <div class="rejilla-resumen">
+      <article class="kpi-resumen">
+        <span class="etiqueta panel-etiqueta-icono"><i class="bi bi-bounding-box" aria-hidden="true"></i><span>Alcance operativo</span></span>
+        <strong><%= contextoUsuarioActual.nivelScope %></strong>
+        <small><%= descripcionScope %></small>
+      </article>
+      <article class="kpi-resumen">
+        <span class="etiqueta panel-etiqueta-icono"><i class="bi bi-map" aria-hidden="true"></i><span>Cobertura</span></span>
+        <strong><%= contextoUsuarioActual.esOperadorSistema ? 'Portal completo' : 'Ámbito acotado' %></strong>
+        <small><%= coberturaScope %></small>
+      </article>
+      <article class="kpi-resumen">
+        <span class="etiqueta panel-etiqueta-icono"><i class="bi bi-person-circle" aria-hidden="true"></i><span>Usuario actual</span></span>
+        <strong><%= usuarioActual.usuario %></strong>
+        <small><%= usuarioActual.nombreVisible || usuarioActual.usuario %></small>
+      </article>
+      <article class="kpi-resumen">
+        <span class="etiqueta panel-etiqueta-icono"><i class="bi bi-shield-check" aria-hidden="true"></i><span>Capacidad operativa</span></span>
+        <strong><%= contextoUsuarioActual.esOperadorSistema ? 'Operador del sistema' : 'Operación restringida' %></strong>
+        <small><%= accionesDisponibles.monitores ? 'Puede consultar supervisión.' : 'Sin lectura operativa de monitores.' %></small>
+      </article>
+    </div>
+  </section>
+  -->
+</section>
+
+<div class="modal fade" id="modal-descarte-alerta" tabindex="-1" aria-hidden="true" data-dashboard-descarte-modal>
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" data-dashboard-descarte-form>
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title fs-5" data-dashboard-descarte-titulo>Inhibir alerta</h2>
+          <p class="texto-apoyo mb-0" data-dashboard-descarte-monitor>La alerta seguirá activa y registrando actividad.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="monitorId" data-dashboard-descarte-monitor-id>
+        <input type="hidden" name="tipoAlerta" value="local" data-dashboard-descarte-tipo>
+        <input type="hidden" name="proyeccionId" data-dashboard-descarte-proyeccion-id>
+        <input type="hidden" name="alertaAuditoriaId" data-dashboard-descarte-alerta-id>
+        <div class="mb-3">
+          <label class="form-label" for="motivo-descarte-alerta">Motivo de la inhibición</label>
+          <textarea
+            class="form-control"
+            id="motivo-descarte-alerta"
+            name="motivo"
+            rows="5"
+            maxlength="512"
+            required
+            data-dashboard-descarte-motivo
+            placeholder="Ejemplo: el proveedor ya está avisado y se revisará mañana."
+          ></textarea>
+          <div class="form-text">Máximo 512 caracteres. Debe explicar por qué deja de verse en el foco principal.</div>
+        </div>
+        <div>
+          <label class="form-label" for="hasta-descarte-alerta">Reactivar automáticamente el</label>
+          <input
+            class="form-control"
+            id="hasta-descarte-alerta"
+            type="datetime-local"
+            name="hastaUtc"
+            data-dashboard-descarte-hasta
+          >
+          <div class="form-text">Déjalo vacío para una inhibición indefinida. Si el monitor se recupera, la inhibición finaliza igualmente.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-warning" data-dashboard-descarte-enviar>Inhibir alerta</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/js/panel-dashboard.js?v=panel-ux-lenguaje-20260912"></script>
+<%- include('parciales/pie') %>

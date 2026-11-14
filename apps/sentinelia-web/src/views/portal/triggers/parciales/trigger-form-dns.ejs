@@ -1,0 +1,239 @@
+<%
+  const objetivoDns = objetivoDnsTrigger || null;
+  const zonaDnsObjetivo = objetivoDns?.zona || null;
+  const registroDnsObjetivo = objetivoDns?.registro || null;
+  const nombreRegistroDnsObjetivo = registroDnsObjetivo?.nombreVisible || '';
+  const tipoRegistroDnsObjetivo = registroDnsObjetivo?.tipoRegistro || '';
+  const nombreZonaDnsObjetivo = zonaDnsObjetivo?.nombre || '';
+  const objetivoDnsLegible = nombreRegistroDnsObjetivo
+    ? `${tipoRegistroDnsObjetivo ? `${tipoRegistroDnsObjetivo} ` : ''}${nombreRegistroDnsObjetivo}`
+    : formulario.registroId
+      ? 'Registro DNS seleccionado'
+      : 'Selecciona el registro DNS que modificará esta acción.';
+  const detalleDnsLegible = nombreRegistroDnsObjetivo
+    ? `${nombreZonaDnsObjetivo || `Zona #${formulario.zonaId}`} · Registro encontrado y compatible con esta acción.`
+    : formulario.zonaId && formulario.registroId
+      ? `Zona #${formulario.zonaId} · Registro #${formulario.registroId}`
+      : 'El selector solo muestra registros disponibles dentro de tu alcance.';
+  const publicacionDnsObjetivo = registroDnsObjetivo?.publicarEnBind === true;
+  const estadoPublicacionDns = registroDnsObjetivo
+    ? (publicacionDnsObjetivo
+      ? 'Incluido en publicación DNS; la publicación efectiva depende de la zona y del servicio.'
+      : 'Excluido de publicación DNS: puedes guardar la acción, pero sus cambios no aparecerán en el DNS publicado.')
+    : '';
+  const ejemplosValorDns = {
+    A: '192.0.2.10',
+    AAAA: '2001:db8::10',
+    CNAME: 'destino.ejemplo.local',
+    NS: 'ns1.ejemplo.local',
+    MX: 'correo.ejemplo.local',
+    PTR: 'servidor.ejemplo.local',
+    TXT: 'texto del registro',
+    SRV: 'servicio.ejemplo.local',
+    CAA: 'autoridad.example'
+  };
+  const puedeEditarRegistroDns = Boolean(
+    triggerObjetivo?.id &&
+    contextoUsuarioActual?.permisos?.editarDns &&
+    contextoUsuarioActual?.permisos?.administrarDnsAvanzado
+  );
+  const enlaceEditarRegistroDns = registroDnsObjetivo && zonaDnsObjetivo
+    ? `/dns/${zonaDnsObjetivo.id}/registros/${registroDnsObjetivo.id}/editar?return_to=${encodeURIComponent(retornoGestionAccion)}`
+    : '';
+%>
+
+<input
+  id="trigger_zona_id"
+  name="zonaId"
+  type="hidden"
+  value="<%= formulario.zonaId %>"
+  data-trigger-dns-zona-id
+>
+<input
+  id="trigger_registro_id"
+  name="registroId"
+  type="hidden"
+  value="<%= formulario.registroId %>"
+  data-trigger-dns-registro-id
+>
+
+<div class="trigger-dns-seleccion"
+  data-trigger-dns-seleccion
+  data-trigger-dns-nombre-inicial="<%= nombreRegistroDnsObjetivo %>"
+  data-trigger-dns-tipo-inicial="<%= tipoRegistroDnsObjetivo %>"
+  data-trigger-dns-valor-inicial="<%= registroDnsObjetivo?.valorPrincipal || '' %>"
+  data-trigger-dns-prioridad-inicial="<%= registroDnsObjetivo?.prioridad ?? '' %>"
+  data-trigger-dns-publicar-inicial="<%= registroDnsObjetivo?.publicarEnBind === true ? '1' : registroDnsObjetivo?.publicarEnBind === false ? '0' : '' %>"
+  data-trigger-dns-rol-inicial="<%= registroDnsObjetivo?.rolAsignado || '' %>"
+>
+  <div class="trigger-dns-seleccion__contenido">
+    <span class="organizacion-entidad__icono" aria-hidden="true">
+      <i class="bi bi-globe2"></i>
+    </span>
+    <div>
+      <strong
+        data-trigger-dns-seleccion-resumen
+        data-trigger-dns-resumen-inicial="<%= objetivoDnsLegible %>"
+      >
+        <%= objetivoDnsLegible %>
+      </strong>
+      <p
+        class="texto-apoyo mb-0"
+        data-trigger-dns-seleccion-detalle
+        data-trigger-dns-detalle-inicial="<%= detalleDnsLegible %>"
+      >
+        <%= detalleDnsLegible %>
+      </p>
+      <p class="trigger-dns-seleccion__publicacion <%= registroDnsObjetivo && !publicacionDnsObjetivo ? 'trigger-dns-seleccion__publicacion--advertencia' : '' %>"
+        data-trigger-dns-publicacion <%= registroDnsObjetivo ? '' : 'hidden' %>><%= estadoPublicacionDns %></p>
+      <% if (puedeEditarRegistroDns) { %>
+        <a class="trigger-dns-seleccion__enlace" data-trigger-dns-editar-registro
+          href="<%= enlaceEditarRegistroDns %>"
+          <%= registroDnsObjetivo && !publicacionDnsObjetivo ? '' : 'hidden' %>>Editar publicación del registro <i class="bi bi-arrow-up-right" aria-hidden="true"></i></a>
+      <% } %>
+    </div>
+  </div>
+  <button
+    type="button"
+    class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-2"
+    data-trigger-dns-abrir-selector
+  >
+    <i class="bi bi-search" aria-hidden="true"></i>
+    <span>Buscar registro DNS</span>
+  </button>
+</div>
+
+<div class="rejilla-formulario rejilla-formulario--tecnica">
+  <div>
+    <label for="trigger_operacion_dns">Qué hará con el registro</label>
+    <select id="trigger_operacion_dns" name="operacion" data-trigger-dns-operacion>
+      <option value="editar_valor" <%= formulario.operacion === 'editar_valor' ? 'selected' : '' %>>Editar valor</option>
+      <option value="activar" <%= formulario.operacion === 'activar' ? 'selected' : '' %>>Activar registro</option>
+      <option value="desactivar" <%= formulario.operacion === 'desactivar' ? 'selected' : '' %>>Desactivar registro</option>
+      <option value="seguir_estado_monitor" <%= formulario.operacion === 'seguir_estado_monitor' ? 'selected' : '' %>>Seguir estado activo de monitor</option>
+    </select>
+    <p class="texto-apoyo" data-trigger-dns-ayuda-operacion>
+      Elige el cambio que se aplicará cuando un monitor active esta acción.
+    </p>
+  </div>
+  <div>
+    <div class="campo-etiqueta-ayuda">
+      <label for="trigger_rol_gobernanza">Rol del registro</label>
+      <button type="button" class="usuario-permiso-item__ayuda" data-bs-toggle="tooltip"
+        title="Es la clave que autoriza a esta acción a modificar el registro elegido. Se copia automáticamente al seleccionarlo; debe coincidir exactamente."
+        aria-label="Ayuda sobre el rol del registro"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
+    </div>
+    <input
+      id="trigger_rol_gobernanza"
+      name="rolGobernanza"
+      type="text"
+      maxlength="120"
+      value="<%= formulario.rolGobernanza %>"
+      placeholder="conmutacion_isp"
+      <%= registroDnsObjetivo?.rolAsignado ? 'readonly' : '' %>
+    >
+    <p class="texto-apoyo" data-trigger-dns-rol-ayuda><%= registroDnsObjetivo?.rolAsignado
+      ? 'Se ha tomado del registro seleccionado. Para usar otro rol, elige otro registro.'
+      : 'Si el registro tiene un rol asignado, se rellenará al seleccionarlo.' %></p>
+  </div>
+</div>
+
+<div data-trigger-dns-valor>
+  <label for="trigger_valor_principal">Nuevo valor del registro</label>
+  <input
+    id="trigger_valor_principal"
+    name="valorPrincipal"
+    type="text"
+    maxlength="1024"
+    value="<%= formulario.valorPrincipal %>"
+    placeholder="<%= ejemplosValorDns[tipoRegistroDnsObjetivo] || 'Valor del registro' %>"
+    aria-describedby="trigger_valor_principal_ayuda trigger_valor_principal_error"
+  >
+  <p class="texto-apoyo" id="trigger_valor_principal_ayuda">El valor debe ser compatible con el tipo de registro elegido.</p>
+  <p class="trigger-dns-valor__error" id="trigger_valor_principal_error" data-trigger-dns-valor-error role="alert" hidden></p>
+  <p class="trigger-dns-cambio" data-trigger-dns-cambio></p>
+</div>
+
+<p class="texto-apoyo">Esta acción no cambia el tipo, la zona ni el tiempo de vida (TTL) del registro.</p>
+
+<div
+  class="modal fade"
+  id="trigger_dns_selector_modal"
+  tabindex="-1"
+  aria-labelledby="trigger_dns_selector_modal_titulo"
+  aria-hidden="true"
+  data-trigger-dns-selector-modal
+>
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <p class="text-uppercase text-primary-emphasis fw-semibold small mb-1">
+            Registro DNS de la acción
+          </p>
+          <h2 class="modal-title h5" id="trigger_dns_selector_modal_titulo">
+            Seleccionar registro DNS
+          </h2>
+          <p class="text-body-secondary mb-0">
+            Solo aparecen registros que puedes utilizar con una acción DNS.
+          </p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3 align-items-end mb-3">
+          <div class="col-12 col-lg-8">
+            <label for="trigger_dns_selector_busqueda" class="form-label">Buscar zona o registro</label>
+            <input
+              id="trigger_dns_selector_busqueda"
+              type="search"
+              class="form-control"
+              placeholder="empresa.local, www, CNAME, destino..."
+              data-trigger-dns-selector-busqueda
+            >
+          </div>
+          <div class="col-12 col-lg-4">
+            <button
+              type="button"
+              class="btn btn-primary w-100 d-inline-flex align-items-center justify-content-center gap-2"
+              data-trigger-dns-selector-buscar
+            >
+              <i class="bi bi-search" aria-hidden="true"></i>
+              <span>Buscar</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="texto-apoyo mb-3" data-trigger-dns-selector-estado>
+          Abre el buscador para localizar registros disponibles.
+        </div>
+
+        <div class="table-responsive border rounded trigger-dns-selector-tabla">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Registro</th>
+                <th scope="col">Zona</th>
+                <th scope="col">Gobernanza</th>
+                <th scope="col">Estado</th>
+                <th scope="col" class="text-end">Acción</th>
+              </tr>
+            </thead>
+            <tbody data-trigger-dns-selector-resultados>
+              <tr>
+                <td colspan="5" class="text-body-secondary">
+                  Sin resultados todavía.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

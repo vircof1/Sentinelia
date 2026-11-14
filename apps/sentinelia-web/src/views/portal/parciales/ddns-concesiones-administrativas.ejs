@@ -1,0 +1,191 @@
+<%
+  const concesiones = Array.isArray(concesionesDdns) ? concesionesDdns : [];
+  const desdeAgente = extremoDdns === 'agente';
+  const concesionesVigentes = concesiones.filter((item) => item.estado === 'vigente').length;
+  const puedeAdministrar = desdeAgente
+    ? Boolean(puedeAdministrarDdns)
+    : Boolean(puedeAdministrarDnsAvanzado);
+  const candidatos = typeof candidatosDdns !== 'undefined' && Array.isArray(candidatosDdns)
+    ? candidatosDdns
+    : [];
+  const etiqueta = (valor) => valor == null || valor === '' ? 'sin dato' : String(valor);
+  const canonico = (valor) => valor == null ? 'Sin contenido' : JSON.stringify(valor, null, 2);
+%>
+
+<details class="seccion-panel ddns-administracion" data-ddns-administracion="<%= extremoDdns %>">
+  <summary class="seccion-cabecera">
+    <div>
+      <h2><%= desdeAgente ? 'DNS dinámico' : 'Concesiones DDNS del registro' %></h2>
+      <p class="texto-apoyo">
+        <% if (desdeAgente) { %>
+          Registros DNS que este agente tiene permiso para actualizar.
+        <% } else { %>
+          Agentes autorizados para actualizar este registro. Abre el bloque para
+          consultar la concesión o revocar su permiso.
+        <% } %>
+      </p>
+    </div>
+    <span class="ddns-administracion__resumen-acciones">
+      <span class="badge text-bg-light"><%= desdeAgente ? concesiones.length : concesionesVigentes %> <%= (desdeAgente ? concesiones.length : concesionesVigentes) === 1 ? 'concesión' : 'concesiones' %><%= desdeAgente ? '' : (concesionesVigentes === 1 ? ' vigente' : ' vigentes') %></span>
+      <span class="ddns-administracion__alternar">
+        <span class="ddns-administracion__mostrar"><%= desdeAgente ? 'Ver concesiones y permisos' : 'Ver concesiones y diagnóstico' %></span>
+        <span class="ddns-administracion__ocultar"><%= desdeAgente ? 'Ocultar concesiones y permisos' : 'Ocultar concesiones y diagnóstico' %></span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </span>
+    </span>
+  </summary>
+
+  <% if (desdeAgente && puedeAdministrar) { %>
+    <div class="tarjeta mb-4">
+      <h3 class="h5">Conceder otro registro</h3>
+      <% if (candidatos.length > 0) { %>
+        <form method="post" action="/agentes/<%= agente.id %>/ddns/concesiones" class="row g-3 align-items-end">
+          <% if (tokenCSRFPortal) { %><input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>"><% } %>
+          <div class="col-12 col-lg-9">
+            <label for="ddns_registro_dns_id" class="form-label">Registro elegible</label>
+            <select id="ddns_registro_dns_id" name="registro_dns_id" class="form-select" required>
+              <option value="">Selecciona un registro</option>
+              <% for (const candidato of candidatos) { %>
+                <option value="<%= candidato.registroDnsId %>"<% if (!candidato.operable) { %> data-no-operable="1"<% } %>>
+                  <%= candidato.nombre %> · <%= candidato.tipoRegistro %><%= candidato.operable ? '' : ' · inactivo, no operable' %>
+                </option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-12 col-lg-3 d-grid">
+            <button type="submit" class="boton-primario">Conceder registro</button>
+          </div>
+        </form>
+      <% } else { %>
+        <p class="texto-apoyo mb-0">No hay registros disponibles para conceder a este agente.</p>
+      <% } %>
+    </div>
+  <% } %>
+
+  <% if (concesiones.length === 0) { %>
+    <% if (!desdeAgente) { %>
+      <div class="tarjeta"><p class="mb-0">No existen concesiones DDNS vinculadas a este registro.</p></div>
+    <% } %>
+  <% } else { %>
+    <div class="ddns-administracion__rejilla">
+      <% for (const concesion of concesiones) { %>
+        <% const contraparte = desdeAgente ? concesion.registro : concesion.agente; %>
+        <article class="tarjeta ddns-administracion__concesion" data-ddns-concesion-estado="<%= concesion.estado %>">
+          <header class="ddns-administracion__cabecera">
+            <div>
+              <span class="badge text-bg-<%= concesion.estado === 'vigente' ? 'success' : 'secondary' %>"><%= concesion.estado %></span>
+              <h3 class="h5 mt-2 mb-1">
+                <% if (contraparte.restringido) { %>
+                  Contraparte restringida
+                <% } else { %>
+                  <%= contraparte.nombre %><%= desdeAgente && contraparte.tipo ? ` · ${contraparte.tipo}` : '' %>
+                <% } %>
+              </h3>
+              <small class="text-body-secondary">Concesión <code><%= concesion.concesionId %></code> · versión <%= concesion.version %></small>
+            </div>
+            <% if (contraparte.restringido) { %>
+              <span class="badge text-bg-warning">sin visibilidad</span>
+            <% } %>
+          </header>
+
+          <% if (!desdeAgente) { %>
+            <p class="texto-apoyo mb-0"><%= concesion.estado === 'vigente'
+              ? 'Este agente conserva permiso para solicitar actualizaciones de este registro.'
+              : 'Esta concesión ya no permite actualizar el registro.' %></p>
+            <details class="ddns-administracion__diagnostico">
+              <summary>Ver diagnóstico y estados <i class="bi bi-chevron-down" aria-hidden="true"></i></summary>
+          <% } %>
+
+          <% if (concesion.causaCierre === 'registro_eliminado') { %>
+            <p class="texto-apoyo">Concesión revocada: el registro DNS fue eliminado. Este agente ya no puede actualizarlo.</p>
+          <% } %>
+
+          <dl class="ddns-administracion__datos">
+            <div><dt>Decisión</dt><dd><%= etiqueta(concesion.decision) %></dd></div>
+            <div><dt>Modo</dt><dd><%= etiqueta(concesion.modo) %></dd></div>
+            <div><dt>Condición</dt><dd><%= etiqueta(concesion.condicion) %></dd></div>
+            <div><dt>Hito</dt><dd><%= concesion.operacion.restringido ? 'restringido' : etiqueta(concesion.operacion.hito) %></dd></div>
+            <div><dt>Terminal</dt><dd><%= concesion.operacion.restringido ? 'restringido' : etiqueta(concesion.operacion.terminal) %></dd></div>
+            <div><dt>Intentos</dt><dd><%= concesion.operacion.restringido ? 'restringido' : `${concesion.operacion.intentos.consumidos} consumidos · ${concesion.operacion.intentos.restantes} restantes` %></dd></div>
+            <div><dt>Aceptada</dt><dd><%= etiqueta(concesion.timestamps.intencionAceptadaEnUtc) %></dd></div>
+            <div><dt>Persistida</dt><dd><%= etiqueta(concesion.timestamps.contenidoPersistidoEnUtc) %></dd></div>
+          </dl>
+
+          <% if (!concesion.registro.restringido) { %>
+            <div class="ddns-administracion__estados">
+              <section><h4 class="h6">Estado deseado</h4><pre><code><%= canonico(concesion.registro.estadoDeseado) %></code></pre></section>
+              <section><h4 class="h6">Estado publicado</h4><pre><code><%= canonico(concesion.registro.estadoPublicado) %></code></pre></section>
+            </div>
+          <% } %>
+
+          <% if (!concesion.operacion.restringido && concesion.operacion.ultimoIntento) { %>
+            <div class="alert alert-light border mb-0" data-ddns-diagnostico>
+              <strong>Último intento #<%= concesion.operacion.ultimoIntento.numero %>:</strong>
+              <%= etiqueta(concesion.operacion.ultimoIntento.codigoDiagnostico) %>
+              <% if (concesion.operacion.ultimoIntento.mensajeDiagnostico) { %>
+                — <%= concesion.operacion.ultimoIntento.mensajeDiagnostico %>
+              <% } %>
+            </div>
+          <% } %>
+
+          <% if (!desdeAgente) { %>
+            </details>
+          <% } %>
+
+          <div class="ddns-administracion__pie">
+            <small class="text-body-secondary">
+              Creada <time data-fecha-utc="<%= concesion.timestamps.creadaEnUtc %>"><%= concesion.timestamps.creadaEnUtc %></time>
+              <% if (concesion.timestamps.contenidoPublicadoEnUtc) { %>
+                · publicada <time data-fecha-utc="<%= concesion.timestamps.contenidoPublicadoEnUtc %>"><%= concesion.timestamps.contenidoPublicadoEnUtc %></time>
+              <% } %>
+            </small>
+            <% if (puedeAdministrar && concesion.estado === 'vigente') { %>
+              <% if (desdeAgente) { %>
+                <form method="post" action="/agentes/<%= agente.id %>/ddns/<%= concesion.concesionId %>/revocar">
+                  <% if (tokenCSRFPortal) { %><input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>"><% } %>
+                  <button type="submit" class="boton-secundario">Revocar concesión</button>
+                </form>
+              <% } else { %>
+                <button
+                  type="button"
+                  class="boton-secundario"
+                  data-bs-toggle="modal"
+                  data-bs-target="#modalRevocarConcesionDdnsRegistro"
+                  data-ddns-revocar-concesion
+                  data-ddns-revocar-accion="/dns/<%= zona.id %>/registros/<%= registroObjetivo.id %>/ddns/<%= concesion.concesionId %>/revocar"
+                  data-ddns-revocar-agente="<%= contraparte.restringido ? 'Contraparte restringida' : contraparte.nombre %>"
+                  data-ddns-revocar-id="<%= concesion.concesionId %>"
+                >Revocar concesión…</button>
+              <% } %>
+            <% } %>
+          </div>
+        </article>
+      <% } %>
+    </div>
+  <% } %>
+</details>
+
+<% if (!desdeAgente && puedeAdministrar && concesionesVigentes > 0) { %>
+  <div class="modal fade modal-impacto-trigger" id="modalRevocarConcesionDdnsRegistro" tabindex="-1" aria-labelledby="tituloRevocarConcesionDdnsRegistro" aria-hidden="true" data-ddns-revocar-modal>
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title fs-5" id="tituloRevocarConcesionDdnsRegistro">Revocar concesión DDNS</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <p>El agente <strong data-ddns-revocar-agente></strong> dejará de poder actualizar <strong><%= registroObjetivo.nombreVisible %></strong> mediante esta concesión.</p>
+          <p class="texto-apoyo">Concesión <code data-ddns-revocar-id></code>. El registro DNS y su valor actual se conservan. Para devolver el permiso habrá que crear una nueva concesión.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="boton-secundario" data-bs-dismiss="modal">Cancelar</button>
+          <form method="post" data-ddns-revocar-formulario>
+            <% if (tokenCSRFPortal) { %><input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>"><% } %>
+            <input type="hidden" name="return_to" value="<%= retornoDetalle %>">
+            <button type="submit" class="btn btn-danger" disabled data-ddns-revocar-confirmar>Revocar concesión</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+<% } %>

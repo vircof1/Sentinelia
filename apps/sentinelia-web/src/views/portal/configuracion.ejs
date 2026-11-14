@@ -1,0 +1,514 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const claseEstadoCorreo = estadoCorreo.operativo
+    ? 'kpi-resumen--ok'
+    : estadoCorreo.configurado
+      ? 'kpi-resumen--advertencia'
+      : estadoCorreo.errores.length > 0
+      ? 'kpi-resumen--alerta'
+      : 'kpi-resumen--advertencia';
+  const etiquetaEstadoCorreo = estadoCorreo.operativo
+    ? 'Operativo'
+    : estadoCorreo.configurado
+      ? 'No verificado'
+      : estadoCorreo.errores.length > 0
+      ? 'Revisar'
+      : 'Pendiente';
+  const claseSubsistemaCorreo = estadoCorreo.activa ? 'kpi-resumen--ok' : 'kpi-resumen--neutro';
+  const claseConfiguracionCorreo = estadoCorreo.configurado ? 'kpi-resumen--ok' : 'kpi-resumen--alerta';
+  const claseDespachoCorreo = estadoCorreo.operativo ? 'kpi-resumen--ok' : 'kpi-resumen--advertencia';
+  const estadoRecuperacion = typeof estadoRecuperacionPassword === 'undefined'
+    ? null
+    : estadoRecuperacionPassword;
+  const nombresGruposConfiguracion = {
+    portal: 'Portal', federacion: 'Federación', usuarios: 'Usuarios y acceso',
+    dns: 'DNS', monitores: 'Monitores', auditoria: 'Auditoría',
+    agentes: 'Agentes', correo: 'Correo', pow: 'Prueba de trabajo'
+  };
+  const gruposConfiguracion = [];
+  for (const item of configuraciones) {
+    const prefijo = String(item.clave || '').split('.')[0];
+    let grupo = gruposConfiguracion.find((candidato) => candidato.prefijo === prefijo);
+    if (!grupo) {
+      grupo = { prefijo, titulo: nombresGruposConfiguracion[prefijo] || 'Otras claves', items: [] };
+      gruposConfiguracion.push(grupo);
+    }
+    grupo.items.push(item);
+  }
+%>
+
+<section
+  class="panel-general configuracion-portal"
+  data-configuracion
+  data-recuperacion-intencion="<%= estadoRecuperacion?.intencionHabilitada ? 'true' : 'false' %>"
+  data-recuperacion-habilitable="<%= estadoRecuperacion?.puedeHabilitar ? 'true' : 'false' %>"
+>
+  <section class="hero-operativo hero-monitores configuracion-portal__hero card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-sliders" aria-hidden="true"></i>
+              <span>Configuración viva</span>
+            </span>
+            <h1>Configuración del portal</h1>
+            <p>
+              Revisa claves activas y salud del correo. Los cambios se persisten
+              en SQL y la versión viva se coordina por Redis.
+            </p>
+            <div class="hero-etiquetas hero-monitores__etiquetas">
+              <% if (redPublicaFederacion) { %>
+                <a href="#configuracion-red-federada" class="insignia configuracion-portal__ancla">
+                  <i class="bi bi-shield-lock" aria-hidden="true"></i>
+                  <span>Red federada</span>
+                </a>
+              <% } %>
+              <a href="#configuracion-correo" class="insignia configuracion-portal__ancla">
+                <i class="bi bi-envelope-check" aria-hidden="true"></i>
+                <span>Correo</span>
+              </a>
+              <a href="#configuracion-claves" class="insignia configuracion-portal__ancla">
+                <i class="bi bi-key" aria-hidden="true"></i>
+                <span>Claves</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis">
+            <article class="kpi-resumen kpi-resumen--neutro hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-git" aria-hidden="true"></i>
+                <span class="etiqueta">Versión</span>
+              </span>
+              <strong data-configuracion-version><%= estadoConfiguracion.version %></strong>
+              <small>Versión coordinada por Redis.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-key" aria-hidden="true"></i>
+                <span class="etiqueta">Claves activas</span>
+              </span>
+              <strong><%= estadoConfiguracion.totalClaves %></strong>
+              <small><%= estadoConfiguracion.clavesCreadas.length %> creadas por bootstrap.</small>
+            </article>
+            <article class="kpi-resumen <%= claseEstadoCorreo %> hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-envelope-check" aria-hidden="true"></i>
+                <span class="etiqueta">Correo</span>
+              </span>
+              <strong><%= etiquetaEstadoCorreo %></strong>
+              <small><%= estadoCorreo.errores.length %> errores · <%= estadoCorreo.advertencias.length %> avisos.</small>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div data-configuracion-feedback>
+    <% if (flashConfiguracion) { %>
+      <div class="<%= flashConfiguracion.tipo === 'error' ? 'mensaje-error' : 'mensaje-exito' %> configuracion-portal__flash">
+        <i class="bi bi-<%= flashConfiguracion.tipo === 'error' ? 'exclamation-triangle' : 'check-circle' %>" aria-hidden="true"></i>
+        <div>
+          <strong><%= flashConfiguracion.tipo === 'error' ? 'No se pudo completar la operación' : 'Operación completada' %></strong>
+          <p>
+          <%= flashConfiguracion.mensaje %>
+          </p>
+        </div>
+      </div>
+    <% } %>
+  </div>
+
+  <% if (redPublicaFederacion) { %>
+    <section
+      id="configuracion-red-federada"
+      class="tarjeta configuracion-portal__seccion configuracion-red-federada"
+      data-red-publica-federacion
+      data-estado="<%= redPublicaFederacion.estado %>"
+    >
+      <div class="fila-encabezado configuracion-portal__cabecera-seccion">
+        <div>
+          <span class="insignia-suave">Frontera de confianza</span>
+          <h2>Origen público y reverse proxies</h2>
+          <p class="texto-apoyo">
+            Sentinelia no termina TLS. El dueño del portal declara el origen HTTPS
+            exterior y los saltos de su red privada en los que confía.
+          </p>
+        </div>
+        <span class="insignia-monitor" data-red-publica-estado>
+          <%= redPublicaFederacion.etiquetaEstado %>
+        </span>
+      </div>
+
+      <div class="configuracion-red-federada__resumen">
+        <article class="configuracion-red-federada__dato">
+          <span class="etiqueta">Activación global</span>
+          <strong data-red-publica-capacidad-activacion><%= redPublicaFederacion.capacidades.activacion.etiqueta %></strong>
+          <small>Habilita el subsistema federado, no presupone exposición pública.</small>
+        </article>
+        <article class="configuracion-red-federada__dato">
+          <span class="etiqueta">Emisión saliente</span>
+          <strong data-red-publica-capacidad-emision><%= redPublicaFederacion.capacidades.emision.etiqueta %></strong>
+          <small>No requiere origen HTTPS ni reverse proxy en esta instalación.</small>
+        </article>
+        <article class="configuracion-red-federada__dato">
+          <span class="etiqueta">Recepción pública</span>
+          <strong data-red-publica-capacidad-recepcion><%= redPublicaFederacion.capacidades.recepcion.etiqueta %></strong>
+          <small>Requiere origen HTTPS y al menos un proxy expresamente confiable.</small>
+        </article>
+        <article class="configuracion-red-federada__dato">
+          <span class="etiqueta">Origen HTTPS canónico</span>
+          <strong data-red-publica-origen><%= redPublicaFederacion.origenPublico || 'No definido' %></strong>
+          <small>Inicial: <code><%= redPublicaFederacion.variablesEntorno.origenPublico %></code>. Efectivo: SQL.</small>
+        </article>
+        <article class="configuracion-red-federada__dato">
+          <span class="etiqueta">Proxies confiables</span>
+          <strong data-red-publica-total-proxies><%= redPublicaFederacion.totalProxiesConfiables %></strong>
+          <small>Inicial: <code><%= redPublicaFederacion.variablesEntorno.proxiesConfiables %></code>. Efectivo: SQL.</small>
+        </article>
+        <article class="configuracion-red-federada__dato">
+          <span class="etiqueta">Aplicación viva</span>
+          <strong>Versión <span data-red-publica-version><%= redPublicaFederacion.versionConfiguracion %></span></strong>
+          <small>HTTP y upgrades comparten la misma política sin reiniciar el proceso.</small>
+        </article>
+      </div>
+
+      <div class="configuracion-red-federada__proxies">
+        <span class="etiqueta">Saltos actualmente confiables</span>
+        <div class="chips-monitor" data-red-publica-proxies>
+          <% if (redPublicaFederacion.proxiesConfiables.length === 0) { %>
+            <span class="insignia-monitor insignia-monitor--suave">Ninguno</span>
+          <% } else { %>
+            <% for (const proxy of redPublicaFederacion.proxiesConfiables) { %>
+              <code class="insignia-monitor insignia-monitor--suave"><%= proxy %></code>
+            <% } %>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="configuracion-red-federada__advertencias" data-red-publica-advertencias>
+        <% for (const advertencia of redPublicaFederacion.advertencias) { %>
+          <div class="mensaje-advertencia configuracion-red-federada__advertencia">
+            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+            <span><%= advertencia.mensaje %></span>
+          </div>
+        <% } %>
+      </div>
+
+      <div class="alert alert-info mt-3 mb-0" data-red-publica-modo-emisor
+        <%= redPublicaFederacion.emisionDisponible && !redPublicaFederacion.recepcionPreparada ? '' : 'hidden' %>>
+        Esta instalación puede emitir federación. La configuración pendiente
+        afecta exclusivamente a la recepción de conexiones entrantes.
+      </div>
+
+      <p class="texto-apoyo configuracion-red-federada__responsabilidad">
+        Solo deben declararse IP o rangos aplicables a proxies administrados por el
+        operador. Confiar en una red no supervisada permite que cabeceras reenviadas
+        hostiles suplanten el canal exterior.
+      </p>
+    </section>
+  <% } %>
+
+  <section id="configuracion-correo" class="tarjeta configuracion-portal__seccion">
+    <div class="fila-encabezado">
+      <div>
+        <h2>Estado de correo</h2>
+        <p class="texto-apoyo">
+          Esta pantalla separa configuración completa y operatividad verificada.
+          El despacho real queda en manos del runtime.
+        </p>
+      </div>
+      <form method="post" action="/configuracion/correo/iniciar-verificacion">
+        <span
+          data-bs-toggle="tooltip"
+          title="<%= estadoCorreo.configurado ? 'Enviaremos un enlace de verificación al email de tu usuario.' : 'Completa la configuración SMTP antes de iniciar la prueba empírica.' %>"
+        >
+          <button
+            type="submit"
+            class="boton-secundario boton-secundario--iconico"
+            <%= estadoCorreo.configurado ? '' : 'disabled' %>
+          >
+            <i class="bi bi-envelope-check" aria-hidden="true"></i>
+            <span><%= estadoCorreo.operativo ? 'Reverificar correo' : 'Verificar correo' %></span>
+          </button>
+        </span>
+      </form>
+    </div>
+
+    <div class="rejilla-resumen">
+      <article class="kpi-resumen <%= claseSubsistemaCorreo %>">
+        <span class="etiqueta">Subsistema</span>
+        <strong><%= estadoCorreo.activa ? 'Activo' : 'Desactivado' %></strong>
+        <small>Control principal de salida SMTP.</small>
+      </article>
+      <article class="kpi-resumen <%= claseConfiguracionCorreo %>">
+        <span class="etiqueta">Configuración</span>
+        <strong><%= estadoCorreo.configurado ? 'Configurada' : 'Incompleta' %></strong>
+        <small>Parámetros mínimos para poder intentar envío.</small>
+      </article>
+      <article class="kpi-resumen <%= claseDespachoCorreo %>">
+        <span class="etiqueta">Operatividad</span>
+        <strong><%= estadoCorreo.operativo ? 'Verificada' : 'No verificada' %></strong>
+        <small>Requiere prueba empírica vigente.</small>
+      </article>
+      <article class="kpi-resumen <%= estadoCorreo.errores.length > 0 ? 'kpi-resumen--alerta' : 'kpi-resumen--suave' %>">
+        <span class="etiqueta">Errores</span>
+        <strong><%= estadoCorreo.errores.length %></strong>
+        <small><%= estadoCorreo.advertencias.length %> advertencias adicionales.</small>
+      </article>
+    </div>
+
+    <% if (estadoCorreo.errores.length > 0 || estadoCorreo.advertencias.length > 0) { %>
+      <div class="bloque-listas">
+        <% if (estadoCorreo.errores.length > 0) { %>
+          <div>
+            <h3>Errores detectados</h3>
+            <ul class="lista-simple">
+              <% for (const error of estadoCorreo.errores) { %>
+                <li><%= error %></li>
+              <% } %>
+            </ul>
+          </div>
+        <% } %>
+
+        <% if (estadoCorreo.advertencias.length > 0) { %>
+          <div>
+            <h3>Advertencias</h3>
+            <ul class="lista-simple">
+              <% for (const advertencia of estadoCorreo.advertencias) { %>
+                <li><%= advertencia %></li>
+              <% } %>
+            </ul>
+          </div>
+        <% } %>
+      </div>
+    <% } %>
+  </section>
+
+  <% if (estadoRecuperacion) { %>
+    <section id="configuracion-recuperacion-password" class="tarjeta configuracion-portal__seccion" data-recuperacion-password>
+      <div class="fila-encabezado configuracion-portal__cabecera-seccion">
+        <div>
+          <span class="insignia-suave">Autoridad temporal</span>
+          <h2>Recuperación de contraseña por correo</h2>
+          <p class="texto-apoyo">
+            La intención administrativa permite nuevas emisiones únicamente cuando todas las dependencias están disponibles. Los enlaces emitidos anteriormente conservan su propia vigencia.
+          </p>
+        </div>
+        <span class="insignia-monitor <%= estadoRecuperacion.disponible ? 'insignia-monitor--ok' : 'insignia-monitor--advertencia' %>" data-recuperacion-estado>
+          <%= estadoRecuperacion.disponible ? 'Disponible' : estadoRecuperacion.intencionHabilitada ? 'Habilitada, no disponible' : 'Deshabilitada' %>
+        </span>
+      </div>
+
+      <div class="rejilla-resumen">
+        <article class="kpi-resumen <%= estadoRecuperacion.intencionHabilitada ? 'kpi-resumen--ok' : 'kpi-resumen--neutro' %>">
+          <span class="etiqueta">Intención</span>
+          <strong data-recuperacion-intencion-texto><%= estadoRecuperacion.intencionHabilitada ? 'Habilitada' : 'Deshabilitada' %></strong>
+          <small>Gobierna exclusivamente la emisión de solicitudes nuevas.</small>
+        </article>
+        <article class="kpi-resumen <%= estadoRecuperacion.puedeHabilitar ? 'kpi-resumen--ok' : 'kpi-resumen--alerta' %>">
+          <span class="etiqueta">Prerrequisitos</span>
+          <strong data-recuperacion-prerrequisitos><%= estadoRecuperacion.dependencias.filter((item) => item.satisfecha).length %>/<%= estadoRecuperacion.dependencias.length %></strong>
+          <small>Despliegue compatible, SMTP verificado y origen HTTPS.</small>
+        </article>
+        <article class="kpi-resumen kpi-resumen--suave">
+          <span class="etiqueta">Vigencia</span>
+          <strong><%= estadoRecuperacion.parametros.recuperacionEmailVigenciaSegundos %> s</strong>
+          <small>Se fotografía al emitir; por defecto equivale a 20 minutos.</small>
+        </article>
+        <article class="kpi-resumen kpi-resumen--suave">
+          <span class="etiqueta">Alegaciones</span>
+          <strong><%= estadoRecuperacion.parametros.recuperacionEmailAlegacionesMaximas %></strong>
+          <small>Nombres distintos admitidos por cada solicitud.</small>
+        </article>
+      </div>
+
+      <div class="bloque-listas mt-3">
+        <div>
+          <h3>Dependencias actuales</h3>
+          <ul class="lista-simple" data-recuperacion-dependencias>
+            <% for (const dependencia of estadoRecuperacion.dependencias) { %>
+              <li>
+                <strong><%= dependencia.satisfecha ? 'Disponible' : 'Pendiente' %>:</strong>
+                <%= dependencia.descripcion %>
+              </li>
+            <% } %>
+          </ul>
+        </div>
+        <div>
+          <h3>Protecciones configuradas</h3>
+          <ul class="lista-simple">
+            <li>Origen: <%= estadoRecuperacion.parametros.recuperacionEmailOrigenIntentosMaximos %> intentos / <%= estadoRecuperacion.parametros.recuperacionEmailOrigenVentanaSegundos %> s.</li>
+            <li>Buzón y origen: <%= estadoRecuperacion.parametros.recuperacionEmailParIntentosMaximos %> intentos / <%= estadoRecuperacion.parametros.recuperacionEmailParVentanaSegundos %> s.</li>
+            <li>Global: <%= estadoRecuperacion.parametros.recuperacionEmailGlobalIntentosMaximos %> intentos / <%= estadoRecuperacion.parametros.recuperacionEmailGlobalVentanaSegundos %> s.</li>
+            <li>Jitter máximo: <%= estadoRecuperacion.parametros.recuperacionEmailJitterMaximoMs %> ms.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <div class="modal fade" id="modal-recuperacion-no-habilitable" tabindex="-1" aria-labelledby="modal-recuperacion-no-habilitable-titulo" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 class="modal-title fs-5" id="modal-recuperacion-no-habilitable-titulo">Recuperación todavía no disponible</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <p>No puede habilitarse la emisión hasta resolver estas dependencias:</p>
+            <ul class="lista-simple" data-recuperacion-dependencias-modal>
+              <% for (const dependencia of estadoRecuperacion.dependencias.filter((item) => !item.satisfecha)) { %>
+                <li><%= dependencia.descripcion %></li>
+              <% } %>
+            </ul>
+            <p class="mb-0">El control volverá a «Deshabilitado» sin guardar el cambio.</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendido</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% } %>
+
+  <section id="configuracion-claves" class="tarjeta configuracion-portal__seccion">
+    <div class="fila-encabezado configuracion-portal__cabecera-seccion">
+      <div>
+        <span class="insignia-suave">Claves persistidas</span>
+        <h2>Valores de configuración</h2>
+        <p class="texto-apoyo">
+          Cada clave se guarda de forma individual. Los secretos solo admiten escritura
+          y nunca se exponen de vuelta en pantalla.
+        </p>
+      </div>
+      <form method="post" action="/configuracion/sincronizar" data-configuracion-ajax>
+        <button type="submit" class="boton-secundario boton-secundario--iconico">
+          <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+          <span>Sincronizar claves</span>
+        </button>
+      </form>
+    </div>
+
+    <div class="configuracion-portal__busqueda">
+      <label for="configuracion-buscar-claves">Buscar clave o descripción</label>
+      <input id="configuracion-buscar-claves" type="search" autocomplete="off" placeholder="Ej. correo.smtp o retención" data-configuracion-buscador>
+      <p class="texto-apoyo mb-0" role="status" aria-live="polite" data-configuracion-resultados>
+        <%= configuraciones.length %> claves en <%= gruposConfiguracion.length %> grupos.
+      </p>
+    </div>
+    <p class="mensaje-info mb-0" hidden data-configuracion-sin-resultados>No hay claves que coincidan con la búsqueda.</p>
+
+    <div class="configuracion-portal__grupos">
+    <% for (const [indiceGrupo, grupo] of gruposConfiguracion.entries()) { %>
+    <details class="configuracion-portal__grupo" data-configuracion-grupo <%= indiceGrupo === 0 ? 'open' : '' %>>
+      <summary>
+        <span><strong><%= grupo.titulo %></strong> <small><%= grupo.items.length %> <%= grupo.items.length === 1 ? 'clave' : 'claves' %></small></span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </summary>
+    <div class="tabla-configuracion tabla-configuracion--portal">
+      <div class="fila-configuracion fila-cabecera-configuracion">
+        <div>Clave</div>
+        <div>Valor</div>
+        <div>Detalle</div>
+        <div>Acciones</div>
+      </div>
+
+      <% for (const [indiceItem, item] of grupo.items.entries()) { %>
+        <div
+          class="fila-configuracion fila-configuracion--portal <%= item.editable ? '' : 'fila-configuracion--solo-lectura' %>"
+          data-configuracion-fila
+          data-configuracion-clave="<%= item.clave %>"
+        >
+          <div class="celda-clave">
+            <span class="insignia-monitor <%= item.esSecreto ? 'insignia-monitor--advertencia' : item.editable ? 'insignia-monitor--ok' : 'insignia-monitor--suave' %>">
+              <%= item.esSecreto ? 'Secreto' : item.editable ? 'Editable' : 'Solo lectura' %>
+            </span>
+            <strong><%= item.clave %></strong>
+            <span class="etiqueta-secundaria"><%= item.tipoDato %> · <%= item.tipoEntrada %></span>
+          </div>
+
+          <div>
+            <form method="post" action="/configuracion/actualizar" class="formulario-inline" data-configuracion-ajax>
+              <input type="hidden" name="clave" value="<%= item.clave %>">
+              <label class="visually-hidden" for="configuracion-valor-<%= indiceGrupo %>-<%= indiceItem %>">Valor de <%= item.clave %></label>
+
+              <% if (item.tipoEntrada === 'select') { %>
+                <select id="configuracion-valor-<%= indiceGrupo %>-<%= indiceItem %>" name="valor" aria-describedby="configuracion-ayuda-<%= indiceGrupo %>-<%= indiceItem %>" <%= item.editable ? '' : 'disabled' %>>
+                  <% for (const opcion of item.opciones) { %>
+                    <option
+                      value="<%= opcion.valor %>"
+                      <%= String(opcion.valor) === String(item.valorBruto) ? 'selected' : '' %>
+                    ><%= opcion.etiqueta %></option>
+                  <% } %>
+                </select>
+              <% } else if (item.tipoEntrada === 'textarea') { %>
+                <textarea
+                  id="configuracion-valor-<%= indiceGrupo %>-<%= indiceItem %>"
+                  name="valor"
+                  aria-describedby="configuracion-ayuda-<%= indiceGrupo %>-<%= indiceItem %>"
+                  rows="4"
+                  placeholder="<%= item.placeholder || '' %>"
+                  autocomplete="off"
+                  <%= item.editable ? '' : 'disabled' %>
+                  <%= item.requerido ? 'required' : '' %>
+                ><%= item.esSecreto ? '' : item.valorBruto %></textarea>
+              <% } else { %>
+                <input
+                  id="configuracion-valor-<%= indiceGrupo %>-<%= indiceItem %>"
+                  type="<%= item.tipoEntrada %>"
+                  name="valor"
+                  aria-describedby="configuracion-ayuda-<%= indiceGrupo %>-<%= indiceItem %>"
+                  value="<%= item.esSecreto ? '' : item.valorBruto %>"
+                  placeholder="<%= item.placeholder || '' %>"
+                  autocomplete="<%= item.esSecreto ? 'new-password' : 'off' %>"
+                  <% if (item.minimo != null) { %>min="<%= item.minimo %>"<% } %>
+                  <% if (item.maximo != null) { %>max="<%= item.maximo %>"<% } %>
+                  <%= item.editable ? '' : 'disabled' %>
+                  <%= item.requerido && (!item.esSecreto || !item.tieneValor) ? 'required' : '' %>
+                >
+              <% } %>
+
+              <button type="submit" class="boton-primario" aria-label="Guardar <%= item.clave %>" <%= item.editable ? '' : 'disabled' %>>
+                Guardar
+              </button>
+            </form>
+          </div>
+
+          <div>
+            <p class="descripcion-configuracion" id="configuracion-ayuda-<%= indiceGrupo %>-<%= indiceItem %>"><%= item.descripcion %></p>
+            <div class="metadatos-configuracion">
+              <span>Por defecto: <code><%= item.valorPorDefectoVisible %></code></span>
+              <span>Actual: <code data-configuracion-actual><%= item.valorVisible %></code></span>
+              <% if (item.esSecreto) { %>
+                <span>Este valor solo admite escritura; no se expone en pantalla.</span>
+              <% } %>
+              <% if (!item.editable) { %>
+                <span>Esta clave es de solo lectura en la interfaz.</span>
+              <% } %>
+            </div>
+          </div>
+
+          <div>
+            <form method="post" action="/configuracion/restablecer" data-configuracion-ajax>
+              <input type="hidden" name="clave" value="<%= item.clave %>">
+              <button type="submit" class="boton-secundario" aria-label="Restablecer <%= item.clave %>" <%= item.editable ? '' : 'disabled' %>>
+                Restablecer
+              </button>
+            </form>
+          </div>
+        </div>
+      <% } %>
+    </div>
+    </details>
+    <% } %>
+    </div>
+  </section>
+
+</section>
+
+<script src="/js/configuracion.js"></script>
+<%- include('../parciales/pie') %>

@@ -1,0 +1,636 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const scopeTexto = (scope) => scope.sitioId
+    ? `${scope.tenantNombre || 'Tenant'} #${scope.tenantId} · ${scope.empresaNombre || 'Empresa'} #${scope.empresaId} · ${scope.sitioNombre || 'Sitio'} #${scope.sitioId}`
+    : scope.empresaId
+      ? `${scope.tenantNombre || 'Tenant'} #${scope.tenantId} · ${scope.empresaNombre || 'Empresa'} #${scope.empresaId}`
+      : scope.tenantId
+        ? `${scope.tenantNombre || 'Tenant'} #${scope.tenantId}`
+        : 'Portal completo';
+  const estadoClase = (estado) => estado === 'vinculada'
+    ? 'insignia-monitor--ok'
+    : estado === 'deshabilitada' || estado === 'eliminada'
+      ? 'insignia-monitor--alerta'
+      : 'insignia-monitor--advertencia';
+  const nombresFamilia = {
+    estructuraOrganizativa: 'Estructura organizativa',
+    monitores: 'Monitores',
+    telemetria: 'Telemetría',
+    triggersInformativos: 'Triggers informativos',
+    auditoria: 'Auditoría',
+    avisosFederados: 'Avisos federados',
+    contextoOperativoAgentesSesiones: 'Contexto operativo de agentes'
+  };
+  const nombresNivel = { portal: 'Portal', tenant: 'Tenant', empresa: 'Empresa', sitio: 'Sitio' };
+  const selecciona = (lista, valor) => Array.isArray(lista) && lista.includes(valor);
+  const previewConcesion = typeof previsualizacionConcesion === 'undefined'
+    ? null
+    : previsualizacionConcesion;
+  const familiasSeleccion = (revision) => Object.keys(
+    revision?.seleccion?.familias || {}
+  );
+%>
+
+<section class="panel-general">
+  <section class="hero-operativo hero-monitores card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <span class="insignia-suave">
+            <i class="bi bi-share" aria-hidden="true"></i>
+            Plano de control federado
+          </span>
+          <h1>Federación entre instalaciones</h1>
+          <p>
+            Establece relaciones autenticadas y administra su identidad,
+            responsabilidad y continuidad sin exponer secretos persistentes.
+          </p>
+          <div class="alert alert-info mb-0" role="status">
+            <strong>Autoridad local explícita.</strong>
+            Las relaciones y sus acciones respetan el scope y los permisos
+            actuales. La negociación efectiva y los flujos mostrados proceden
+            del estado durable real, no de una representación preparatoria.
+          </div>
+          <% if (panel.permisos.explorarDatosRemotos || panel.permisos.verDiagnostico ||
+              panel.permisos.configurarEmisiones || panel.permisos.configurarRecepciones) { %>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+              <% if (panel.permisos.explorarDatosRemotos) { %>
+                <a class="btn btn-outline-light btn-sm" href="/federacion/datos-remotos">Explorar datos remotos</a>
+              <% } %>
+              <% if (panel.permisos.verDiagnostico) { %>
+                <a class="btn btn-outline-light btn-sm" href="/federacion/diagnostico">Abrir diagnóstico</a>
+              <% } %>
+              <% if (panel.permisos.configurarEmisiones || panel.permisos.configurarRecepciones) { %>
+                <a class="btn btn-outline-light btn-sm" href="/federacion/reconstrucciones">Administrar reconstrucciones</a>
+              <% } %>
+            </div>
+          <% } %>
+        </div>
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen">
+            <article class="kpi-resumen kpi-resumen--neutro">
+              <span class="etiqueta">Instalación local</span>
+              <strong><%= panel.installationId %></strong>
+              <small>Identidad persistente.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--suave">
+              <span class="etiqueta">Arranque actual</span>
+              <strong><%= panel.bootId %></strong>
+              <small>Identidad efímera conocida.</small>
+            </article>
+            <article class="kpi-resumen <%= panel.planoDatos.activacion === 'activa' ? 'kpi-resumen--ok' : 'kpi-resumen--advertencia' %>">
+              <span class="etiqueta">Plano de datos</span>
+              <strong><%= panel.planoDatos.activacion %></strong>
+              <small><%= panel.planoDatos.flujosOperativos %> de <%= panel.planoDatos.totalFlujos %> flujos operativos.</small>
+            </article>
+            <article class="kpi-resumen <%= panel.planoDatos.bloqueos ? 'kpi-resumen--advertencia' : 'kpi-resumen--ok' %>">
+              <span class="etiqueta">Bloqueos visibles</span>
+              <strong><%= panel.planoDatos.bloqueos %></strong>
+              <small>Derivados de relación, generación o corte inicial.</small>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <% if (flashFederacion) { %>
+    <div class="<%= flashFederacion.tipo === 'error' ? 'mensaje-error' : 'mensaje-exito' %> mt-4">
+      <strong><%= flashFederacion.tipo === 'error' ? 'No se pudo completar la operación' : 'Operación completada' %></strong>
+      <p class="mb-0"><%= flashFederacion.mensaje %></p>
+    </div>
+  <% } %>
+
+  <% if (entregaTemporal) { %>
+    <section class="tarjeta mt-4 border border-warning" aria-live="polite">
+      <span class="insignia-monitor insignia-monitor--advertencia">Entrega única</span>
+      <h2><%= entregaTemporal.titulo %></h2>
+      <p><%= entregaTemporal.advertencia %></p>
+      <pre class="p-3 rounded bg-dark text-light text-break user-select-all"><%= JSON.stringify(entregaTemporal.valor, null, 2) %></pre>
+      <p class="texto-apoyo mb-0">
+        La credencial persistente y las credenciales operativas nunca se muestran en este portal.
+      </p>
+    </section>
+  <% } %>
+
+  <% if (previewConcesion) { %>
+    <section class="tarjeta mt-4 border border-warning" aria-live="polite">
+      <span class="insignia-monitor insignia-monitor--advertencia">Revisión obligatoria</span>
+      <h2>Impacto antes de registrar la concesión</h2>
+      <p>
+        La propuesta es un cambio <strong><%= previewConcesion.claseCambio %></strong>
+        de la <strong><%= previewConcesion.papel %></strong> local. No se ha escrito
+        ninguna revisión todavía.
+      </p>
+      <% if (previewConcesion.impacto.conducta === 'retiradaInmediataPendienteConsolidacion') { %>
+        <div class="alert alert-danger">
+          Contiene retiradas. Al confirmar, la revisión efectiva actual deja de
+          autorizar datos inmediatamente y una nueva intersección bilateral deberá consolidarse.
+        </div>
+      <% } else if (previewConcesion.impacto.conducta === 'mantieneEfectivaHastaAprobacionBilateral') { %>
+        <div class="alert alert-info">
+          Es una ampliación. La concesión efectiva actual permanece sin cambios
+          hasta que la contraparte autorice y se consolide otra revisión compartida.
+        </div>
+      <% } else { %>
+        <div class="alert alert-info">
+          Esta es la primera declaración local. No habilitará flujos hasta que
+          exista una intersección bilateral efectiva.
+        </div>
+      <% } %>
+      <div class="row g-3">
+        <div class="col-12 col-lg-6">
+          <h3 class="h6">Incorporaciones declaradas</h3>
+          <ul class="mb-0">
+            <% if (!previewConcesion.impacto.incorporaciones.length) { %><li>Ninguna.</li><% } %>
+            <% for (const cambio of previewConcesion.impacto.incorporaciones) { %><li><code><%= cambio %></code></li><% } %>
+          </ul>
+        </div>
+        <div class="col-12 col-lg-6">
+          <h3 class="h6">Retiradas declaradas</h3>
+          <ul class="mb-0">
+            <% if (!previewConcesion.impacto.retiradas.length) { %><li>Ninguna.</li><% } %>
+            <% for (const cambio of previewConcesion.impacto.retiradas) { %><li><code><%= cambio %></code></li><% } %>
+          </ul>
+        </div>
+      </div>
+      <% if (previewConcesion.impacto.retiradasEfectivas.length) { %>
+        <p class="mt-3 mb-1"><strong>Capacidades presentes en la efectiva actual afectadas:</strong></p>
+        <ul>
+          <% for (const cambio of previewConcesion.impacto.retiradasEfectivas) { %><li><code><%= cambio %></code></li><% } %>
+        </ul>
+      <% } %>
+      <p class="texto-apoyo">
+        Vista calculada sobre
+        <code><%= previewConcesion.presentacion.revisionLocalActualId || 'sin revisión local' %></code>
+        y efectiva
+        <code><%= previewConcesion.presentacion.revisionEfectivaActualId || 'aún inexistente' %></code>.
+        Caduca en
+        <time data-fecha-utc="<%= previewConcesion.presentacion.expiraEnUtc %>"><%= previewConcesion.presentacion.expiraEnUtc %></time>
+        y se rechazará si cambia la autoridad o cualquier revisión actual.
+      </p>
+      <form method="post" action="/federacion/relaciones/<%= encodeURIComponent(previewConcesion.relacionId) %>/concesion/confirmar">
+        <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+        <input type="hidden" name="token_previsualizacion" value="<%= previewConcesion.token %>">
+        <button type="submit" class="boton-primario">Confirmar revisión inmutable</button>
+        <a class="boton-secundario" href="/federacion">Descartar</a>
+      </form>
+    </section>
+  <% } %>
+
+  <% if (panel.permisos.configurarEmisiones) { %>
+    <section class="tarjeta mt-4">
+      <span class="insignia-suave">Transferencia humana, canje backend</span>
+      <h2>Importar una autorización temporal</h2>
+      <p class="texto-apoyo">
+        Pega la representación recibida de la otra instalación. El navegador
+        transporta únicamente el artefacto temporal; el backend realiza el canje
+        directo y custodia la credencial persistente sin devolverla a esta sesión.
+      </p>
+      <% if (!panel.importacionDisponible) { %>
+        <div class="alert alert-warning mb-0">
+          La importación está deshabilitada hasta configurar el keyring de
+          federación del despliegue.
+        </div>
+      <% } else { %>
+        <div class="row g-4">
+          <% if (panel.permisos.configurarEmisiones) { %>
+            <div class="col-12 col-xl-6">
+              <form method="post" action="/federacion/importaciones/invitacion" autocomplete="off">
+                <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                <label class="form-label" for="importar-invitacion">Invitación de una instancia receptora</label>
+                <textarea class="form-control font-monospace" id="importar-invitacion" name="invitacion" rows="7" maxlength="16384" required></textarea>
+                <button type="submit" class="boton-primario mt-3">Importar y crear emisión</button>
+              </form>
+            </div>
+          <% } %>
+          <% if (panel.permisos.gestionarCredenciales && panel.permisos.configurarEmisiones) { %>
+            <div class="col-12 col-xl-6">
+              <form method="post" action="/federacion/importaciones/recuperacion" autocomplete="off">
+                <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                <label class="form-label" for="importar-recuperacion">Recuperación de una relación emisora existente</label>
+                <textarea class="form-control font-monospace" id="importar-recuperacion" name="recuperacion" rows="7" maxlength="16384" required></textarea>
+                <button type="submit" class="boton-secundario mt-3">Canjear recuperación</button>
+              </form>
+            </div>
+          <% } %>
+        </div>
+      <% } %>
+    </section>
+  <% } %>
+
+  <section class="tarjeta mt-4">
+    <div class="fila-encabezado">
+      <div>
+        <span class="insignia-suave">Scope actual</span>
+        <h2>Relaciones visibles</h2>
+        <p class="texto-apoyo">
+          Las relaciones siguen la jerarquía organizativa y la autoridad actual del responsable.
+        </p>
+      </div>
+      <% if (panel.permisos.configurarRecepciones) { %>
+        <form method="post" action="/federacion/relaciones/recepcion">
+          <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+          <button type="submit" class="boton-primario">
+            <i class="bi bi-box-arrow-in-down-left" aria-hidden="true"></i>
+            Crear recepción en mi scope
+          </button>
+        </form>
+      <% } %>
+    </div>
+
+    <% if (panel.relaciones.length === 0) { %>
+      <div class="estado-vacio">
+        No hay relaciones federadas visibles para este scope.
+      </div>
+    <% } %>
+
+    <div class="d-grid gap-4">
+      <% for (const relacion of panel.relaciones) { %>
+        <article class="card bg-body-tertiary border-secondary-subtle">
+          <div class="card-body p-4">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+              <div>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                  <span class="insignia-monitor <%= estadoClase(relacion.estadoCiclo) %>"><%= relacion.estadoCiclo %></span>
+                  <span class="insignia-monitor"><%= relacion.direccion %></span>
+                  <span class="insignia-monitor"><%= relacion.estadoAutoridad %></span>
+                  <span class="insignia-monitor"><%= relacion.estadoIdentidad %></span>
+                </div>
+                <h3 class="h5 mb-1"><%= relacion.nombreRemotoDeclarado || 'Contraparte aún no declarada' %></h3>
+                <code><%= relacion.relacionId %></code>
+              </div>
+              <div class="text-end">
+                <small class="d-block"><%= scopeTexto(relacion.scope) %></small>
+                <small class="text-body-secondary">Autoridad v<%= relacion.versionAutoridad %></small>
+              </div>
+            </div>
+
+            <dl class="row mt-4 mb-0">
+              <dt class="col-sm-4">Instalación remota confirmada</dt>
+              <dd class="col-sm-8"><code><%= relacion.installationRemotaId || 'pendiente' %></code></dd>
+              <dt class="col-sm-4">Responsable actual</dt>
+              <dd class="col-sm-8">
+                <%= relacion.responsableNombre || 'Sin responsable actual' %>
+                <% if (relacion.responsableUsuarioId) { %>
+                  <small class="text-body-secondary">(#<%= relacion.responsableUsuarioId %>)</small>
+                <% } %>
+              </dd>
+              <dt class="col-sm-4">Responsable de origen</dt>
+              <dd class="col-sm-8">
+                <%= relacion.responsableOriginalNombre || 'No disponible' %>
+                <% if (relacion.responsableOriginalUsuarioId) { %>
+                  <small class="text-body-secondary">(#<%= relacion.responsableOriginalUsuarioId %>)</small>
+                <% } %>
+              </dd>
+              <dt class="col-sm-4">Compatibilidad</dt>
+              <dd class="col-sm-8"><%= relacion.estadoCompatibilidad || 'pendiente' %></dd>
+              <dt class="col-sm-4">Último heartbeat</dt>
+              <dd class="col-sm-8">
+                <% if (relacion.salud?.ultimoHeartbeatUtc) { %>
+                  <time data-fecha-utc="<%= relacion.salud.ultimoHeartbeatUtc %>"><%= relacion.salud.ultimoHeartbeatUtc %></time>
+                <% } else { %>
+                  sin observaciones
+                <% } %>
+              </dd>
+            </dl>
+
+            <% if (relacion.candidatura) { %>
+              <section class="alert alert-warning mt-4 mb-0">
+                <h4 class="h6">Identidad candidata pendiente de confirmación</h4>
+                <p class="mb-1"><strong>Nombre declarado:</strong> <%= relacion.candidatura.nombreRemotoDeclarado %></p>
+                <p class="mb-1"><strong>Installation ID:</strong> <code><%= relacion.candidatura.installationRemotaId %></code></p>
+                <p><strong>Boot ID:</strong> <code><%= relacion.candidatura.bootRemotoId %></code></p>
+                <% if (relacion.gestionCredencialesPermitida) { %>
+                  <form method="post" action="/federacion/relaciones/<%= encodeURIComponent(relacion.relacionId) %>/confirmar-identidad">
+                    <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                    <input type="hidden" name="installation_remota_id" value="<%= relacion.candidatura.installationRemotaId %>">
+                    <input type="hidden" name="nombre_remoto_declarado" value="<%= relacion.candidatura.nombreRemotoDeclarado %>">
+                    <button type="submit" class="boton-primario">Confirmar nombre e identidad exactos</button>
+                  </form>
+                <% } %>
+              </section>
+            <% } %>
+
+            <% if (relacion.localizacionPropuesta) { %>
+              <section class="alert alert-info mt-4 mb-0">
+                <h4 class="h6">Nueva localización propuesta</h4>
+                <code><%= relacion.localizacionPropuesta.endpoint %></code>
+                <% if (relacion.gestionCredencialesPermitida) { %>
+                  <form class="mt-3" method="post" action="/federacion/relaciones/<%= encodeURIComponent(relacion.relacionId) %>/aprobar-localizacion">
+                    <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                    <input type="hidden" name="localizacion_id" value="<%= relacion.localizacionPropuesta.localizacionId %>">
+                    <button type="submit" class="boton-secundario">Aprobar HTTPS explícitamente</button>
+                  </form>
+                <% } %>
+              </section>
+            <% } %>
+
+            <% if (relacion.gestionCredencialesPermitida) { %>
+              <div class="d-flex flex-wrap gap-2 mt-4">
+                <% if (relacion.estadoCiclo === 'pendienteVinculacion') { %>
+                  <form method="post" action="/federacion/relaciones/<%= encodeURIComponent(relacion.relacionId) %>/invitaciones">
+                    <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                    <input type="hidden" name="ttl_segundos" value="900">
+                    <button type="submit" class="boton-primario">Emitir invitación temporal</button>
+                  </form>
+                <% } %>
+                <% if (relacion.invitacionVigente) { %>
+                  <form method="post" action="/federacion/relaciones/<%= encodeURIComponent(relacion.relacionId) %>/invitaciones/revocar">
+                    <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                    <input type="hidden" name="invitacion_id" value="<%= relacion.invitacionVigente.invitacionId %>">
+                    <button type="submit" class="boton-secundario">Revocar invitación vigente</button>
+                  </form>
+                <% } %>
+                <% if (['vinculada', 'deshabilitada'].includes(relacion.estadoCiclo)) { %>
+                  <form method="post" action="/federacion/relaciones/<%= encodeURIComponent(relacion.relacionId) %>/recuperaciones">
+                    <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                    <input type="hidden" name="ttl_segundos" value="900">
+                    <button type="submit" class="boton-secundario">Emitir recuperación temporal</button>
+                  </form>
+                <% } %>
+              </div>
+            <% } %>
+
+            <section class="mt-4 pt-4 border-top">
+              <div class="d-flex flex-wrap justify-content-between gap-2">
+                <div>
+                  <h4 class="h6 mb-1">Concesión bilateral de datos</h4>
+                  <p class="texto-apoyo mb-0">
+                    Esta instalación declara una <strong><%= relacion.concesionPresentada.papelLocal %></strong>.
+                    La contraparte conserva su propia autoridad y ninguna ampliación es unilateral.
+                  </p>
+                </div>
+                <div class="text-end">
+                  <small class="d-block">Local: <code><%= relacion.concesionPresentada.revisionLocal?.revisionId || 'sin declarar' %></code></small>
+                  <small class="d-block">Contraparte: <code><%= relacion.concesionPresentada.revisionContraparte?.revisionId || 'desconocida' %></code></small>
+                  <small class="d-block">Efectiva: <code><%= relacion.concesionPresentada.revisionEfectiva?.revisionId || 'vacía o pendiente' %></code></small>
+                </div>
+              </div>
+
+              <div class="row g-3 mt-1">
+                <% for (const [tituloRevision, revision] of [
+                  ['Declaración local', relacion.concesionPresentada.revisionLocal],
+                  ['Declaración remota conocida', relacion.concesionPresentada.revisionContraparte],
+                  ['Concesión efectiva', relacion.concesionPresentada.revisionEfectiva]
+                ]) { %>
+                  <div class="col-12 col-xl-4">
+                    <article class="card bg-body h-100 border-secondary-subtle p-3">
+                      <strong><%= tituloRevision %></strong>
+                      <% if (!revision) { %>
+                        <small class="text-body-secondary mt-2">Todavía no existe.</small>
+                      <% } else { %>
+                        <code class="text-break mt-2"><%= revision.revisionId %></code>
+                        <small class="mt-2">Scope: <%= revision.seleccion.nivelesScope.join(', ') || 'vacío' %></small>
+                        <small>Familias: <%= familiasSeleccion(revision).map((familia) => nombresFamilia[familia] || familia).join(', ') || 'ninguna' %></small>
+                      <% } %>
+                    </article>
+                  </div>
+                <% } %>
+              </div>
+
+              <% if (relacion.direccion === 'emision' &&
+                    relacion.concesionPresentada.editable &&
+                    relacion.concesionPresentada.revisionLocal &&
+                    panel.sincronizacionDisponible) { %>
+                <form class="mt-3" method="post" action="/federacion/relaciones/<%= encodeURIComponent(relacion.relacionId) %>/concesion/sincronizar">
+                  <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                  <button type="submit" class="boton-primario">Sincronizar negociación bilateral</button>
+                  <small class="d-block text-body-secondary mt-2">
+                    La instancia emisora abre el canal autenticado, publica su oferta
+                    y recupera la aceptación vigente de la receptora. Ningún secreto se muestra al navegador.
+                  </small>
+                </form>
+              <% } else if (relacion.direccion === 'emision' &&
+                    relacion.concesionPresentada.revisionLocal &&
+                    !panel.sincronizacionDisponible) { %>
+                <div class="alert alert-warning mt-3 mb-0">
+                  La negociación no puede sincronizarse hasta configurar el keyring
+                  que permite custodiar la credencial persistente de esta emisión.
+                </div>
+              <% } else if (relacion.direccion === 'recepcion' &&
+                    relacion.concesionPresentada.revisionLocal) { %>
+                <p class="texto-apoyo mt-3 mb-0">
+                  La aceptación está preparada. Se entregará por el canal existente
+                  cuando la instancia emisora sincronice su oferta; no se abre una conexión inversa.
+                </p>
+              <% } %>
+
+              <% if (relacion.concesionPresentada.editable) { %>
+                <details class="mt-3">
+                  <summary>Editar selección y revisar su impacto</summary>
+                  <form class="mt-3" method="post" action="/federacion/relaciones/<%= encodeURIComponent(relacion.relacionId) %>/concesion/previsualizar">
+                    <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                    <fieldset>
+                      <legend class="h6">Profundidades remotas autorizadas</legend>
+                      <div class="d-flex flex-wrap gap-3">
+                        <% for (const nivel of relacion.concesionPresentada.nivelesPermitidos) { %>
+                          <label class="form-check">
+                            <input class="form-check-input" type="checkbox" name="niveles_scope" value="<%= nivel %>" <%= selecciona(relacion.concesionPresentada.seleccion.nivelesScope, nivel) ? 'checked' : '' %>>
+                            <span class="form-check-label"><%= nombresNivel[nivel] %></span>
+                          </label>
+                        <% } %>
+                      </div>
+                    </fieldset>
+                    <div class="row g-3 mt-1">
+                      <% for (const contrato of panel.catalogoConcesion.familias) {
+                        const selector = relacion.concesionPresentada.seleccion.familias[contrato.familia]; %>
+                        <div class="col-12 col-xl-6">
+                          <fieldset class="card bg-body border-secondary-subtle h-100 p-3">
+                            <legend class="h6">
+                              <label class="form-check">
+                                <input class="form-check-input" type="checkbox" name="familia_<%= contrato.familia %>" value="1" <%= selector ? 'checked' : '' %>>
+                                <span class="form-check-label"><%= nombresFamilia[contrato.familia] || contrato.familia %> · v<%= contrato.versionFamilia %></span>
+                              </label>
+                            </legend>
+                            <input type="hidden" name="campo_base_<%= contrato.familia %>" value="<%= contrato.campoBase %>">
+                            <small class="text-body-secondary">Conjunto funcional completo: <code><%= contrato.campoBase %></code>.</small>
+                            <% for (const campo of contrato.camposSensibles) { %>
+                              <label class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" name="sensibles_<%= contrato.familia %>" value="<%= campo %>" <%= selector && selecciona(selector.campos, campo) ? 'checked' : '' %>>
+                                <span class="form-check-label">Autorizar campo sensible <code><%= campo %></code></span>
+                              </label>
+                            <% } %>
+                            <label class="form-check mt-2">
+                              <input class="form-check-input" type="checkbox" name="refederacion_<%= contrato.familia %>" value="1" <%= selector?.permiteRefederacion ? 'checked' : '' %>>
+                              <span class="form-check-label">Permitir refederación conservando procedencia y recorrido</span>
+                            </label>
+                          </fieldset>
+                        </div>
+                      <% } %>
+                    </div>
+                    <button type="submit" class="boton-secundario mt-3">Previsualizar impacto</button>
+                  </form>
+                </details>
+              <% } else { %>
+                <p class="texto-apoyo mt-3 mb-0">
+                  Solo el responsable actual, con sesión directa, permiso direccional y autoridad vigente puede proponer otra revisión.
+                </p>
+              <% } %>
+            </section>
+
+            <section class="mt-4 pt-4 border-top">
+              <div class="d-flex flex-wrap justify-content-between gap-2">
+                <div>
+                  <h4 class="h6 mb-1">Flujos reconciliados</h4>
+                  <p class="texto-apoyo mb-0">
+                    Nacen exclusivamente de la concesión efectiva y conservan
+                    su generación, corte inicial y completitud reales.
+                  </p>
+                </div>
+                <span class="insignia-monitor"><%= relacion.flujos.length %> flujos</span>
+              </div>
+              <% if (!relacion.flujos.length) { %>
+                <div class="alert alert-secondary mt-3 mb-0">
+                  <% if (relacion.concesionPresentada.revisionEfectiva) { %>
+                    La concesión efectiva no selecciona ningún flujo materializable.
+                  <% } else { %>
+                    No existen flujos: falta una concesión efectiva compatible o su reconciliación está bloqueada.
+                  <% } %>
+                </div>
+              <% } else { %>
+                <div class="table-responsive mt-3">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>Familia</th><th>Estado</th><th>Scope</th><th>Generación</th><th>Completitud</th></tr></thead>
+                    <tbody>
+                      <% for (const flujo of relacion.flujos) { %>
+                        <tr>
+                          <td><%= nombresFamilia[flujo.familia] || flujo.familia %><br><code><%= flujo.flujoId %></code></td>
+                          <td><span class="insignia-monitor"><%= flujo.estado %></span></td>
+                          <td><%= nombresNivel[flujo.scope.nivel] || flujo.scope.nivel %></td>
+                          <td><code><%= flujo.generacion?.generacionId || 'sin generación activa' %></code><br><small><%= flujo.generacion?.estado || 'no disponible' %> · corte <%= flujo.generacion?.corteInicial || 'no disponible' %></small></td>
+                          <td><small>Operativa: <%= flujo.generacion?.operativamenteCompleta ? 'sí' : 'no' %><br>Histórica: <%= flujo.generacion?.historicamenteCompleta ? 'sí' : 'no' %></small></td>
+                        </tr>
+                      <% } %>
+                    </tbody>
+                  </table>
+                </div>
+              <% } %>
+              <% if (relacion.bloqueos.length) { %>
+                <div class="alert alert-warning mt-3 mb-0">
+                  <strong>Bloqueos actuales:</strong>
+                  <ul class="mb-0">
+                    <% for (const bloqueo of relacion.bloqueos) { %><li><code><%= bloqueo %></code></li><% } %>
+                  </ul>
+                </div>
+              <% } %>
+            </section>
+
+            <% if (panel.permisos.transferirResponsabilidad && relacion.estadoAutoridad === 'sinAutoridad') { %>
+              <section class="alert alert-warning mt-4 mb-0">
+                <h4 class="h6">La relación necesita un responsable actual</h4>
+                <p>
+                  La transferencia no reescribe el histórico. Abre una nueva
+                  versión de autoridad después de verificar permiso y scope exactos.
+                </p>
+                <% if (relacion.responsablesTransferibles.length) { %>
+                  <form method="post" action="/federacion/relaciones/<%= encodeURIComponent(relacion.relacionId) %>/transferir-responsabilidad">
+                    <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                    <label class="form-label" for="responsable-<%= relacion.relacionId %>">Nuevo responsable</label>
+                    <div class="d-flex flex-wrap gap-2">
+                      <select class="form-select w-auto" id="responsable-<%= relacion.relacionId %>" name="nuevo_responsable_usuario_id" required>
+                        <option value="">Selecciona una identidad local</option>
+                        <% for (const responsable of relacion.responsablesTransferibles) { %>
+                          <option value="<%= responsable.usuarioId %>"><%= responsable.nombre %> (@<%= responsable.usuario %>) · <%= scopeTexto(responsable.scope) %></option>
+                        <% } %>
+                      </select>
+                      <button type="submit" class="boton-primario">Transferir responsabilidad</button>
+                    </div>
+                  </form>
+                <% } else { %>
+                  <p class="mb-0">No existe ahora mismo otro usuario activo con permiso y scope exactos.</p>
+                <% } %>
+              </section>
+            <% } %>
+
+            <% if (panel.permisos.activarRelaciones) { %>
+              <details class="mt-4">
+                <summary>Acciones deliberadas sobre la relación</summary>
+                <div class="d-flex flex-wrap gap-3 mt-3">
+                  <% if (relacion.estadoCiclo === 'vinculada') { %>
+                    <form method="post" action="/federacion/relaciones/<%= encodeURIComponent(relacion.relacionId) %>/deshabilitar">
+                      <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                      <button type="submit" class="boton-secundario">Deshabilitar relación</button>
+                    </form>
+                  <% } %>
+                  <form class="d-flex flex-wrap gap-2" method="post" action="/federacion/relaciones/<%= encodeURIComponent(relacion.relacionId) %>/eliminar">
+                    <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                    <input class="form-control w-auto" name="confirmacion" autocomplete="off" placeholder="Escribe ELIMINAR" required>
+                    <button type="submit" class="btn btn-outline-danger">Eliminar de forma terminal</button>
+                  </form>
+                </div>
+              </details>
+            <% } %>
+          </div>
+        </article>
+      <% } %>
+    </div>
+  </section>
+
+  <% if (panel.permisos.resolverConflictos && panel.conflictos.length) { %>
+    <section class="tarjeta mt-4">
+      <span class="insignia-monitor insignia-monitor--alerta">Identidad de instalación</span>
+      <h2>Conflictos y sospechas de clon</h2>
+      <p class="texto-apoyo">
+        Una identidad conflictiva permanece detenida. La resolución nunca elige
+        una rama por sí sola y exige clasificar todo el conjunto observado.
+      </p>
+      <div class="d-grid gap-4">
+        <% for (const conflicto of panel.conflictos) { %>
+          <article class="card border-danger-subtle bg-body-tertiary">
+            <div class="card-body p-4">
+              <div class="d-flex flex-wrap justify-content-between gap-3">
+                <div>
+                  <span class="insignia-monitor <%= conflicto.estado === 'conflicto' ? 'insignia-monitor--alerta' : 'insignia-monitor--advertencia' %>"><%= conflicto.estado %></span>
+                  <h3 class="h5 mt-2">Instalación observada</h3>
+                  <code><%= conflicto.installationRemotaId %></code>
+                </div>
+                <small>
+                  Última observación:
+                  <time data-fecha-utc="<%= conflicto.ultimaDeteccionEnUtc %>"><%= conflicto.ultimaDeteccionEnUtc %></time>
+                </small>
+              </div>
+              <p class="mt-3 mb-2"><strong>Boot IDs concurrentes:</strong></p>
+              <ul>
+                <% for (const bootId of conflicto.bootIds) { %><li><code><%= bootId %></code></li><% } %>
+              </ul>
+
+              <% if (conflicto.estado === 'conflicto') { %>
+                <form method="post" action="/federacion/conflictos/<%= encodeURIComponent(conflicto.incidenteId) %>/resolver">
+                  <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                  <input type="hidden" name="total_relaciones" value="<%= conflicto.relaciones.length %>">
+                  <div class="d-grid gap-3">
+                    <% conflicto.relaciones.forEach((relacion, indice) => { %>
+                      <fieldset class="border rounded p-3">
+                        <input type="hidden" name="relacion_<%= indice %>" value="<%= relacion.relacionId %>">
+                        <legend class="h6"><%= relacion.nombreRemotoDeclarado || relacion.relacionId %></legend>
+                        <p><code><%= relacion.relacionId %></code> · <%= relacion.direccion %> · <%= scopeTexto(relacion.scope) %></p>
+                        <div class="d-flex flex-wrap gap-3">
+                          <label><input type="radio" name="papel_<%= indice %>" value="legitima" required> Rama legítima</label>
+                          <label><input type="radio" name="papel_<%= indice %>" value="clon" required> Rama clonada</label>
+                        </div>
+                        <label class="form-label mt-2" for="nueva-<%= conflicto.incidenteId %>-<%= indice %>">Relación nueva que sustituye esta rama si es clon</label>
+                        <input class="form-control" id="nueva-<%= conflicto.incidenteId %>-<%= indice %>" name="relacion_nueva_<%= indice %>" placeholder="sfid1.relacion.…">
+                      </fieldset>
+                    <% }); %>
+                  </div>
+                  <label class="form-label mt-3" for="clon-<%= conflicto.incidenteId %>">Installation ID nueva ya asignada al clon</label>
+                  <input class="form-control" id="clon-<%= conflicto.incidenteId %>" name="installation_clon_nueva_id" placeholder="sfid1.instalacion.…" required>
+                  <button type="submit" class="btn btn-danger mt-3">Resolver clasificación completa</button>
+                </form>
+              <% } else { %>
+                <div class="alert alert-warning mb-0">
+                  La coexistencia aún es una sospecha. No se permite clasificarla
+                  manualmente como clon hasta que el runtime confirme el conflicto.
+                </div>
+              <% } %>
+            </div>
+          </article>
+        <% } %>
+      </div>
+    </section>
+  <% } %>
+</section>
+
+<%- include('../parciales/pie') %>

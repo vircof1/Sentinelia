@@ -1,0 +1,48 @@
+<div class="modal fade modal-impacto-trigger modal-eliminacion-dns" id="modalEliminarRegistroDns" tabindex="-1" aria-labelledby="modalEliminarRegistroDnsTitulo" aria-hidden="true" data-dns-registro-modal-eliminar data-dns-zona-id="<%= zona.id %>">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title h4 text-break" id="modalEliminarRegistroDnsTitulo" data-dns-eliminar-titulo>Eliminar registro DNS</h2>
+          <p class="texto-apoyo mb-0">Revisa qué se borrará y qué dejará de funcionar.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="texto-apoyo mb-0" role="status" aria-live="polite" data-dns-eliminar-carga>Calculando el impacto…</p>
+        <div class="alert alert-danger mb-0" role="alert" hidden data-dns-eliminar-error></div>
+        <div hidden data-dns-eliminar-contenido>
+          <div class="modal-impacto-trigger__hero modal-impacto-trigger__hero--alerta">
+            <span class="organizacion-entidad__icono" aria-hidden="true"><i class="bi bi-shield-exclamation"></i></span>
+            <div class="text-break">
+              <strong>Este registro se eliminará de forma irreversible.</strong>
+              <p class="texto-apoyo mb-0" data-dns-eliminar-identidad></p>
+            </div>
+          </div>
+          <div class="alert alert-warning mt-3 mb-0" hidden data-dns-eliminar-sistema>Es un registro de sistema. Su eliminación puede afectar al funcionamiento de esta zona.</div>
+          <div class="modal-impacto-trigger__metricas">
+            <article><span>Registros que se borrarán</span><strong>1</strong></article>
+            <article><span>Concesiones DDNS que se revocarán</span><strong data-dns-eliminar-cantidad="concesionesDdns"></strong></article>
+            <article><span>Acciones DNS que se deshabilitarán</span><strong data-dns-eliminar-cantidad="accionesDns"></strong></article>
+            <article><span>Ejecuciones pendientes que se cancelarán</span><strong data-dns-eliminar-cantidad="ejecucionesPendientes"></strong></article>
+          </div>
+          <div class="modal-impacto-trigger__avisos">
+            <p><i class="bi bi-info-circle" aria-hidden="true"></i><span>Se conservan la zona y los demás registros, los agentes, monitores, vínculos y el historial. Las acciones afectadas se deshabilitan, no se borran; necesitarán otro objetivo válido antes de volver a activarse.</span></p>
+            <p hidden data-dns-eliminar-publicacion><i class="bi bi-info-circle" aria-hidden="true"></i><span>La retirada del registro de BIND no es inmediata: se aplicará en la siguiente publicación de la zona.</span></p>
+            <p hidden data-dns-eliminar-en-curso><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span data-dns-eliminar-en-curso-texto></span></p>
+          </div>
+          <p class="texto-apoyo mt-3 mb-0">Estas cifras corresponden al momento de abrir el diálogo; pueden variar si cambian los datos antes de confirmar.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <form method="post" action="/dns/<%= zona.id %>/registros/eliminar" data-dns-eliminar-formulario>
+          <% if (typeof tokenCSRFPortal !== 'undefined' && tokenCSRFPortal) { %><input type="hidden" name="tokenCSRF" value="<%= tokenCSRFPortal %>"><% } %>
+          <input type="hidden" name="id_registro" data-dns-eliminar-id>
+          <input type="hidden" name="return_to" data-dns-eliminar-retorno>
+          <button type="submit" class="btn btn-danger d-inline-flex align-items-center gap-2" disabled data-dns-eliminar-confirmar><i class="bi bi-trash3" aria-hidden="true"></i><span>Eliminar registro</span></button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

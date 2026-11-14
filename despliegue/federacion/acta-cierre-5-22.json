@@ -1,0 +1,60 @@
+{
+  "versionActa": 3,
+  "fase": "5.22",
+  "estado": "cerrada_integracion_productiva_direccional",
+  "recierre": {
+    "unidadFinal": "5.22.22g",
+    "unidadesDocumentadas": 136,
+    "seriesVerificables": 14,
+    "instalacionesDesechablesE2e": 3,
+    "topologiasProductivas": ["A_HTTPS->B_HTTPS->C_HTTPS", "A_HTTP_LAN->B_HTTPS"],
+    "transicionRecepcionEmisor": "ausente->preparada->ausente",
+    "emisionDuranteTransiciones": "1->2->3_flujos",
+    "autoridadCierreAnterior": "sustituida_por_recierre_direccional"
+  },
+  "recierreAnterior": {
+    "unidadFinal": "5.22.21j",
+    "unidadesDocumentadas": 129,
+    "seriesVerificables": 13,
+    "instalacionesDesechablesE2e": 3,
+    "topologiaProductiva": "A->B->C",
+    "autoridad": "evidencia_historica_sustituida"
+  },
+  "desviacionesBloqueantes": [],
+  "desviacionesAceptadas": [
+    {
+      "id": "5.22-D01",
+      "tipo": "alcance_diferido",
+      "decision": "La primera beta no incorpora cuotas por contraparte, balanceo entre receptores ni estimacion avanzada de almacenamiento.",
+      "impacto": "no_bloqueante",
+      "autoridad": "contrato_abstracto"
+    },
+    {
+      "id": "5.22-D02",
+      "tipo": "compatibilidad_beta",
+      "decision": "La compatibilidad inicial es exacta por version de protocolo y familia; los rangos negociados quedan para una evolucion posterior.",
+      "impacto": "no_bloqueante",
+      "autoridad": "contrato_especifico"
+    },
+    {
+      "id": "5.22-D03",
+      "tipo": "frontera_despliegue",
+      "decision": "TLS termina en un reverse proxy confiable y la red privada entre este y Sentinelia pertenece al operador del portal.",
+      "impacto": "responsabilidad_operador",
+      "autoridad": "contrato_despliegue"
+    },
+    {
+      "id": "5.22-D04",
+      "tipo": "frontera_producto",
+      "decision": "Federacion conserva configuracion y dependencias operativas autorizadas, pero no sustituye un backup administrativo completo.",
+      "impacto": "fuera_alcance_federacion",
+      "autoridad": "contrato_abstracto"
+    }
+  ],
+  "declaraciones": {
+    "datosMigradosImplicitamente": false,
+    "desviacionesAbsorbidasSilenciosamente": false,
+    "pruebasImplicitas": false,
+    "activarPorPruebaAislada": false
+  }
+}

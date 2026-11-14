@@ -1,0 +1,40 @@
+<%
+  const tipoAuditable = String(typeof sujetoTipo !== 'undefined' ? sujetoTipo : '').trim();
+  const idAuditable = String(typeof sujetoId !== 'undefined' ? sujetoId : '').trim();
+  const retornoSolicitado = String(typeof retorno !== 'undefined' ? retorno : '').trim();
+  const rutasRetornoAuditables = [
+    /^\/monitores(?:\/|$|\?)/,
+    /^\/agentes(?:\/|$|\?)/,
+    /^\/usuarios(?:\/|$|\?)/,
+    /^\/dns(?:\/|$|\?)/
+  ];
+  const retornoSeguroAuditoria = retornoSolicitado.startsWith('/') &&
+    !retornoSolicitado.startsWith('//') &&
+    !/[\\\r\n]/.test(retornoSolicitado) &&
+    rutasRetornoAuditables.some((patron) => patron.test(retornoSolicitado))
+      ? retornoSolicitado
+      : '';
+  const puedeAbrirAuditoria = Boolean(
+    contextoUsuarioActual?.permisos?.verAuditoria &&
+    (typeof permisoFuncional === 'undefined' || permisoFuncional) &&
+    tipoAuditable &&
+    idAuditable
+  );
+  const parametrosAuditoria = new URLSearchParams({
+    sujetoTipo: tipoAuditable,
+    sujetoId: idAuditable,
+    ...(retornoSeguroAuditoria ? { returnTo: retornoSeguroAuditoria } : {})
+  });
+%>
+<% if (puedeAbrirAuditoria) { %>
+  <a
+    href="/auditoria?<%= parametrosAuditoria.toString() %>"
+    class="<%= typeof clase !== 'undefined' ? clase : 'btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2' %>"
+    data-enlace-actividad-auditada
+    data-sujeto-tipo="<%= tipoAuditable %>"
+    data-sujeto-id="<%= idAuditable %>"
+  >
+    <i class="bi bi-clock-history" aria-hidden="true"></i>
+    <span>Ver actividad auditada</span>
+  </a>
+<% } %>

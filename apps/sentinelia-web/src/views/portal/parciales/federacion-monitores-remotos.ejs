@@ -1,0 +1,349 @@
+<%
+  const claseCondicion = (condicion) => condicion === 'vigente'
+    ? 'insignia-monitor--ok'
+    : condicion === 'vencida'
+      ? 'insignia-monitor--advertencia'
+      : ['noAutorizada', 'incompatible'].includes(condicion)
+        ? 'insignia-monitor--alerta'
+        : 'insignia-monitor--suave';
+  const etiquetaCondicion = {
+    vigente: 'Estado vigente', vencida: 'Estado vencido', noAutorizada: 'No autorizado',
+    incompatible: 'Incompatible', consolidando: 'Consolidando', sinConsolidar: 'Sin consolidar'
+  };
+  const urlTriggerRemoto = (triggerOrigenId) =>
+    `/federacion/datos-remotos?procedencia=${encodeURIComponent(monitoresRemotos.installationOrigenId)}` +
+    `&vista=triggers&subvista=resumen&trigger=${encodeURIComponent(triggerOrigenId)}`;
+%>
+
+<span class="insignia-suave">Área remota · solo lectura</span>
+<h2 class="mt-2"><i class="bi <%= seccionActual.icono %>" aria-hidden="true"></i> Monitores</h2>
+<p>Inventario publicado por la instalación de origen y estado operativo materializado en este receptor.</p>
+
+<div class="submenus-remotos mt-4">
+  <% for (const subseccion of subsecciones) { %>
+    <a href="<%= urlSubvista(subseccion.id) %>"
+      class="<%= navegacion.subvista === subseccion.id ? 'activo' : '' %>"><%= subseccion.etiqueta %></a>
+  <% } %>
+</div>
+
+<% const monitorSeleccionado = monitoresRemotos.monitorSeleccionado; %>
+
+<% if (navegacion.subvista !== 'inventario' && !monitorSeleccionado) { %>
+  <div class="estado-vacio-remoto mt-4">
+    <i class="bi bi-broadcast" aria-hidden="true"></i>
+    <div><strong>Selecciona primero un monitor del inventario.</strong><br>El estado y el histórico pertenecen a una identidad remota concreta.</div>
+  </div>
+<% } else if (navegacion.subvista === 'inventario') { %>
+  <div class="resumen-monitores-remotos mt-4" aria-label="Resumen de monitores remotos">
+    <article><span>Total visible</span><strong><%= monitoresRemotos.resumen.total %></strong></article>
+    <article><span>Definiciones activas</span><strong><%= monitoresRemotos.resumen.activos %></strong></article>
+    <article><span>Con estado recibido</span><strong><%= monitoresRemotos.resumen.conEstado %></strong></article>
+    <article><span>Estados vigentes</span><strong><%= monitoresRemotos.resumen.vigentes %></strong></article>
+  </div>
+
+  <% if (monitoresRemotos.resumen.limiteAlcanzado) { %>
+    <div class="alert alert-warning mt-3" role="status">Se muestran los primeros 200 monitores. La paginación se incorporará con el detalle.</div>
+  <% } %>
+
+  <% if (monitoresRemotos.monitores.length === 0) { %>
+    <div class="estado-vacio-remoto mt-4">
+      <i class="bi bi-broadcast" aria-hidden="true"></i>
+      <div><strong>No hay definiciones de monitores visibles.</strong><br>Puede que aún no se hayan materializado o que queden fuera de tu concesión y scope.</div>
+    </div>
+  <% } else { %>
+    <section class="inventario-monitores-remotos mt-4" aria-label="Inventario de monitores remotos">
+      <% for (const monitor of monitoresRemotos.monitores) { %>
+        <article class="monitor-remoto-card">
+          <header>
+            <div>
+              <div class="d-flex flex-wrap gap-2 mb-2">
+                <span class="insignia-monitor insignia-monitor--<%= ['ping','tcp','booleano','api','dns'].includes(monitor.tipo) ? monitor.tipo : 'suave' %>"><%= monitor.tipo %></span>
+                <span class="insignia-monitor <%= monitor.activo ? 'insignia-monitor--ok' : 'insignia-monitor--off' %>"><%= monitor.activo ? 'Activo en origen' : 'Inactivo en origen' %></span>
+                <% if (monitor.estadoActual) { %>
+                  <span class="insignia-monitor <%= claseCondicion(monitor.estadoActual.condicion) %>"><%= etiquetaCondicion[monitor.estadoActual.condicion] || monitor.estadoActual.condicion %></span>
+                <% } else { %>
+                  <span class="insignia-monitor insignia-monitor--suave">Sin estado recibido</span>
+                <% } %>
+              </div>
+              <h3><%= monitor.nombre %></h3>
+              <% if (monitor.descripcion) { %><p><%= monitor.descripcion %></p><% } %>
+            </div>
+            <div class="monitor-remoto-card__estado">
+              <small>Estado actual</small>
+              <strong><%= monitor.estadoActual?.estado || 'Pendiente' %></strong>
+            </div>
+          </header>
+
+          <dl>
+            <div><dt>Intervalo</dt><dd><%= monitor.intervaloSegundos %> s</dd></div>
+            <div><dt>Interpretación</dt><dd><%= monitor.interpretacionEstado || 'No declarada' %></dd></div>
+            <div><dt>Última ejecución</dt><dd><% if (monitor.estadoActual?.ultimaEjecucionUtc) { %><time data-fecha-utc="<%= monitor.estadoActual.ultimaEjecucionUtc %>"><%= monitor.estadoActual.ultimaEjecucionUtc %></time><% } else { %>Todavía no ejecutado<% } %></dd></div>
+          </dl>
+
+          <footer>
+            <code class="text-break"><%= monitor.elementoOrigenId %></code>
+            <a class="btn btn-sm btn-outline-primary"
+              href="<%= urlSubvista('estado', monitor.elementoOrigenId) %>">Abrir monitor <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+          </footer>
+        </article>
+      <% } %>
+    </section>
+  <% } %>
+<% } else { %>
+  <section class="monitor-remoto-detalle mt-4">
+    <header class="monitor-remoto-detalle__cabecera">
+      <div>
+        <a href="<%= urlSubvista('inventario', null) %>" class="enlace-retorno-remoto"><i class="bi bi-arrow-left" aria-hidden="true"></i> Volver al inventario</a>
+        <div class="d-flex flex-wrap gap-2 mt-3 mb-2">
+          <span class="insignia-monitor insignia-monitor--<%= ['ping','tcp','booleano','api','dns'].includes(monitorSeleccionado.tipo) ? monitorSeleccionado.tipo : 'suave' %>"><%= monitorSeleccionado.tipo %></span>
+          <span class="insignia-monitor <%= monitorSeleccionado.activo ? 'insignia-monitor--ok' : 'insignia-monitor--off' %>"><%= monitorSeleccionado.activo ? 'Activo en origen' : 'Inactivo en origen' %></span>
+        </div>
+        <h3><%= monitorSeleccionado.nombre %></h3>
+        <% if (monitorSeleccionado.descripcion) { %><p class="mb-2"><%= monitorSeleccionado.descripcion %></p><% } %>
+        <code class="text-break"><%= monitorSeleccionado.elementoOrigenId %></code>
+      </div>
+      <div class="monitor-remoto-card__estado">
+        <small>Estado actual</small>
+        <strong><%= monitorSeleccionado.estadoActual?.estado || 'Pendiente' %></strong>
+      </div>
+    </header>
+
+    <% if (navegacion.subvista === 'estado') { %>
+      <% const estado = monitorSeleccionado.estadoActual; %>
+      <% if (!estado) { %>
+        <div class="estado-vacio-remoto mt-4">
+          <i class="bi bi-hourglass" aria-hidden="true"></i>
+          <div><strong>No se ha recibido todavía un estado actual.</strong><br>La definición sí es visible, pero su fotografía operativa aún no se ha materializado.</div>
+        </div>
+      <% } else { %>
+        <div class="resumen-monitores-remotos mt-4" aria-label="Estado actual del monitor remoto">
+          <article><span>Estado declarado</span><strong><%= estado.estado || 'No declarado' %></strong></article>
+          <article><span>Condición receptora</span><strong><%= etiquetaCondicion[estado.condicion] || estado.condicion %></strong></article>
+          <article><span>Intervalo</span><strong><%= monitorSeleccionado.intervaloSegundos %> s</strong></article>
+          <article><span>Catálogo</span><strong><%= estado.versionCatalogo || 'No declarado' %></strong></article>
+        </div>
+        <dl class="monitor-remoto-estado mt-4">
+          <div><dt>Última ejecución</dt><dd><% if (estado.ultimaEjecucionUtc) { %><time data-fecha-utc="<%= estado.ultimaEjecucionUtc %>"><%= estado.ultimaEjecucionUtc %></time><% } else { %>Todavía no ejecutado<% } %></dd></div>
+          <div><dt>Último cambio</dt><dd><% if (estado.ultimoCambioUtc) { %><time data-fecha-utc="<%= estado.ultimoCambioUtc %>"><%= estado.ultimoCambioUtc %></time><% } else { %>No declarado<% } %></dd></div>
+          <div><dt>Vigencia declarada</dt><dd><% if (estado.vigenteHastaOrigenUtc) { %><time data-fecha-utc="<%= estado.vigenteHastaOrigenUtc %>"><%= estado.vigenteHastaOrigenUtc %></time><% } else { %>No declarada<% } %></dd></div>
+          <div><dt>Vigencia efectiva</dt><dd><% if (estado.vigenteHastaEfectivaUtc) { %><time data-fecha-utc="<%= estado.vigenteHastaEfectivaUtc %>"><%= estado.vigenteHastaEfectivaUtc %></time><% } else { %>No consolidada<% } %></dd></div>
+          <div><dt>Interpretación</dt><dd><%= monitorSeleccionado.interpretacionEstado || 'No declarada' %></dd></div>
+          <div><dt>Motivo inicial</dt><dd><%= estado.motivoInicial || 'No declarado' %></dd></div>
+        </dl>
+        <% const contexto = estado.contextoHumano || monitorSeleccionado.contextoHumano; %>
+        <% if (contexto?.descripcionFallo || contexto?.posibleSolucion) { %>
+          <div class="alert alert-info mt-4 mb-0">
+            <% if (contexto.descripcionFallo) { %><strong>Contexto:</strong> <%= contexto.descripcionFallo %><% } %>
+            <% if (contexto.posibleSolucion) { %><br><strong>Posible solución:</strong> <%= contexto.posibleSolucion %><% } %>
+          </div>
+        <% } %>
+      <% } %>
+    <% } else if (navegacion.subvista === 'historico') { %>
+      <% if (monitoresRemotos.historico.length === 0) { %>
+        <div class="estado-vacio-remoto mt-4">
+          <i class="bi bi-clock-history" aria-hidden="true"></i>
+          <div><strong>No hay histórico publicado para este monitor.</strong><br>La ausencia puede ser real o deberse a la ventana y completitud concedidas.</div>
+        </div>
+      <% } else { %>
+        <%
+          const graficoHistoricoRemotoJson = JSON.stringify({
+            monitor: {
+              nombre: monitorSeleccionado.nombre,
+              tipo: monitorSeleccionado.tipo,
+              elementoOrigenId: monitorSeleccionado.elementoOrigenId
+            },
+            entradas: monitoresRemotos.historico
+          })
+            .replace(/</g, '\\u003c')
+            .replace(/>/g, '\\u003e')
+            .replace(/&/g, '\\u0026');
+        %>
+        <section class="grafico-historico-remoto mt-4" data-monitor-remoto-grafica>
+          <script type="application/json" data-monitor-remoto-grafica-datos><%- graficoHistoricoRemotoJson %></script>
+          <header>
+            <div>
+              <h4>Tendencia recibida del monitor</h4>
+              <p>Duración de las ejecuciones y continuidad del estado publicado. Los intervalos no disponibles permanecen como huecos.</p>
+            </div>
+            <span class="insignia-monitor insignia-monitor--suave"><%= monitoresRemotos.historico.length %> registros</span>
+          </header>
+          <div class="visor-eventos">
+            <div class="visor-eventos__grafico">
+              <div class="grafico-historico-remoto__lienzo">
+                <canvas data-monitor-remoto-grafica-canvas aria-label="Gráfico histórico del monitor remoto"></canvas>
+              </div>
+              <div class="estado-consolidado-remoto" data-monitor-remoto-estado-consolidado></div>
+            </div>
+            <aside class="visor-eventos__detalle" data-monitor-remoto-grafica-detalle>
+              <h4>Detalle del punto</h4>
+              <p class="texto-apoyo">Mueve el ratón o pulsa sobre una ejecución para inspeccionarla.</p>
+            </aside>
+          </div>
+          <footer>
+            <span><i class="bi bi-square-fill grafico-leyenda--ok" aria-hidden="true"></i> Disponible</span>
+            <span><i class="bi bi-square-fill grafico-leyenda--degradado" aria-hidden="true"></i> Degradado</span>
+            <span><i class="bi bi-square-fill grafico-leyenda--fallo" aria-hidden="true"></i> Indisponible</span>
+            <span><i class="bi bi-dash-lg" aria-hidden="true"></i> Un hueco significa que no hay continuidad demostrable</span>
+          </footer>
+        </section>
+
+        <ol class="historico-monitor-remoto mt-4">
+          <% for (const entrada of monitoresRemotos.historico) { %>
+            <li>
+              <div class="historico-monitor-remoto__marca"><i class="bi <%= entrada.tipoRegistro === 'evento' ? 'bi-lightning' : entrada.tipoRegistro === 'tramoHistorico' ? 'bi-calendar-range' : 'bi-dash-circle' %>" aria-hidden="true"></i></div>
+              <article>
+                <header>
+                  <div><span class="insignia-monitor insignia-monitor--suave"><%= entrada.tipoRegistro === 'evento' ? 'Ejecución' : entrada.tipoRegistro === 'tramoHistorico' ? 'Tramo consolidado' : 'Intervalo no disponible' %></span><strong><%= entrada.estado || entrada.causa || 'Sin estado declarado' %></strong></div>
+                  <% if (entrada.fechaUtc) { %><time data-fecha-utc="<%= entrada.fechaUtc %>"><%= entrada.fechaUtc %></time><% } %>
+                </header>
+                <% if (entrada.codigo || entrada.mensaje) { %><p><% if (entrada.codigo) { %><code><%= entrada.codigo %></code> <% } %><%= entrada.mensaje || '' %></p><% } %>
+                <dl>
+                  <% if (entrada.desdeUtc) { %><div><dt>Desde</dt><dd><time data-fecha-utc="<%= entrada.desdeUtc %>"><%= entrada.desdeUtc %></time></dd></div><% } %>
+                  <% if (entrada.hastaUtc) { %><div><dt>Hasta</dt><dd><time data-fecha-utc="<%= entrada.hastaUtc %>"><%= entrada.hastaUtc %></time></dd></div><% } %>
+                  <% if (entrada.repeticiones !== null && entrada.repeticiones !== undefined) { %><div><dt>Repeticiones</dt><dd><%= entrada.repeticiones %></dd></div><% } %>
+                  <% if (entrada.duracionTotalMs !== null && entrada.duracionTotalMs !== undefined) { %><div><dt>Duración</dt><dd><%= entrada.duracionTotalMs %> ms</dd></div><% } %>
+                </dl>
+                <% if (entrada.contextoHumano?.descripcionFallo || entrada.contextoHumano?.posibleSolucion) { %>
+                  <small><%= entrada.contextoHumano.descripcionFallo || '' %><%= entrada.contextoHumano.descripcionFallo && entrada.contextoHumano.posibleSolucion ? ' · ' : '' %><%= entrada.contextoHumano.posibleSolucion || '' %></small>
+                <% } %>
+              </article>
+            </li>
+          <% } %>
+        </ol>
+      <% } %>
+    <% } else if (navegacion.subvista === 'alertas') { %>
+      <% const resumenAlertas = monitoresRemotos.resumenAlertas; %>
+      <div class="resumen-monitores-remotos mt-4" aria-label="Resumen de alertas del monitor remoto">
+        <article><span>Ciclos publicados</span><strong><%= resumenAlertas.total %></strong></article>
+        <article><span>Activas en origen</span><strong><%= resumenAlertas.activas %></strong></article>
+        <article><span>Vigentes ahora</span><strong><%= resumenAlertas.vigentes %></strong></article>
+        <article><span>Cerradas en origen</span><strong><%= resumenAlertas.cerradas %></strong></article>
+      </div>
+
+      <% if (resumenAlertas.limiteAlcanzado) { %>
+        <div class="alert alert-warning mt-3" role="status">Se muestran los 100 ciclos más recientes que siguen publicados. Puede haber ciclos anteriores fuera de esta ventana.</div>
+      <% } %>
+
+      <% if (monitoresRemotos.alertas.length === 0) { %>
+        <div class="estado-vacio-remoto mt-4">
+          <i class="bi bi-bell-slash" aria-hidden="true"></i>
+          <div><strong>Este monitor no tiene alertas publicadas.</strong><br>No equivale necesariamente a «nunca alertó»: la concesión, la retención y la ventana publicada delimitan esta lectura.</div>
+        </div>
+      <% } else { %>
+        <ol class="alertas-monitor-remoto mt-4" aria-label="Ciclos de alerta publicados por el monitor remoto">
+          <% for (const alerta of monitoresRemotos.alertas) { %>
+            <li class="alerta-monitor-remoto alerta-monitor-remoto--<%= alerta.condicion %>">
+              <header>
+                <div>
+                  <span class="insignia-monitor <%= alerta.condicion === 'vigente' ? 'insignia-monitor--alerta' : alerta.condicion === 'vencida' ? 'insignia-monitor--advertencia' : 'insignia-monitor--ok' %>">
+                    <%= alerta.condicion === 'vigente' ? 'Activa y vigente' : alerta.condicion === 'vencida' ? 'Activa, vigencia agotada' : 'Cerrada en origen' %>
+                  </span>
+                  <% if (alerta.descarteOrigen.descartada) { %><span class="insignia-monitor insignia-monitor--advertencia">Descartada en origen</span><% } %>
+                  <h4><%= alerta.estadoDetectado || 'Estado de alerta no declarado' %></h4>
+                  <% if (alerta.mensaje) { %><p><%= alerta.mensaje %></p><% } %>
+                </div>
+                <div class="alerta-monitor-remoto__repeticiones">
+                  <small>Detecciones</small>
+                  <strong><%= alerta.repeticiones ?? '—' %></strong>
+                </div>
+              </header>
+
+              <dl>
+                <div><dt>Primera detección</dt><dd><% if (alerta.validoDesdeUtc) { %><time data-fecha-utc="<%= alerta.validoDesdeUtc %>"><%= alerta.validoDesdeUtc %></time><% } else { %>No declarada<% } %></dd></div>
+                <div><dt>Última confirmación</dt><dd><% if (alerta.ultimaConfirmacionUtc) { %><time data-fecha-utc="<%= alerta.ultimaConfirmacionUtc %>"><%= alerta.ultimaConfirmacionUtc %></time><% } else { %>No declarada<% } %></dd></div>
+                <div><dt><%= alerta.cerradaEnUtc ? 'Cierre en origen' : 'Vigente hasta' %></dt><dd><% const fechaFinAlerta = alerta.cerradaEnUtc || alerta.vigenteHastaOrigenUtc; %><% if (fechaFinAlerta) { %><time data-fecha-utc="<%= fechaFinAlerta %>"><%= fechaFinAlerta %></time><% } else { %>No declarado<% } %></dd></div>
+                <div><dt>Completitud</dt><dd><%= alerta.completitud.interpretable %> / <%= alerta.completitud.observable %> / <%= alerta.completitud.reconstruible %></dd></div>
+              </dl>
+
+              <% if (alerta.codigo || alerta.contextoHumano.descripcionFallo || alerta.contextoHumano.posibleSolucion || alerta.descarteOrigen.descartada) { %>
+                <div class="alerta-monitor-remoto__contexto">
+                  <% if (alerta.codigo) { %><p><strong>Resultado que la sostiene:</strong> <code><%= alerta.codigo %></code></p><% } %>
+                  <% if (alerta.contextoHumano.descripcionFallo) { %><p><strong>Qué significa:</strong> <%= alerta.contextoHumano.descripcionFallo %></p><% } %>
+                  <% if (alerta.contextoHumano.posibleSolucion) { %><p><strong>Qué revisar:</strong> <%= alerta.contextoHumano.posibleSolucion %></p><% } %>
+                  <% if (alerta.descarteOrigen.descartada) { %>
+                    <p><strong>Descarte en origen:</strong> <%= alerta.descarteOrigen.motivo || 'Sin motivo publicado' %><% if (alerta.descarteOrigen.descartadaHastaUtc) { %> · hasta <time data-fecha-utc="<%= alerta.descarteOrigen.descartadaHastaUtc %>"><%= alerta.descarteOrigen.descartadaHastaUtc %></time><% } %></p>
+                  <% } %>
+                </div>
+              <% } %>
+
+              <footer>
+                <span>Ciclo de alerta</span>
+                <code class="text-break"><%= alerta.alertaAuditoriaId %></code>
+              </footer>
+            </li>
+          <% } %>
+        </ol>
+      <% } %>
+    <% } else if (navegacion.subvista === 'triggers') { %>
+      <% const resumenTriggers = monitoresRemotos.resumenReferenciasTriggers; %>
+      <div class="resumen-monitores-remotos mt-4" aria-label="Resumen de triggers vinculados al monitor remoto">
+        <article><span>Referencias publicadas</span><strong><%= resumenTriggers.total %></strong></article>
+        <article><span>Activas en origen</span><strong><%= resumenTriggers.activas %></strong></article>
+        <article><span>Visibles</span><strong><%= resumenTriggers.visibles %></strong></article>
+        <article><span>Opacas</span><strong><%= resumenTriggers.opacas %></strong></article>
+      </div>
+
+      <div class="aviso-visor-trigger-remoto mt-4" role="status">
+        <i class="bi bi-signpost-split" aria-hidden="true"></i>
+        <div>
+          <strong>Vinculaciones reconciliadas entre familias federadas.</strong><br>
+          <% if (monitoresRemotos.fuenteReferenciasTriggers === 'asignacionesTriggers') { %>
+            Las asignaciones de triggers se han correlacionado con este monitor. Solo las definiciones visibles permiten navegar al detalle.
+          <% } else { %>
+            Se muestran las referencias publicadas por el monitor; una referencia opaca conserva su identidad sin revelar una definición no visible.
+          <% } %>
+        </div>
+      </div>
+
+      <% if (resumenTriggers.limiteAlcanzado) { %>
+        <div class="alert alert-warning mt-3" role="status">Se muestran las primeras 100 referencias. Puede haber otras fuera de esta ventana.</div>
+      <% } %>
+
+      <% if (monitoresRemotos.referenciasTriggers.length === 0) { %>
+        <div class="estado-vacio-remoto mt-4">
+          <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+          <div><strong>Este monitor no tiene triggers vinculados publicados.</strong><br>La ausencia puede ser real o estar delimitada por la concesión y la completitud recibida.</div>
+        </div>
+      <% } else { %>
+        <ol class="referencias-triggers-remotos mt-4" aria-label="Triggers vinculados al monitor remoto">
+          <% for (const referencia of monitoresRemotos.referenciasTriggers) { %>
+            <li>
+              <header>
+                <div class="d-flex flex-wrap gap-2">
+                  <span class="insignia-monitor <%= referencia.activo ? 'insignia-monitor--ok' : 'insignia-monitor--off' %>"><%= referencia.activo ? 'Activa en origen' : 'Inactiva en origen' %></span>
+                  <span class="insignia-monitor <%= referencia.triggerFederado ? 'insignia-monitor--ok' : 'insignia-monitor--suave' %>"><%= referencia.triggerFederado ? 'Trigger federado disponible' : referencia.visibilidad === 'visible' ? 'Referencia visible' : 'Referencia opaca' %></span>
+                </div>
+                <span>Orden <strong><%= referencia.ordenEjecucion %></strong></span>
+              </header>
+              <dl>
+                <div>
+                  <dt><%= referencia.triggerFederado ? referencia.triggerFederado.nombre : 'Identidad del trigger' %></dt>
+                  <dd><code class="text-break"><%= referencia.triggerOrigenId %></code></dd>
+                </div>
+                <div><dt>Identidad de la vinculación</dt><dd><code class="text-break"><%= referencia.elementoOrigenId %></code></dd></div>
+              </dl>
+              <footer>
+                <div>
+                  <span>Eventos de disparo</span>
+                  <% if (referencia.eventosDisparo.length > 0) { %>
+                    <div class="d-flex flex-wrap gap-2"><% for (const evento of referencia.eventosDisparo) { %><code><%= evento %></code><% } %></div>
+                  <% } else { %>
+                    <span>No declarados</span>
+                  <% } %>
+                </div>
+                <% if (referencia.triggerFederado) { %>
+                  <a class="btn btn-sm btn-outline-primary" href="<%= urlTriggerRemoto(referencia.triggerFederado.elementoOrigenId) %>">Abrir trigger federado <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                <% } %>
+              </footer>
+            </li>
+          <% } %>
+        </ol>
+      <% } %>
+    <% } else { %>
+      <div class="estado-vacio-remoto mt-4">
+        <i class="bi bi-layout-text-window-reverse" aria-hidden="true"></i>
+        <div><strong>Esta lectura se conectará en un siguiente corte.</strong><br>El monitor ya está seleccionado y conservará esta misma identidad.</div>
+      </div>
+    <% } %>
+  </section>
+<% } %>

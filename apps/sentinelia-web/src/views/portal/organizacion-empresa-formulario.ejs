@@ -1,0 +1,296 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const urlListadoEmpresas = tenantFiltro?.id
+    ? `/organizacion/empresas?tenant_id=${encodeURIComponent(tenantFiltro.id)}`
+    : '/organizacion/empresas';
+%>
+
+<section class="panel-general">
+  <%- include('parciales/organizacion-cabecera', {
+    tituloSeccion: modo === 'editar' ? 'Editar empresa' : 'Crear empresa',
+    descripcionSeccion: modo === 'editar'
+      ? 'Ajusta metadatos visibles de la empresa dentro de tu alcance actual.'
+      : tenantFiltro
+        ? `Define la identidad de la empresa dentro de ${tenantFiltro.nombre}. Después podrás asociarle sitios y recursos.`
+        : 'Define su identidad y el tenant al que pertenecerá. Después podrás asociarle sitios y recursos.',
+    modoCreacion: modo !== 'editar',
+    altaEmpresa: modo !== 'editar',
+    hrefRetornoCreacion: urlListadoEmpresas,
+    etiquetaRetornoCreacion: 'Volver a empresas',
+    resumen,
+    subnavegacionOrganizacion,
+    flashOrganizacion,
+    contextoUsuarioActual,
+    tenantFiltro,
+    empresaObjetivo,
+    empresaFiltro: null
+  }) %>
+
+  <section class="seccion-panel organizacion-formulario-detalle">
+    <% if (errorFormulario) { %>
+      <div class="mensaje-error"><%= errorFormulario %></div>
+    <% } %>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <form
+          method="post"
+          action="<%= modo === 'editar' ? '/organizacion/empresas/actualizar' : '/organizacion/empresas/crear' %>"
+          class="formulario-organizacion"
+          data-empresa-formulario
+          data-modo="<%= modo %>"
+          data-hay-error="<%= errorFormulario ? '1' : '0' %>"
+          data-url-restaurar="<%= empresaObjetivo ? `/organizacion/empresas/${encodeURIComponent(empresaObjetivo.id)}/editar` : '' %>"
+          <%= puedeElegirTenantEnFormulario ? 'data-organizacion-tenant-formulario' : '' %>
+          <%= puedeCambiarTenantEmpresa && empresaObjetivo ? 'data-organizacion-cambio-tenant-form' : '' %>
+          data-organizacion-empresa-id="<%= empresaObjetivo?.id || '' %>"
+          data-organizacion-tenant-actual-id="<%= empresaObjetivo?.tenantId || formulario.tenantId || '' %>"
+          data-organizacion-tenant-actual-texto="<%= selectorTenant?.textoActual || formulario.tenantTexto || '' %>"
+          data-organizacion-url-impacto-cambio-tenant="<%= empresaObjetivo ? `/organizacion/empresas/${empresaObjetivo.id}/impacto-cambio-tenant` : '' %>"
+        >
+          <% if (formulario.id) { %>
+            <input type="hidden" name="id" value="<%= formulario.id %>">
+          <% } %>
+          <input
+            type="hidden"
+            name="confirmar_cambio_tenant"
+            value="<%= formulario.confirmarCambioTenant || '' %>"
+            data-organizacion-confirmar-cambio-tenant
+          >
+
+          <section class="organizacion-formulario-detalle__seccion" aria-labelledby="empresa_pertenencia_titulo">
+            <div class="organizacion-formulario-detalle__cabecera">
+              <h3 id="empresa_pertenencia_titulo">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                Pertenencia
+              </h3>
+              <p>Ubicación de la empresa dentro de la jerarquía organizativa.</p>
+            </div>
+
+            <div class="row g-3">
+            <% if (puedeElegirTenantEnFormulario) { %>
+              <div class="col-12">
+                <label for="empresa_tenant_texto" class="form-label">Tenant</label>
+                <input
+                  type="hidden"
+                  name="tenant_id"
+                  value="<%= formulario.tenantId %>"
+                  data-organizacion-tenant-id
+                >
+                <div class="organizacion-input-icono">
+                  <i class="bi bi-search" aria-hidden="true"></i>
+                  <input
+                    id="empresa_tenant_texto"
+                    name="tenant_texto"
+                    type="text"
+                    class="form-control"
+                    value="<%= selectorTenant?.textoActual || formulario.tenantTexto || '' %>"
+                    placeholder="Nombre · alias"
+                    autocomplete="off"
+                    list="empresa_tenant_sugerencias"
+                    aria-describedby="empresa_tenant_ayuda"
+                    data-organizacion-tenant-texto
+                    data-organizacion-url-tenants="<%= selectorTenant?.urlSugerencias %>"
+                  >
+                </div>
+                <datalist
+                  id="empresa_tenant_sugerencias"
+                  data-organizacion-tenant-sugerencias
+                ></datalist>
+                <div id="empresa_tenant_ayuda" class="form-text mt-2 d-inline-flex align-items-center gap-2">
+                  <i class="bi bi-building-check" aria-hidden="true"></i>
+                  <span>Selecciona el tenant al que pertenecerá la empresa. Busca por nombre o alias y elige una sugerencia.</span>
+                </div>
+                <input
+                  type="text"
+                  class="form-control d-none"
+                  tabindex="-1"
+                  aria-hidden="true"
+                  required
+                  value="<%= formulario.tenantId %>"
+                  data-organizacion-tenant-validacion
+                >
+                <% if (puedeCambiarTenantEmpresa && empresaObjetivo) { %>
+                  <div class="form-text d-inline-flex align-items-center gap-2">
+                    <i class="bi bi-shuffle" aria-hidden="true"></i>
+                    <span>Si eliges otro tenant, revisaremos el impacto antes de guardar.</span>
+                  </div>
+                <% } %>
+              </div>
+            <% } else { %>
+              <div class="col-12">
+                <label class="form-label">Tenant</label>
+                <% if (modo === 'nuevo') { %>
+                  <input type="hidden" name="tenant_id" value="<%= formulario.tenantId %>">
+                <% } %>
+                <div class="form-control bg-body-tertiary">
+                  <%= tenantFiltro?.nombre || empresaObjetivo?.tenantNombre || 'Sin tenant' %>
+                </div>
+                <div class="form-text">
+                  Tenant determinado por el alcance de tu sesión.
+                </div>
+              </div>
+            <% } %>
+            </div>
+
+            <% if (puedeCambiarTenantEmpresa && empresaObjetivo) { %>
+              <div class="organizacion-formulario-detalle__advertencia mt-3" data-empresa-aviso-cambio-tenant hidden>
+                <i class="bi bi-shuffle" aria-hidden="true"></i>
+                <p class="mb-0">
+                  Has seleccionado otro tenant. La empresa y su jerarquía viva se reasignarán después de revisar el impacto.
+                </p>
+              </div>
+            <% } %>
+          </section>
+
+          <section class="organizacion-formulario-detalle__seccion" aria-labelledby="empresa_datos_titulo">
+            <div class="organizacion-formulario-detalle__cabecera">
+              <h3 id="empresa_datos_titulo">
+                <i class="bi bi-buildings" aria-hidden="true"></i>
+                Datos generales
+              </h3>
+              <p>Identidad, disponibilidad y contexto interno de la empresa.</p>
+            </div>
+
+            <div class="row g-3">
+
+            <div class="col-12 col-lg-6">
+              <label for="empresa_nombre" class="form-label">Nombre</label>
+              <input
+                id="empresa_nombre"
+                name="nombre"
+                type="text"
+                class="form-control"
+                value="<%= formulario.nombre %>"
+                maxlength="160"
+                aria-describedby="empresa_nombre_ayuda"
+                required
+              >
+              <div id="empresa_nombre_ayuda" class="form-text">
+                Nombre visible de la empresa. Máximo 160 caracteres.
+              </div>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <label for="empresa_alias" class="form-label">Alias</label>
+              <input
+                id="empresa_alias"
+                name="alias"
+                type="text"
+                class="form-control"
+                value="<%= formulario.alias %>"
+                maxlength="120"
+                pattern="[a-zA-Z0-9._\-]+"
+                aria-describedby="empresa_alias_ayuda"
+                required
+              >
+              <div id="empresa_alias_ayuda" class="form-text">
+                Identificador único dentro del tenant. Usa letras, números, puntos, guiones o guiones bajos.
+              </div>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <label for="empresa_cif" class="form-label">CIF <span class="text-body-secondary fw-normal">(opcional)</span></label>
+              <input
+                id="empresa_cif"
+                name="cif"
+                type="text"
+                class="form-control"
+                value="<%= formulario.cif %>"
+                maxlength="40"
+                aria-describedby="empresa_cif_ayuda"
+              >
+              <div id="empresa_cif_ayuda" class="form-text">
+                Identificador fiscal o referencia equivalente. Máximo 40 caracteres.
+              </div>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <label for="empresa_estado" class="form-label">Estado</label>
+              <select
+                id="empresa_estado"
+                name="estado"
+                class="form-select"
+                aria-describedby="empresa_estado_ayuda"
+              >
+                <% for (const opcion of opcionesEstado) { %>
+                  <option
+                    value="<%= opcion.valor %>"
+                    <%= formulario.estado === opcion.valor ? 'selected' : '' %>
+                  >
+                    <%= opcion.etiqueta %>
+                  </option>
+                <% } %>
+              </select>
+              <div id="empresa_estado_ayuda" class="form-text">
+                Determina si la empresa queda disponible para operar.
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div class="organizacion-formulario-detalle__advertencia" data-empresa-aviso-inactiva hidden>
+                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                <p class="mb-0">
+                  <%= modo === 'nuevo'
+                    ? 'La empresa se creará inactiva y no quedará disponible para operar hasta activarla.'
+                    : 'La empresa quedará inactiva. Sus sitios y demás contenido no se eliminarán.' %>
+                </p>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div class="d-flex align-items-center justify-content-between gap-3">
+                <label for="empresa_descripcion" class="form-label">Descripción</label>
+                <span class="organizacion-formulario-detalle__contador" data-empresa-descripcion-contador aria-live="polite">0/255</span>
+              </div>
+              <textarea
+                id="empresa_descripcion"
+                name="descripcion"
+                class="form-control"
+                rows="4"
+                maxlength="255"
+                placeholder="Contexto operativo, referencia interna o nota funcional breve."
+              ><%= formulario.descripcion %></textarea>
+            </div>
+            </div>
+          </section>
+
+          <div class="acciones-formulario acciones-formulario--sticky organizacion-formulario-detalle__acciones mt-4">
+            <div class="acciones-formulario__estado" data-empresa-cambios-pendientes hidden aria-live="polite">
+              <strong>Cambios pendientes</strong>
+              <span>Revisa los datos antes de guardar.</span>
+            </div>
+            <div class="acciones-formulario__botones">
+            <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2" data-empresa-guardar>
+              <i class="bi bi-floppy" aria-hidden="true"></i>
+              <span><%= modo === 'editar' ? 'Guardar cambios' : 'Crear empresa' %></span>
+            </button>
+            <% if (modo === 'editar') { %>
+              <button type="reset" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" data-empresa-cancelar>
+                <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+                <span data-empresa-cancelar-texto>Cancelar</span>
+              </button>
+            <% } else { %>
+              <a href="<%= urlListadoEmpresas %>" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" data-empresa-cancelar>
+                <i class="bi bi-x-circle" aria-hidden="true"></i>
+                <span>Cancelar</span>
+              </a>
+            <% } %>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+</section>
+
+<% if (puedeElegirTenantEnFormulario) { %>
+  <script src="/js/organizacion-empresa-cambio-tenant.js"></script>
+<% } %>
+<script src="/js/organizacion-empresa-formulario.js"></script>
+<% if (puedeCambiarTenantEmpresa && empresaObjetivo) { %>
+  <%- include('parciales/organizacion-modal-cambio-tenant-empresa') %>
+<% } %>
+
+<%- include('../parciales/pie') %>

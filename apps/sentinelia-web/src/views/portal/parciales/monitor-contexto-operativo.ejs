@@ -1,0 +1,58 @@
+<section class="seccion-panel monitor-contexto-operativo <%= contextoOperativoPrioritario ? 'monitor-contexto-operativo--prioritario' : 'monitor-contexto-operativo--referencia' %>">
+  <div class="seccion-cabecera">
+    <div>
+      <h2><%= tituloContexto %></h2>
+      <p class="texto-apoyo"><%= descripcionContexto %></p>
+    </div>
+  </div>
+
+  <div class="tarjeta">
+    <div class="rejilla-resumen">
+      <% if (monitor.tipo !== 'booleano') { %>
+        <article class="kpi-resumen kpi-resumen--<%= mostrarInterpretacionEstado ? 'alerta' : 'suave' %>">
+          <span class="etiqueta">Lectura del resultado</span>
+          <strong><%= mostrarInterpretacionEstado ? 'Falló porque respondió' : 'Normal' %></strong>
+          <small><%= mostrarInterpretacionEstado
+            ? 'Una respuesta correcta se trata como problema operativo, conservando el dato técnico original.'
+            : 'Una respuesta correcta deja el monitor disponible.' %></small>
+        </article>
+      <% } %>
+
+      <article class="kpi-resumen kpi-resumen--<%= monitor.descripcionFallo ? 'suave' : 'advertencia' %>">
+        <span class="etiqueta">Motivo humano del fallo</span>
+        <% if (monitor.descripcionFallo) { %>
+          <strong class="contexto-operativo__definicion"><%= monitor.descripcionFallo %></strong>
+        <% } else { %>
+          <strong>Sin nota</strong>
+          <small>No se ha dejado una descripción humana para el momento de fallo.</small>
+        <% } %>
+      </article>
+
+      <article class="kpi-resumen kpi-resumen--<%= monitor.posibleSolucion ? 'ok' : 'advertencia' %>">
+        <span class="etiqueta">Posible solución</span>
+        <% if (monitor.posibleSolucion) { %>
+          <strong class="contexto-operativo__definicion"><%= monitor.posibleSolucion %></strong>
+        <% } else { %>
+          <strong>Sin propuesta</strong>
+          <small>No se ha dejado una acción sugerida para el operador.</small>
+        <% } %>
+      </article>
+    </div>
+
+    <% if (estadoRuntime?.estadoTecnicoDetectado || alertaActiva?.resultadoTecnico?.estadoDetectado) { %>
+      <details class="monitor-contexto-operativo__tecnico">
+        <summary>Detalle técnico</summary>
+        <div class="metadatos-configuracion mt-3">
+          <% if (estadoRuntime?.estadoTecnicoDetectado) { %>
+            <span>Último estado técnico: <code><%= estadoRuntime.estadoTecnicoDetectado %></code></span>
+            <span>Código técnico: <code><%= estadoRuntime.codigoResultadoTecnico || 'Sin resultado técnico' %></code></span>
+          <% } %>
+          <% if (alertaActiva?.resultadoTecnico?.estadoDetectado) { %>
+            <span>Alerta técnica: <code><%= alertaActiva.resultadoTecnico.estadoDetectado %></code></span>
+            <span>Código técnico alerta: <code><%= alertaActiva.resultadoTecnico.codigoResultado || 'Sin resultado técnico' %></code></span>
+          <% } %>
+        </div>
+      </details>
+    <% } %>
+  </div>
+</section>

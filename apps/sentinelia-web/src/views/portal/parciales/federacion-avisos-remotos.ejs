@@ -1,0 +1,170 @@
+<%
+  const avisos = avisosFederadosRemotos || {
+    estados: [], transiciones: [],
+    resumen: { total: 0, pendientes: 0, resueltos: 0, obsoletos: 0,
+      criticosPendientes: 0, transiciones: 0 }
+  };
+  const etiquetaCodigo = (valor) => String(valor || 'no_declarado')
+    .replaceAll('_', ' ');
+  const claseGravedad = (gravedad) => gravedad === 'critica'
+    ? 'insignia-monitor--alerta'
+    : gravedad === 'advertencia'
+      ? 'insignia-monitor--advertencia'
+      : 'insignia-monitor--neutro';
+  const claseEstado = (estado) => estado === 'pendiente'
+    ? 'insignia-monitor--advertencia'
+    : estado === 'resuelto'
+      ? 'insignia-monitor--ok'
+      : 'insignia-monitor--neutro';
+  const detalleHumano = (aviso) => aviso.contextoHumano?.detalle ||
+    aviso.resumen?.mensaje || aviso.detalle?.detalle || null;
+  const scopeAviso = (scope) => scope?.sitioId
+    ? `Tenant #${scope.tenantId} · Empresa #${scope.empresaId} · Sitio #${scope.sitioId}`
+    : scope?.empresaId
+      ? `Tenant #${scope.tenantId} · Empresa #${scope.empresaId}`
+      : scope?.tenantId
+        ? `Tenant #${scope.tenantId}`
+        : 'Portal completo';
+%>
+
+<span class="insignia-suave">Estado de plataforma remota · solo lectura</span>
+<h2 class="mt-2"><i class="bi <%= seccionActual?.icono %>" aria-hidden="true"></i> Avisos remotos</h2>
+<p>
+  Incidencias declaradas por la instalación de origen. Se conservan como
+  información remota: no son avisos locales, no aparecen en la topBar de este
+  portal y aquí no pueden reconocerse, ocultarse ni resolverse.
+</p>
+
+<div class="alert alert-info" role="status">
+  La autoridad y el ciclo de cada aviso permanecen en la instalación de origen.
+  Esta vista conserva procedencia, scope, estado, gravedad y contexto recibido.
+</div>
+
+<nav class="submenus-remotos mt-4" aria-label="Vistas de avisos remotos">
+  <% for (const subseccion of subsecciones) { %>
+    <a href="<%= urlSubvista(subseccion.id) %>"
+      class="<%= navegacion.subvista === subseccion.id ? 'activo' : '' %>"
+      <%= navegacion.subvista === subseccion.id ? 'aria-current="page"' : '' %>>
+      <%= subseccion.etiqueta %>
+    </a>
+  <% } %>
+</nav>
+
+<section class="row g-3 mt-1" aria-label="Resumen de avisos remotos">
+  <div class="col-6 col-xl"><article class="kpi-resumen kpi-resumen--suave h-100">
+    <span class="etiqueta">Avisos</span><strong><%= avisos.resumen.total %></strong>
+    <small>Estados recibidos y visibles.</small>
+  </article></div>
+  <div class="col-6 col-xl"><article class="kpi-resumen kpi-resumen--suave h-100">
+    <span class="etiqueta">Pendientes</span><strong><%= avisos.resumen.pendientes %></strong>
+    <small>Continúan abiertos en origen.</small>
+  </article></div>
+  <div class="col-6 col-xl"><article class="kpi-resumen kpi-resumen--suave h-100">
+    <span class="etiqueta">Críticos</span><strong><%= avisos.resumen.criticosPendientes %></strong>
+    <small>Críticos todavía pendientes.</small>
+  </article></div>
+  <div class="col-6 col-xl"><article class="kpi-resumen kpi-resumen--suave h-100">
+    <span class="etiqueta">Resueltos</span><strong><%= avisos.resumen.resueltos %></strong>
+    <small>Resueltos por el origen.</small>
+  </article></div>
+  <div class="col-6 col-xl"><article class="kpi-resumen kpi-resumen--suave h-100">
+    <span class="etiqueta">Obsoletos</span><strong><%= avisos.resumen.obsoletos %></strong>
+    <small>Sin responsabilidad vigente.</small>
+  </article></div>
+</section>
+
+<% if (navegacion.subvista === 'actuales') { %>
+  <% if (avisos.estados.length === 0) { %>
+    <div class="estado-vacio-remoto mt-4">
+      <i class="bi bi-check2-circle" aria-hidden="true"></i>
+      <div><strong>No hay estados de avisos remotos visibles.</strong><br>La instalación no ha publicado avisos dentro de esta concesión y scope.</div>
+    </div>
+  <% } else { %>
+    <section class="d-grid gap-3 mt-4" aria-label="Estados actuales de avisos remotos">
+      <% for (const aviso of avisos.estados) { %>
+        <article class="tarjeta">
+          <div class="d-flex flex-wrap justify-content-between gap-3 align-items-start">
+            <div>
+              <div class="fila-monitor__etiquetas">
+                <span class="insignia-monitor <%= claseGravedad(aviso.gravedad) %>"><%= aviso.gravedad %></span>
+                <span class="insignia-monitor <%= claseEstado(aviso.estadoCiclo) %>"><%= aviso.estadoCiclo %> en origen</span>
+              </div>
+              <h3 class="h5 mt-2 mb-1"><%= etiquetaCodigo(aviso.tipoCodigo) %></h3>
+              <p class="mb-1"><%= detalleHumano(aviso) || etiquetaCodigo(aviso.causaCodigo) %></p>
+              <code class="text-break"><%= aviso.avisoOrigenId %></code>
+            </div>
+            <div class="text-end">
+              <small class="d-block text-muted">Última detección</small>
+              <time data-fecha-utc="<%= aviso.ultimaDeteccionUtc %>"><%= aviso.ultimaDeteccionUtc %></time>
+            </div>
+          </div>
+          <dl class="row mt-3 mb-0">
+            <dt class="col-sm-3">Causa</dt><dd class="col-sm-9"><code><%= aviso.causaCodigo %></code></dd>
+            <dt class="col-sm-3">Objeto afectado</dt><dd class="col-sm-9"><%= etiquetaCodigo(aviso.objetoAfectado.tipo) %> · <code class="text-break"><%= aviso.objetoAfectado.id %></code></dd>
+            <dt class="col-sm-3">Scope receptor</dt><dd class="col-sm-9"><%= scopeAviso(aviso.scopeRecepcion) %></dd>
+            <dt class="col-sm-3">Detecciones</dt><dd class="col-sm-9"><%= aviso.contadorDetecciones %></dd>
+            <dt class="col-sm-3">Completitud</dt><dd class="col-sm-9"><code><%= aviso.completitud.interpretable %>/<%= aviso.completitud.observable %>/<%= aviso.completitud.reconstruible %></code></dd>
+            <dt class="col-sm-3">Actor</dt><dd class="col-sm-9"><%= aviso.actor.estado === 'visible' ? aviso.actor.nombreVisible : aviso.actor.estado === 'opaca' ? 'Referencia protegida' : 'No declarado' %></dd>
+          </dl>
+          <details class="mt-3">
+            <summary>Contexto recibido</summary>
+            <pre class="p-3 rounded bg-dark text-light text-break mt-2 mb-0"><%= JSON.stringify({ contextoHumano: aviso.contextoHumano, resumen: aviso.resumen }, null, 2) %></pre>
+          </details>
+        </article>
+      <% } %>
+    </section>
+  <% } %>
+<% } else if (navegacion.subvista === 'actividad') { %>
+  <% if (avisos.transiciones.length === 0) { %>
+    <div class="estado-vacio-remoto mt-4"><i class="bi bi-clock-history" aria-hidden="true"></i><div><strong>No hay actividad remota conservada.</strong><br>No se han recibido transiciones dentro del rango consultado.</div></div>
+  <% } else { %>
+    <section class="d-grid gap-3 mt-4" aria-label="Actividad de avisos remotos">
+      <% for (const transicion of avisos.transiciones) { %>
+        <article class="tarjeta">
+          <div class="d-flex flex-wrap justify-content-between gap-3">
+            <div>
+              <span class="insignia-monitor <%= claseGravedad(transicion.gravedadNueva) %>"><%= etiquetaCodigo(transicion.tipo) %></span>
+              <h3 class="h6 mt-2 mb-1">Aviso <code><%= transicion.avisoOrigenId %></code></h3>
+              <p class="mb-0"><%= detalleHumano(transicion) || `${transicion.estadoAnterior || 'sin estado'} → ${transicion.estadoNuevo}` %></p>
+            </div>
+            <time data-fecha-utc="<%= transicion.efectivoEnUtc %>"><%= transicion.efectivoEnUtc %></time>
+          </div>
+          <div class="metadatos-configuracion mt-3">
+            <span>Ordinal: <code><%= transicion.ordinal %></code></span>
+            <span>Estado: <code><%= transicion.estadoAnterior || 'ninguno' %> → <%= transicion.estadoNuevo %></code></span>
+            <span>Gravedad: <code><%= transicion.gravedadAnterior || 'ninguna' %> → <%= transicion.gravedadNueva %></code></span>
+            <span>Scope: <%= scopeAviso(transicion.scopeRecepcion) %></span>
+          </div>
+        </article>
+      <% } %>
+    </section>
+  <% } %>
+<% } else { %>
+  <% if (avisos.transiciones.length === 0) { %>
+    <div class="estado-vacio-remoto mt-4"><i class="bi bi-journal" aria-hidden="true"></i><div><strong>No hay histórico remoto conservado.</strong><br>La ausencia puede ser real o estar delimitada por concesión, completitud y retención.</div></div>
+  <% } else { %>
+    <div class="table-responsive mt-4">
+      <table class="table align-middle">
+        <thead><tr><th>Momento</th><th>Aviso</th><th>Transición</th><th>Estado</th><th>Gravedad</th><th>Scope</th></tr></thead>
+        <tbody>
+          <% for (const transicion of avisos.transiciones) { %>
+            <tr>
+              <td><time data-fecha-utc="<%= transicion.efectivoEnUtc %>"><%= transicion.efectivoEnUtc %></time><br><small>Registrada: <time data-fecha-utc="<%= transicion.registradoEnUtc || '' %>"><%= transicion.registradoEnUtc || 'No declarada' %></time></small></td>
+              <td><code class="text-break"><%= transicion.avisoOrigenId %></code><br><small>Ordinal <%= transicion.ordinal %></small></td>
+              <td><span class="insignia-monitor <%= claseGravedad(transicion.gravedadNueva) %>"><%= etiquetaCodigo(transicion.tipo) %></span></td>
+              <td><code><%= transicion.estadoAnterior || 'ninguno' %> → <%= transicion.estadoNuevo %></code></td>
+              <td><code><%= transicion.gravedadAnterior || 'ninguna' %> → <%= transicion.gravedadNueva %></code></td>
+              <td><%= scopeAviso(transicion.scopeRecepcion) %></td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+<% } %>
+
+<% if (avisos.resumen.limiteEstadosAlcanzado || avisos.resumen.limiteTransicionesAlcanzado) { %>
+  <div class="alert alert-warning mt-4 mb-0" role="status">
+    La lectura alcanzó su límite de seguridad. El contenido mostrado sigue siendo válido, pero puede existir información remota adicional.
+  </div>
+<% } %>

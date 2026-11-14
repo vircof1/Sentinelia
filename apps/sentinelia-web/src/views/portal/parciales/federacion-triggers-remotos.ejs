@@ -1,0 +1,244 @@
+<%
+  const claseCompletitudTrigger = (valor) => valor === 'completa'
+    ? 'insignia-monitor--ok'
+    : valor === 'degradada'
+      ? 'insignia-monitor--alerta'
+      : 'insignia-monitor--advertencia';
+  const etiquetaOmitido = {
+    noSeleccionado: 'No seleccionado por el emisor',
+    noAutorizado: 'No autorizado en origen',
+    ausenteEnOrigen: 'Ausente en origen'
+  };
+  const triggerSeleccionado = triggersRemotos.triggerSeleccionado;
+  const urlMonitorRemoto = (monitorOrigenId) =>
+    `/federacion/datos-remotos?procedencia=${encodeURIComponent(triggersRemotos.installationOrigenId)}` +
+    `&vista=monitores&subvista=estado&monitor=${encodeURIComponent(monitorOrigenId)}`;
+  const scopeLegible = (scope) => scope.sitioId
+    ? `Tenant #${scope.tenantId} · Empresa #${scope.empresaId} · Sitio #${scope.sitioId}`
+    : scope.empresaId
+      ? `Tenant #${scope.tenantId} · Empresa #${scope.empresaId}`
+      : scope.tenantId
+        ? `Tenant #${scope.tenantId}`
+        : 'Portal completo';
+%>
+
+<span class="insignia-suave">Área remota · informativa · solo lectura</span>
+<h2 class="mt-2"><i class="bi <%= seccionActual.icono %>" aria-hidden="true"></i> Triggers</h2>
+<p>
+  Definiciones, asignaciones y ejecuciones terminales publicadas por la
+  instalación de origen. Ningún trigger remoto se ejecuta en esta instancia.
+</p>
+
+<div class="aviso-trigger-remoto mt-4" role="status">
+  <i class="bi bi-shield-lock" aria-hidden="true"></i>
+  <div>
+    <strong>Información operativa, no capacidad operacional.</strong><br>
+    Para reutilizar una definición debes crear explícitamente un trigger local
+    nuevo, inactivo y con credenciales propias.
+  </div>
+</div>
+
+<div class="submenus-remotos mt-4">
+  <a href="<%= urlSubvista('inventario', null) %>"
+    class="<%= navegacion.subvista === 'inventario' ? 'activo' : '' %>">Inventario</a>
+  <% if (triggerSeleccionado) { %>
+    <% for (const subseccion of subsecciones.filter((item) => item.id !== 'inventario')) { %>
+      <a href="<%= urlSubvista(subseccion.id, triggerSeleccionado.triggerOrigenId) %>"
+        class="<%= navegacion.subvista === subseccion.id ? 'activo' : '' %>"><%= subseccion.etiqueta %></a>
+    <% } %>
+  <% } %>
+</div>
+
+<% if (navegacion.subvista !== 'inventario' && !triggerSeleccionado) { %>
+  <div class="estado-vacio-remoto mt-4">
+    <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+    <div><strong>Selecciona primero un trigger del inventario.</strong><br>Las asignaciones y ejecuciones pertenecen a una identidad remota concreta.</div>
+  </div>
+<% } else if (navegacion.subvista === 'inventario') { %>
+  <div class="resumen-triggers-remotos mt-4" aria-label="Resumen de triggers remotos">
+    <article><span>Total visible</span><strong><%= triggersRemotos.resumen.total %></strong></article>
+    <article><span>Activos en origen</span><strong><%= triggersRemotos.resumen.activos %></strong></article>
+    <article><span>Interpretables</span><strong><%= triggersRemotos.resumen.interpretables %></strong></article>
+    <article><span>Con asignaciones</span><strong><%= triggersRemotos.resumen.conAsignaciones %></strong></article>
+  </div>
+
+  <% if (triggersRemotos.resumen.limiteDefinicionesAlcanzado || triggersRemotos.resumen.limiteAsignacionesAlcanzado) { %>
+    <div class="alert alert-warning mt-3" role="status">
+      La lectura alcanzó su límite de seguridad. Los totales de asignaciones pueden representar solo la ventana recibida.
+    </div>
+  <% } %>
+
+  <% if (triggersRemotos.triggers.length === 0) { %>
+    <div class="estado-vacio-remoto mt-4">
+      <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+      <div><strong>No hay definiciones de triggers visibles.</strong><br>Puede que aún no se hayan materializado, que no estén concedidas o que queden fuera de tu scope.</div>
+    </div>
+  <% } else { %>
+    <section class="inventario-triggers-remotos mt-4" aria-label="Inventario de triggers remotos">
+      <% for (const trigger of triggersRemotos.triggers) { %>
+        <article class="trigger-remoto-card">
+          <header>
+            <div>
+              <div class="d-flex flex-wrap gap-2 mb-2">
+                <span class="insignia-monitor insignia-monitor--suave"><%= trigger.tipo %></span>
+                <span class="insignia-monitor <%= trigger.activo ? 'insignia-monitor--ok' : 'insignia-monitor--off' %>"><%= trigger.activo ? 'Activo en origen' : 'Inactivo en origen' %></span>
+                <span class="insignia-monitor <%= claseCompletitudTrigger(trigger.completitud.interpretable) %>">Interpretación <%= trigger.completitud.interpretable %></span>
+              </div>
+              <h3><%= trigger.nombre %></h3>
+              <% if (trigger.descripcion) { %><p><%= trigger.descripcion %></p><% } %>
+            </div>
+            <div class="trigger-remoto-card__resultado">
+              <small>Última ejecución</small>
+              <strong class="<%= trigger.ultimaEjecucion?.estado === 'error' ? 'text-danger' : '' %>"><%= trigger.ultimaEjecucion?.estado || 'Sin datos' %></strong>
+              <% if (trigger.ultimaEjecucion?.finalizadoEnUtc) { %><time data-fecha-utc="<%= trigger.ultimaEjecucion.finalizadoEnUtc %>"><%= trigger.ultimaEjecucion.finalizadoEnUtc %></time><% } %>
+            </div>
+          </header>
+          <dl>
+            <div><dt>Scope receptor</dt><dd><%= scopeLegible(trigger.scopeRecepcion) %></dd></div>
+            <div><dt>Asignaciones recibidas</dt><dd><%= trigger.resumenAsignaciones.total %> · <%= trigger.resumenAsignaciones.visibles %> visibles · <%= trigger.resumenAsignaciones.opacas %> opacas</dd></div>
+            <div><dt>Contenido sensible</dt><dd><%= trigger.contenidoSensible.estado === 'presente' ? 'Seleccionado en origen' : (etiquetaOmitido[trigger.contenidoSensible.causa] || 'Omitido') %></dd></div>
+          </dl>
+          <footer>
+            <code class="text-break"><%= trigger.triggerOrigenId %></code>
+            <a class="btn btn-sm btn-outline-primary" href="<%= urlSubvista('resumen', trigger.triggerOrigenId) %>">Abrir trigger <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+          </footer>
+        </article>
+      <% } %>
+    </section>
+  <% } %>
+<% } else { %>
+  <section class="trigger-remoto-detalle mt-4">
+    <header class="trigger-remoto-detalle__cabecera">
+      <div>
+        <a href="<%= urlSubvista('inventario', null) %>" class="enlace-retorno-remoto"><i class="bi bi-arrow-left" aria-hidden="true"></i> Volver al inventario</a>
+        <div class="d-flex flex-wrap gap-2 mt-3 mb-2">
+          <span class="insignia-monitor insignia-monitor--suave"><%= triggerSeleccionado.tipo %></span>
+          <span class="insignia-monitor <%= triggerSeleccionado.activo ? 'insignia-monitor--ok' : 'insignia-monitor--off' %>"><%= triggerSeleccionado.activo ? 'Activo en origen' : 'Inactivo en origen' %></span>
+          <span class="insignia-monitor insignia-monitor--neutro">Remoto · informativo</span>
+        </div>
+        <h3><%= triggerSeleccionado.nombre %></h3>
+        <% if (triggerSeleccionado.descripcion) { %><p class="mb-2"><%= triggerSeleccionado.descripcion %></p><% } %>
+        <code class="text-break"><%= triggerSeleccionado.triggerOrigenId %></code>
+      </div>
+      <div class="trigger-remoto-detalle__accion">
+        <% if (contextoUsuarioActual?.permisos?.editarTriggers && triggerSeleccionado.utilizableComoPlantilla) { %>
+          <form method="post" action="/federacion/datos-remotos/borradores/trigger">
+            <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+            <input type="hidden" name="proyeccion_id" value="<%= triggerSeleccionado.proyeccionId %>">
+            <button type="submit" class="btn btn-primary btn-sm">Crear trigger local desde plantilla</button>
+          </form>
+          <small>Se abrirá como borrador local inactivo, sin audiencia y sin autoridad remota.</small>
+        <% } else if (!contextoUsuarioActual?.permisos?.editarTriggers) { %>
+          <button type="button" class="btn btn-outline-secondary btn-sm" disabled>Crear plantilla local</button>
+          <small>No tienes permiso para editar triggers locales.</small>
+        <% } else if (!triggerSeleccionado.capacidadPlantilla.contenidoReusable) { %>
+          <button type="button" class="btn btn-outline-secondary btn-sm" disabled>Crear plantilla local</button>
+          <small>La forma puede previsualizarse, pero la definición reusable no fue concedida.</small>
+        <% } else if (!triggerSeleccionado.capacidadPlantilla.local.disponible) { %>
+          <button type="button" class="btn btn-outline-secondary btn-sm" disabled>Crear plantilla local</button>
+          <small>Solo previsualización: SMTP, origen público o gate local no permiten crear correo.</small>
+        <% } else { %>
+          <button type="button" class="btn btn-outline-secondary btn-sm" disabled>Crear plantilla local</button>
+          <small>La definición no está vigente, autorizada e interpretable.</small>
+        <% } %>
+      </div>
+    </header>
+
+    <% if (navegacion.subvista === 'resumen') { %>
+      <div class="resumen-triggers-remotos mt-4" aria-label="Resumen del trigger remoto">
+        <article><span>Asignaciones</span><strong><%= triggerSeleccionado.resumenAsignaciones.total %></strong></article>
+        <article><span>Activas</span><strong><%= triggerSeleccionado.resumenAsignaciones.activas %></strong></article>
+        <article><span>Referencias visibles</span><strong><%= triggerSeleccionado.resumenAsignaciones.visibles %></strong></article>
+        <article><span>Referencias opacas</span><strong><%= triggerSeleccionado.resumenAsignaciones.opacas %></strong></article>
+      </div>
+      <dl class="trigger-remoto-metadatos mt-4">
+        <div><dt>Scope receptor</dt><dd><%= scopeLegible(triggerSeleccionado.scopeRecepcion) %></dd></div>
+        <div><dt>Vigencia</dt><dd><%= triggerSeleccionado.estadoProyeccion.vigencia %></dd></div>
+        <div><dt>Soporte</dt><dd><%= triggerSeleccionado.estadoProyeccion.soporte %></dd></div>
+        <div><dt>Autorización</dt><dd><%= triggerSeleccionado.estadoProyeccion.autorizacion %></dd></div>
+        <div><dt>Interpretación</dt><dd><%= triggerSeleccionado.completitud.interpretable %></dd></div>
+        <div><dt>Observación</dt><dd><%= triggerSeleccionado.completitud.observable %></dd></div>
+      </dl>
+      <details class="configuracion-trigger-remoto mt-4">
+        <summary><%= triggerSeleccionado.tipo === 'correo' ? 'Definición de mensaje visible' : 'Configuración operativa saneada' %></summary>
+        <p>
+          <% if (triggerSeleccionado.tipo === 'correo' && !triggerSeleccionado.configuracionCorreo.definicionReusableDisponible) { %>
+            Solo se recibió la forma estructural; asunto, introducción y cierre no fueron concedidos.
+          <% } else { %>
+            Se excluyen claves, credenciales y parámetros sensibles. Esta lectura no equivale a autoridad operacional local.
+          <% } %>
+        </p>
+        <pre><code><%= JSON.stringify(triggerSeleccionado.configuracionVisible, null, 2) %></code></pre>
+      </details>
+      <div class="alert alert-info mt-4 mb-0">
+        La conversión copia únicamente la definición como punto de partida. No copia asignaciones ni concede acceso a monitores remotos.
+      </div>
+    <% } else if (navegacion.subvista === 'asignaciones') { %>
+      <% if (triggersRemotos.resumen.limiteAsignacionesAlcanzado) { %><div class="alert alert-warning mt-3">Se muestran las primeras 500 asignaciones publicadas para esta lectura.</div><% } %>
+      <% if (triggersRemotos.asignaciones.length === 0) { %>
+        <div class="estado-vacio-remoto mt-4"><i class="bi bi-diagram-2" aria-hidden="true"></i><div><strong>Este trigger no tiene asignaciones visibles.</strong><br>La ausencia puede proceder del origen, de la concesión, del scope o de la completitud recibida.</div></div>
+      <% } else { %>
+        <ol class="asignaciones-trigger-remoto mt-4" aria-label="Asignaciones del trigger remoto">
+          <% for (const asignacion of triggersRemotos.asignaciones) { %>
+            <li>
+              <header>
+                <div class="d-flex flex-wrap gap-2">
+                  <span class="insignia-monitor <%= asignacion.activo ? 'insignia-monitor--ok' : 'insignia-monitor--off' %>"><%= asignacion.activo ? 'Activa en origen' : 'Inactiva en origen' %></span>
+                  <span class="insignia-monitor <%= asignacion.monitorFederado ? 'insignia-monitor--ok' : 'insignia-monitor--suave' %>">
+                    <%= asignacion.monitorFederado
+                      ? asignacion.monitorReferencia.visibilidad === 'opaca'
+                        ? 'Referencia opaca · monitor disponible'
+                        : 'Monitor federado disponible'
+                      : asignacion.monitorReferencia.visibilidad === 'visible' && !triggersRemotos.puedeAbrirMonitores
+                        ? 'Monitor sin permiso local'
+                        : 'Monitor fuera de alcance' %>
+                  </span>
+                </div>
+                <span>Orden <strong><%= asignacion.ordenEjecucion %></strong></span>
+              </header>
+              <div class="asignaciones-trigger-remoto__monitor">
+                <div>
+                  <small><%= asignacion.monitorFederado ? asignacion.monitorFederado.nombre : 'Monitor de origen' %></small>
+                  <code class="text-break"><%= asignacion.monitorReferencia.elementoOrigenId %></code>
+                </div>
+                <% if (asignacion.monitorFederado) { %><a class="btn btn-sm btn-outline-primary" href="<%= urlMonitorRemoto(asignacion.monitorFederado.elementoOrigenId) %>">Abrir monitor federado <i class="bi bi-arrow-right" aria-hidden="true"></i></a><% } %>
+              </div>
+              <footer>
+                <div><small>Eventos de disparo</small><div class="d-flex flex-wrap gap-2"><% for (const evento of asignacion.eventosDisparo) { %><code><%= evento %></code><% } %></div></div>
+                <span><%= asignacion.tieneConfiguracionOverride ? 'Con configuración particular' : 'Sin configuración particular' %> · contenido sensible <%= asignacion.contenidoSensible.estado %></span>
+              </footer>
+            </li>
+          <% } %>
+        </ol>
+      <% } %>
+    <% } else if (navegacion.subvista === 'ejecuciones') { %>
+      <div class="alert alert-info mt-4">Solo se reciben ejecuciones terminadas. Sentinelia no federa colas, trabajos pendientes ni estados vivos de ejecución.</div>
+      <% if (triggersRemotos.resumen.limiteEjecucionesAlcanzado) { %><div class="alert alert-warning">Se muestran las 200 ejecuciones terminales más recientes de esta lectura.</div><% } %>
+      <% if (triggersRemotos.ejecuciones.length === 0) { %>
+        <div class="estado-vacio-remoto mt-4"><i class="bi bi-clock-history" aria-hidden="true"></i><div><strong>No hay ejecuciones terminales publicadas para este trigger.</strong><br>No equivale necesariamente a «nunca se ejecutó»: la selección y la retención delimitan esta lectura.</div></div>
+      <% } else { %>
+        <ol class="ejecuciones-trigger-remoto mt-4" aria-label="Ejecuciones terminales del trigger remoto">
+          <% for (const ejecucion of triggersRemotos.ejecuciones) { %>
+            <li class="ejecucion-trigger-remoto ejecucion-trigger-remoto--<%= ejecucion.estado %>">
+              <header>
+                <div><span class="insignia-monitor <%= ejecucion.estado === 'ok' ? 'insignia-monitor--ok' : 'insignia-monitor--alerta' %>"><%= ejecucion.estado %></span><strong><%= ejecucion.eventoDisparo %></strong></div>
+                <time data-fecha-utc="<%= ejecucion.finalizadoEnUtc %>"><%= ejecucion.finalizadoEnUtc %></time>
+              </header>
+              <% if (ejecucion.codigoResultado || ejecucion.mensajeResultado) { %><p><% if (ejecucion.codigoResultado) { %><code><%= ejecucion.codigoResultado %></code> <% } %><%= ejecucion.mensajeResultado || '' %></p><% } %>
+              <dl>
+                <div><dt>Duración</dt><dd><%= ejecucion.duracionMs %> ms</dd></div>
+                <div><dt>Catálogo</dt><dd><%= ejecucion.versionCatalogo || 'No declarado' %></dd></div>
+                <div><dt>Monitor</dt><dd><% if (ejecucion.monitorFederado) { %><a href="<%= urlMonitorRemoto(ejecucion.monitorFederado.elementoOrigenId) %>"><%= ejecucion.monitorFederado.nombre %></a><% } else { %><%= ejecucion.monitorReferencia ? ejecucion.monitorReferencia.visibilidad : 'No referenciado' %><% } %></dd></div>
+                <% if (ejecucion.resultadoCorreo) { %>
+                  <div><dt>Resultado de correo</dt><dd>Detalle <%= ejecucion.resultadoCorreo.detalleEstado %> · destinatarios <%= ejecucion.resultadoCorreo.totalResultadosDestinatarios ?? 'no disponible' %> · salidas <%= ejecucion.resultadoCorreo.totalSalidas ?? 'no disponible' %></dd></div>
+                <% } else { %>
+                  <div><dt>Contenido</dt><dd>Solicitud <%= ejecucion.contenido.solicitud.estado %> · respuesta <%= ejecucion.contenido.respuesta.estado %> · error <%= ejecucion.contenido.error.estado %></dd></div>
+                <% } %>
+              </dl>
+            </li>
+          <% } %>
+        </ol>
+      <% } %>
+    <% } %>
+  </section>
+<% } %>

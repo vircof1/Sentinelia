@@ -1,0 +1,582 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+<%
+  const esEdicionTrigger = modo === 'editar';
+  const borradorFederadoSeguro = typeof borradorFederado === 'undefined'
+    ? null
+    : borradorFederado;
+  const retornoFormularioSeguro = String(retornoFormulario || '/automatizacion/acciones');
+  const tieneRetornoFormularioSeguro = Boolean(tieneRetornoFormulario);
+  const vuelveAGestionMonitor = /^\/monitores\/editar\/\d+(?:\?.*)?$/.test(retornoFormularioSeguro);
+  const retornoGestionAccion = esEdicionTrigger && triggerObjetivo?.id
+    ? `/monitores/triggers/editar/${triggerObjetivo.id}${tieneRetornoFormularioSeguro
+      ? `?return_to=${encodeURIComponent(retornoFormularioSeguro)}`
+      : ''}`
+    : '/automatizacion/acciones';
+  const etiquetaPertenenciaAccion = (() => {
+    const mapa = {
+      portal: 'Acción de portal',
+      tenant: 'Acción de tenant',
+      empresa: 'Acción de empresa',
+      sitio: 'Acción de sitio'
+    };
+
+    return mapa[String(formulario.nivelPertenencia || '').trim().toLowerCase()] || 'Acción administrativa';
+  })();
+  const iconoTipoTrigger = definicionTipo.valor === 'dns'
+    ? 'bi-globe2'
+    : definicionTipo.valor === 'correo'
+      ? 'bi-envelope-at'
+      : 'bi-send-check';
+  const etiquetaEstadoTrigger = triggerObjetivo
+    ? (triggerObjetivo.activo ? 'Activo' : 'Inactivo')
+    : (formulario.activo ? 'Activo al crear' : 'Inactivo al crear');
+  const puedeCrearVinculoAccion = Boolean(
+    contextoUsuarioActual?.permisos?.verTriggers &&
+    contextoUsuarioActual?.permisos?.verMonitores &&
+    contextoUsuarioActual?.permisos?.gestionarVinculosTriggers
+  );
+  const destinoApiHero = (() => {
+    if (definicionTipo.valor !== 'api' || !formulario.url) return null;
+    try {
+      const destino = new URL(formulario.url);
+      return ['http:', 'https:'].includes(destino.protocol) ? destino.host : null;
+    } catch {
+      return null;
+    }
+  })();
+%>
+
+<section
+  class="panel-general"
+  data-trigger-formulario
+>
+  <% if (borradorFederadoSeguro) { %>
+    <div class="alert alert-info" role="status">
+      <strong>Borrador local desde un trigger federado.</strong>
+      Revisa el scope y toda la configuración antes de guardar. El trigger se
+      creará inactivo y no conserva secretos del origen.
+      <% if (borradorFederadoSeguro.requiereCredencialLocal) { %>
+        <span class="d-block mt-2">La plantilla necesita una credencial local nueva.</span>
+      <% } %>
+      <code class="d-block text-break mt-2"><%= borradorFederadoSeguro.procedenciaFederada.proyeccionId %></code>
+    </div>
+  <% } %>
+  <section class="hero-operativo hero-monitores hero-accion card border-0 shadow-lg overflow-hidden trigger-formulario-hero">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+              <span><%= esEdicionTrigger ? 'Gestionar acción' : 'Nueva acción' %><%= definicionTipo.valor === 'api' ? ' · API' : '' %></span>
+            </span>
+            <h1><%= esEdicionTrigger ? triggerObjetivo.nombre : `Nueva acción de ${definicionTipo.etiquetaTipo}` %></h1>
+            <p><%= definicionTipo.valor === 'api'
+              ? 'Envía una solicitud HTTP/HTTPS al destino configurado cuando un monitor vinculado activa esta acción. Puedes reutilizarla con varios monitores.'
+              : 'Define qué ocurre cuando un monitor la activa. Puedes reutilizar esta acción en varios monitores dentro de tu alcance.' %></p>
+            <div class="hero-etiquetas hero-monitores__etiquetas">
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-pin-map" aria-hidden="true"></i>
+                <span><%= etiquetaPertenenciaAccion %></span>
+              </span>
+            </div>
+            <div class="hero-monitores__acciones">
+              <a
+                href="<%= retornoFormularioSeguro %>"
+                class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+              >
+                <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
+                <span><%= tieneRetornoFormularioSeguro
+                  ? (vuelveAGestionMonitor ? 'Volver al monitor' : 'Volver')
+                  : 'Volver al catálogo' %></span>
+              </a>
+              <% if (esEdicionTrigger && triggerObjetivo) { %>
+                <%- include('parciales/enlace-actividad-auditada', {
+                  sujetoTipo: 'trigger',
+                  sujetoId: triggerObjetivo.id,
+                  retorno: `/monitores/triggers/editar/${triggerObjetivo.id}`,
+                  permisoFuncional: contextoUsuarioActual?.permisos?.verTriggers
+                }) %>
+                <div class="hero-accion__relaciones-control">
+                  <button
+                    type="button"
+                    class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+                    data-trigger-entradas-toggle
+                    aria-controls="trigger-monitores-entrada"
+                    aria-expanded="false"
+                  >
+                    <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                    <span>Relaciones cruzadas</span>
+                    <span class="badge rounded-pill text-bg-light"><%= relacionesCruzadas?.total || 0 %></span>
+                  </button>
+                  <button type="button" class="hero-accion__ayuda hero-accion__ayuda--relaciones"
+                    data-bs-toggle="tooltip" data-bs-placement="top"
+                    title="Abre los monitores vinculados que actúan como entradas de esta acción."
+                    aria-label="Ayuda sobre relaciones cruzadas">
+                    <i class="bi bi-info-circle" aria-hidden="true"></i>
+                  </button>
+                </div>
+              <% } %>
+            </div>
+            <% if (esEdicionTrigger && triggerObjetivo) { %>
+              <section
+                id="trigger-monitores-entrada"
+                class="hero-accion__entradas monitor-formulario-hero__relacion-flujo monitor-formulario-hero__relacion-flujo--entrada"
+                data-trigger-entradas
+                aria-label="Monitores que activan esta acción"
+                hidden
+              >
+                <span class="monitor-formulario-hero__relaciones-etiqueta">
+                  <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
+                  Entradas de datos
+                </span>
+                <h2>Monitores que activan esta acción</h2>
+                <% if (relacionesCruzadas?.total > 0) { %>
+                  <div class="hero-accion__entradas-lista">
+                    <% for (const vinculacion of relacionesCruzadas.vinculaciones) { %>
+                    <% const puedeGestionarVinculo = Boolean(
+                      contextoUsuarioActual?.permisos?.gestionarVinculosTriggers &&
+                      vinculacion.puedeGestionarVinculo
+                    ); %>
+                    <a
+                      href="<%= puedeGestionarVinculo
+                        ? `/monitores/triggers/vinculos/editar/${vinculacion.id}?return_to=${encodeURIComponent(retornoGestionAccion)}`
+                        : `/monitores/${vinculacion.monitorId}?return_to=${encodeURIComponent(retornoGestionAccion)}` %>"
+                      class="hero-relaciones__enlace"
+                    >
+                      <i class="bi <%= puedeGestionarVinculo ? 'bi-link-45deg' : 'bi-display' %>" aria-hidden="true"></i>
+                      <span><%= vinculacion.monitorNombre %></span>
+                      <small><%= puedeGestionarVinculo ? 'Gestionar vínculo' : 'Ver monitor' %></small>
+                    </a>
+                    <% } %>
+                  </div>
+                <% } else { %>
+                  <p class="hero-accion__entradas-vacio">Ningún monitor activa todavía esta acción.</p>
+                <% } %>
+                <% if (puedeCrearVinculoAccion) { %>
+                  <a
+                    href="/monitores/triggers/vinculos/nuevo?trigger_id=<%= triggerObjetivo.id %>&return_to=<%= encodeURIComponent(retornoGestionAccion) %>"
+                    class="btn btn-outline-light btn-sm hero-accion__entradas-crear"
+                  >
+                    <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                    <%= relacionesCruzadas?.total > 0 ? 'Vincular otro monitor' : 'Vincular monitor' %>
+                  </a>
+                <% } %>
+              </section>
+            <% } %>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis">
+            <% if (triggerObjetivo) { %>
+              <article class="kpi-resumen kpi-resumen--ok hero-monitores__kpi <%= definicionTipo.valor === 'api' ? 'hero-accion__kpi-destino' : '' %>">
+                <span class="hero-monitores__kpi-cabecera">
+                  <i class="bi <%= iconoTipoTrigger %>" aria-hidden="true"></i>
+                  <span class="etiqueta"><%= definicionTipo.valor === 'api' ? 'Destino API' : 'Tipo' %></span>
+                </span>
+                <strong><%= definicionTipo.valor === 'api' ? (destinoApiHero || 'Destino pendiente') : definicionTipo.etiquetaTipo %></strong>
+                <small><%= definicionTipo.valor === 'api'
+                  ? (destinoApiHero ? `${formulario.metodo || 'POST'} · solicitud HTTP/HTTPS` : 'Configura la URL en el formulario.')
+                  : definicionTipo.descripcion %></small>
+              </article>
+              <article class="kpi-resumen <%= triggerObjetivo.activo ? 'kpi-resumen--ok' : 'kpi-resumen--neutro' %> hero-monitores__kpi">
+                <span class="hero-monitores__kpi-cabecera">
+                  <i class="bi <%= triggerObjetivo.activo ? 'bi-check-circle' : 'bi-pause-circle' %>" aria-hidden="true"></i>
+                  <span class="etiqueta">Estado</span>
+                </span>
+                <strong><%= etiquetaEstadoTrigger %></strong>
+                <small><%= triggerObjetivo.activo ? 'Disponible para asociarla a monitores.' : 'No se ejecutará mientras esté inactiva.' %></small>
+              </article>
+              <article class="kpi-resumen kpi-resumen--advertencia hero-monitores__kpi">
+                <span class="hero-monitores__kpi-cabecera">
+                  <i class="bi bi-pin-map" aria-hidden="true"></i>
+                  <span class="hero-accion__alcance-etiqueta">
+                    <span class="etiqueta">Alcance</span>
+                    <button type="button" class="hero-accion__ayuda" data-bs-toggle="tooltip" data-bs-placement="top"
+                      title="<%= definicionTipo.valor === 'dns'
+                        ? 'Indica dónde se puede gestionar esta acción. El registro DNS que modificará se elige en el formulario.'
+                        : 'Indica dónde se puede gestionar esta acción; no define qué monitor la activa.' %>"
+                      aria-label="Ayuda sobre el alcance de la acción">
+                      <i class="bi bi-info-circle" aria-hidden="true"></i>
+                    </button>
+                  </span>
+                </span>
+                <strong><%= triggerObjetivo.alcanceDescripcion || 'Sin alcance disponible' %></strong>
+                <small><%= etiquetaPertenenciaAccion %></small>
+              </article>
+            <% } else { %>
+              <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi <%= definicionTipo.valor === 'api' ? 'hero-accion__kpi-destino' : '' %>">
+                <span class="hero-monitores__kpi-cabecera">
+                  <i class="bi <%= iconoTipoTrigger %>" aria-hidden="true"></i>
+                  <span class="etiqueta"><%= definicionTipo.valor === 'api' ? 'Destino API' : 'Tipo' %></span>
+                </span>
+                <strong <%= definicionTipo.valor === 'api' ? 'data-trigger-api-hero-destino' : '' %>><%= definicionTipo.valor === 'api' ? (destinoApiHero || 'Destino pendiente') : definicionTipo.etiquetaTipo %></strong>
+                <small <%= definicionTipo.valor === 'api' ? 'data-trigger-api-hero-detalle' : '' %>><%= definicionTipo.valor === 'api'
+                  ? (destinoApiHero ? `${formulario.metodo || 'POST'} · solicitud HTTP/HTTPS` : 'Configura la URL en el formulario.')
+                  : definicionTipo.descripcion %></small>
+              </article>
+              <article class="kpi-resumen <%= formulario.activo ? 'kpi-resumen--ok' : 'kpi-resumen--neutro' %> hero-monitores__kpi" data-trigger-hero-estado-tarjeta>
+                <span class="hero-monitores__kpi-cabecera">
+                  <i class="bi <%= formulario.activo ? 'bi-check-circle' : 'bi-pause-circle' %>" aria-hidden="true" data-trigger-hero-estado-icono></i>
+                  <span class="etiqueta">Estado inicial</span>
+                </span>
+                <strong data-trigger-hero-estado><%= etiquetaEstadoTrigger %></strong>
+                <small>Podrás cambiarlo antes de guardar.</small>
+              </article>
+              <article class="kpi-resumen kpi-resumen--advertencia hero-monitores__kpi">
+                <span class="hero-monitores__kpi-cabecera">
+                  <i class="bi bi-pin-map" aria-hidden="true"></i>
+                  <span class="hero-accion__alcance-etiqueta">
+                    <span class="etiqueta">Alcance</span>
+                    <button type="button" class="hero-accion__ayuda" data-bs-toggle="tooltip" data-bs-placement="top"
+                      title="<%= definicionTipo.valor === 'dns'
+                        ? 'Indica dónde se puede gestionar esta acción. El registro DNS que modificará se elige en el formulario.'
+                        : 'Indica dónde se puede gestionar esta acción; no define qué monitor la activa.' %>"
+                      aria-label="Ayuda sobre el alcance de la acción">
+                      <i class="bi bi-info-circle" aria-hidden="true"></i>
+                    </button>
+                  </span>
+                </span>
+                <strong data-trigger-scope-destino>Portal completo</strong>
+                <small data-trigger-scope-pertenencia><%= etiquetaPertenenciaAccion %></small>
+              </article>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h2>Configuración de la acción</h2>
+      </div>
+    </div>
+
+    <% if (errorFormulario) { %>
+      <div class="mensaje-error"><%= errorFormulario %></div>
+    <% } %>
+
+    <div class="tarjeta">
+      <form
+        method="post"
+        action="<%= modo === 'editar' ? `/monitores/triggers/${triggerObjetivo.id}/actualizar` : '/monitores/triggers/crear' %>"
+        class="formulario-organizacion"
+        data-trigger-form
+        data-trigger-form-modo="<%= modo %>"
+      >
+        <% if (retornoFormularioSeguro !== '/automatizacion/acciones') { %>
+          <input type="hidden" name="return_to" value="<%= retornoFormularioSeguro %>">
+        <% } %>
+        <% if (modo === 'editar') { %>
+          <input
+            type="hidden"
+            name="revisionDeclaracion"
+            value="<%= formulario.revisionDeclaracion %>"
+          >
+        <% } %>
+        <div class="rejilla-formulario">
+          <div>
+            <label for="trigger_nombre">Nombre</label>
+            <input id="trigger_nombre" name="nombre" type="text" value="<%= formulario.nombre %>" required>
+          </div>
+          <div>
+            <label for="trigger_tipo">Tipo</label>
+            <% if (modo === 'editar') { %>
+              <input type="hidden" name="tipo" value="<%= formulario.tipo %>">
+              <div class="campo-fijo">
+                <strong><%= definicionTipo.etiqueta %></strong>
+                <span class="texto-apoyo"><%= definicionTipo.descripcion %></span>
+              </div>
+            <% } else { %>
+              <select id="trigger_tipo" name="tipo" required>
+                <% for (const opcion of opcionesTipo) { %>
+                  <option value="<%= opcion.valor %>" <%= formulario.tipo === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                <% } %>
+              </select>
+            <% } %>
+          </div>
+          <div>
+            <label for="trigger_activo">Estado</label>
+            <select id="trigger_activo" name="activo">
+              <option value="1" <%= formulario.activo ? 'selected' : '' %>>Activo</option>
+              <option value="0" <%= !formulario.activo ? 'selected' : '' %>>Inactivo</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label for="trigger_descripcion">Descripción</label>
+          <textarea id="trigger_descripcion" name="descripcion" rows="3"><%= formulario.descripcion %></textarea>
+        </div>
+
+        <section class="bloque-configuracion-monitor">
+          <div class="bloque-configuracion-monitor__cabecera">
+            <div>
+              <h3>Quién puede gestionar esta acción</h3>
+              <p class="texto-apoyo">
+                Elige dónde estará disponible para gestionarla. Para que actúe,
+                debe estar vinculada a un monitor.
+              </p>
+              <p class="texto-apoyo"><%= restriccionesScope.mensajeScope %></p>
+            </div>
+          </div>
+
+          <div class="rejilla-formulario">
+            <div>
+              <label for="trigger_nivel_pertenencia">Pertenencia</label>
+              <% if (restriccionesScope.nivelPertenenciaFijo) { %>
+                <input type="hidden" name="nivelPertenencia" value="<%= formulario.nivelPertenencia %>">
+              <% } %>
+              <select
+                id="trigger_nivel_pertenencia"
+                name="nivelPertenencia"
+                data-trigger-pertenencia
+                <%= restriccionesScope.nivelPertenenciaFijo ? 'disabled' : '' %>
+              >
+                <% for (const opcion of opcionesPertenencia) { %>
+                  <option value="<%= opcion.valor %>" <%= formulario.nivelPertenencia === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                <% } %>
+              </select>
+            </div>
+          </div>
+
+          <div class="rejilla-formulario">
+            <div data-trigger-campo-scope="tenant">
+              <label for="trigger_tenant_id">Tenant</label>
+              <% if (restriccionesScope.tenantBloqueado) { %>
+                <input type="hidden" name="tenantId" value="<%= formulario.tenantId %>">
+              <% } %>
+              <select id="trigger_tenant_id" name="tenantId" data-trigger-tenant <%= restriccionesScope.tenantBloqueado ? 'disabled' : '' %> required>
+                <option value="">Selecciona tenant</option>
+                <% for (const opcion of opcionesTenants) { %>
+                  <option value="<%= opcion.valor %>" <%= String(formulario.tenantId) === String(opcion.valor) ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                <% } %>
+              </select>
+            </div>
+            <div data-trigger-campo-scope="empresa">
+              <label for="trigger_empresa_id">Empresa</label>
+              <% if (restriccionesScope.empresaBloqueada) { %>
+                <input type="hidden" name="empresaId" value="<%= formulario.empresaId %>">
+              <% } %>
+              <div
+                class="scope-select-ayuda"
+                data-trigger-scope-tooltip="empresa"
+              >
+                <select id="trigger_empresa_id" name="empresaId" data-trigger-empresa <%= restriccionesScope.empresaBloqueada ? 'disabled' : '' %> required>
+                  <option value="">Selecciona empresa</option>
+                  <% for (const opcion of opcionesEmpresas) { %>
+                    <option value="<%= opcion.valor %>" data-tenant-id="<%= opcion.tenantId %>" <%= String(formulario.empresaId) === String(opcion.valor) ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                  <% } %>
+                </select>
+              </div>
+              <p class="scope-select-ayuda__texto" data-trigger-scope-ayuda="empresa" hidden>
+                Selecciona antes un tenant para desbloquear la empresa.
+              </p>
+            </div>
+            <div data-trigger-campo-scope="sitio">
+              <label for="trigger_sitio_id">Sitio</label>
+              <% if (restriccionesScope.sitioBloqueadoPorScope) { %>
+                <input type="hidden" name="sitioId" value="<%= formulario.sitioId %>">
+              <% } %>
+              <div
+                class="scope-select-ayuda"
+                data-trigger-scope-tooltip="sitio"
+              >
+                <select id="trigger_sitio_id" name="sitioId" data-trigger-sitio <%= restriccionesScope.sitioBloqueadoPorScope ? 'disabled' : '' %>>
+                  <option value="">Sin sitio (acción de empresa)</option>
+                  <% for (const opcion of opcionesSitios) { %>
+                    <option value="<%= opcion.valor %>" data-tenant-id="<%= opcion.tenantId %>" data-empresa-id="<%= opcion.empresaId %>" <%= String(formulario.sitioId) === String(opcion.valor) ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                  <% } %>
+                </select>
+              </div>
+              <p class="scope-select-ayuda__texto" data-trigger-scope-ayuda="sitio" hidden>
+                Selecciona antes una empresa para desbloquear el sitio.
+              </p>
+            </div>
+          </div>
+
+          <div class="rejilla-resumen">
+            <article class="kpi-resumen">
+              <span class="etiqueta">Ámbito de gestión</span>
+              <strong data-trigger-scope-pertenencia>
+                <%= formulario.nivelPertenencia === 'portal'
+                  ? 'Acción de portal'
+                  : formulario.nivelPertenencia === 'tenant'
+                    ? 'Acción de tenant'
+                    : formulario.nivelPertenencia === 'sitio'
+                      ? 'Acción de sitio'
+                      : 'Acción de empresa' %>
+              </strong>
+            </article>
+            <article class="kpi-resumen">
+              <span class="etiqueta">Ubicación elegida</span>
+              <strong data-trigger-scope-destino><%= triggerObjetivo?.alcanceDescripcion || 'Portal completo' %></strong>
+            </article>
+          </div>
+
+          <% if (modo === 'editar') { %>
+            <p class="texto-apoyo">
+              Si cambias el ámbito, revisa los vínculos actuales: no se adaptan
+              automáticamente al nuevo alcance.
+            </p>
+          <% } %>
+        </section>
+
+        <section class="bloque-configuracion-monitor">
+          <div class="bloque-configuracion-monitor__cabecera">
+            <div>
+              <h3><%= definicionTipo.valor === 'correo' ? 'Mensaje y destinatarios' : definicionTipo.valor === 'api' ? 'Solicitud API' : 'Configuración de la acción' %></h3>
+              <% if (definicionTipo.valor === 'dns') { %><p class="texto-apoyo">Elige el registro y define el cambio que ejecutará esta acción.</p><% } %>
+            </div>
+          </div>
+
+          <% if (definicionTipo.valor === 'dns' && objetivoDnsTrigger?.valido === false) { %>
+            <div class="mensaje-error">
+              Objetivo DNS requiere revisión: <%= objetivoDnsTrigger.mensaje %>
+            </div>
+          <% } %>
+
+          <% if (definicionTipo.valor === 'api') { %>
+            <%- include('./triggers/parciales/trigger-form-api', { formulario, opcionesMetodoHttp }) %>
+          <% } %>
+          <% if (definicionTipo.valor === 'dns') { %>
+            <%- include('./triggers/parciales/trigger-form-dns', {
+              formulario,
+              objetivoDnsTrigger,
+              retornoGestionAccion
+            }) %>
+          <% } %>
+          <% if (definicionTipo.valor === 'correo') { %>
+            <%- include('./triggers/parciales/trigger-form-correo', {
+              formulario,
+              experienciaCorreo,
+              triggerObjetivo,
+              modo
+            }) %>
+          <% } %>
+        </section>
+
+        <div class="acciones-formulario">
+          <button type="submit" class="boton-primario">
+            <%= modo === 'editar' ? `Guardar ${definicionTipo.etiquetaTipo}` : `Crear ${definicionTipo.etiquetaTipo}` %>
+          </button>
+          <a href="<%= retornoFormularioSeguro %>" class="boton-secundario enlace-boton">Cancelar</a>
+        </div>
+      </form>
+    </div>
+
+    <% if (definicionTipo.valor === 'api') { %>
+      <div class="modal fade modal-previa-api" id="modalPreviaApi" tabindex="-1" aria-labelledby="modalPreviaApiTitulo" aria-hidden="true" data-trigger-api-previa-modal>
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <div>
+                <span class="insignia-suave d-inline-flex align-items-center gap-2 mb-2"><i class="bi bi-braces" aria-hidden="true"></i> Simulación local</span>
+                <h2 class="modal-title h4" id="modalPreviaApiTitulo">Solicitud de ejemplo</h2>
+                <p class="texto-apoyo mb-0">Usa un monitor y un evento ficticios. No contacta con el destino.</p>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar vista previa"></button>
+            </div>
+            <div class="modal-body">
+              <p class="texto-apoyo" data-trigger-api-previa-destino></p>
+              <p class="texto-apoyo" data-trigger-api-previa-cabeceras></p>
+              <h3 class="h6">Cuerpo que recibiría el servicio</h3>
+              <pre class="trigger-api-previa__cuerpo" data-trigger-api-previa-cuerpo></pre>
+              <p class="texto-apoyo mb-0">Los valores reales dependerán del monitor y del evento que activen la acción.</p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Volver al formulario</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% } %>
+
+    <% if (definicionTipo.valor === 'correo') { %>
+      <div class="modal fade modal-previa-correo" id="modalPreviaCorreo" tabindex="-1" aria-labelledby="modalPreviaCorreoTitulo" aria-hidden="true" data-trigger-correo-previa-modal>
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <div>
+                <span class="insignia-suave d-inline-flex align-items-center gap-2 mb-2"><i class="bi bi-envelope-open" aria-hidden="true"></i> Correo de ejemplo</span>
+                <h2 class="modal-title h4" id="modalPreviaCorreoTitulo">Así se leerá el aviso</h2>
+                <p class="texto-apoyo mb-0">Utiliza datos ficticios y no envía ningún correo.</p>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar vista previa"></button>
+            </div>
+            <div class="modal-body">
+              <article class="trigger-correo-previa__mensaje" aria-label="Contenido del correo de ejemplo">
+                <div class="trigger-correo-previa__asunto">
+                  <span>Asunto</span>
+                  <strong data-trigger-correo-previa-asunto-modal><%= experienciaCorreo.previa.mensajeMaterializado.asunto %></strong>
+                </div>
+                <div class="trigger-correo-previa__cuerpo" data-trigger-correo-previa-cuerpo>
+                  <% for (const bloque of String(experienciaCorreo.previa.mensajeMaterializado.cuerpoBaseTexto || '').split(/\n\s*\n/u)) { %>
+                    <p><%= bloque %></p>
+                  <% } %>
+                </div>
+              </article>
+              <details class="trigger-correo-previa__texto-integro">
+                <summary>Ver texto íntegro del correo</summary>
+                <pre data-trigger-correo-previa-texto><%= experienciaCorreo.previa.mensajeMaterializado.cuerpoBaseTexto %></pre>
+              </details>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Volver al formulario</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% } %>
+
+    <div
+      class="modal fade modal-plan-trigger"
+      id="modalPlanTrigger"
+      tabindex="-1"
+      aria-labelledby="modalPlanTriggerTitulo"
+      aria-hidden="true"
+      data-trigger-plan-modal
+    >
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <span class="insignia-suave d-inline-flex align-items-center gap-2 mb-2">
+                <i class="bi bi-signpost-split" aria-hidden="true"></i>
+                <span>Plan operativo</span>
+              </span>
+              <h2 class="modal-title h4" id="modalPlanTriggerTitulo">
+                Revisión antes de guardar
+              </h2>
+              <p class="texto-apoyo mb-0">
+                Revisa qué quedará configurado. Guardar no ejecuta la acción: solo podrán activarla los monitores vinculados.
+              </p>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body" data-trigger-plan-cuerpo>
+            <div class="py-4 text-body-secondary d-inline-flex align-items-center gap-2">
+              <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+              <span>Preparando plan operativo...</span>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+              Volver a editar
+            </button>
+            <button type="button" class="btn btn-primary d-inline-flex align-items-center gap-2" data-trigger-plan-confirmar>
+              <i class="bi bi-check2-circle" aria-hidden="true"></i>
+              <span>Confirmar y guardar</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<script src="/js/trigger-formulario.js"></script>
+<%- include('../parciales/pie') %>

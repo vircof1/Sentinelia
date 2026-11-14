@@ -1,0 +1,76 @@
+<%
+  const ayudaApi = (etiqueta, explicacion) => `
+      <button type="button" class="usuario-permiso-item__ayuda" data-bs-toggle="tooltip"
+        data-bs-placement="top" title="${explicacion.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}"
+        aria-label="Ayuda sobre ${etiqueta.toLowerCase()}">
+        <i class="bi bi-info-circle" aria-hidden="true"></i>
+      </button>`;
+  const opcionesApiConfiguradas = Boolean(
+    formulario.parametroOpcional || formulario.permiteTlsInseguro ||
+    String(formulario.cabeceras || '').trim() || String(formulario.plantillaCuerpo || '').trim()
+  );
+%>
+
+<div class="rejilla-formulario rejilla-formulario--tecnica">
+  <div>
+    <div class="campo-etiqueta-ayuda"><label for="trigger_url">URL de destino</label><%- ayudaApi('URL de destino', 'Dirección completa del servicio que recibirá la solicitud cuando un monitor active esta acción. Usa HTTPS siempre que sea posible.') %></div>
+    <input id="trigger_url" name="url" type="url" placeholder="https://example.net/hooks/sentinelia" value="<%= formulario.url %>" required>
+  </div>
+  <div>
+    <div class="campo-etiqueta-ayuda"><label for="trigger_metodo">Método HTTP</label><%- ayudaApi('Método HTTP', 'Operación que recibirá el servicio de destino. Consulta su documentación para saber si espera GET, POST u otro método.') %></div>
+    <select id="trigger_metodo" name="metodo">
+      <% for (const metodo of opcionesMetodoHttp) { %>
+        <option value="<%= metodo %>" <%= formulario.metodo === metodo ? 'selected' : '' %>><%= metodo %></option>
+      <% } %>
+    </select>
+  </div>
+  <div>
+    <div class="campo-etiqueta-ayuda"><label for="trigger_timeout_ms">Tiempo máximo de espera (ms)</label><%- ayudaApi('Tiempo máximo de espera', 'Si el servicio no responde dentro de este tiempo, el intento se considera fallido. 1000 ms equivalen a 1 segundo.') %></div>
+    <input id="trigger_timeout_ms" name="timeoutMs" type="number" min="250" max="120000" step="1" value="<%= formulario.timeoutMs %>" required>
+    <small class="texto-apoyo" data-trigger-api-tiempo-ayuda></small>
+  </div>
+  <div>
+    <div class="campo-etiqueta-ayuda"><label for="trigger_reintentos">Reintentos</label><%- ayudaApi('Reintentos', 'Número de veces adicionales que se intentará enviar la solicitud si falla. Cero significa un único intento.') %></div>
+    <input id="trigger_reintentos" name="reintentos" type="number" min="0" max="10" step="1" value="<%= formulario.reintentos %>" required>
+  </div>
+</div>
+
+<details class="trigger-api-avanzado" <%= opcionesApiConfiguradas ? 'open' : '' %>>
+  <summary>Opciones avanzadas <span>Parámetro, seguridad y contenido de la solicitud</span></summary>
+  <div class="trigger-api-avanzado__contenido">
+    <div>
+      <div class="campo-etiqueta-ayuda"><label for="trigger_parametro_opcional">Dato adicional opcional</label><%- ayudaApi('Dato adicional opcional', 'Valor propio de esta acción que puedes insertar en las cabeceras o el cuerpo con {{configuracionEfectiva.parametroOpcional}}. No se envía por sí solo.') %></div>
+      <input id="trigger_parametro_opcional" name="parametroOpcional" type="text" maxlength="255" placeholder="Por ejemplo: entorno-produccion" value="<%= formulario.parametroOpcional %>">
+    </div>
+
+    <div class="rejilla-formulario">
+      <label class="tarjeta-permiso">
+        <input type="checkbox" name="permiteTlsInseguro" value="1" <%= formulario.permiteTlsInseguro ? 'checked' : '' %>>
+        <span class="tarjeta-permiso__texto">
+          <strong>Permitir TLS inseguro</strong>
+          <span>Desactiva la comprobación del certificado HTTPS. Úsalo solo con un destino de pruebas bajo tu control.</span>
+        </span>
+      </label>
+    </div>
+
+    <div>
+      <div class="campo-etiqueta-ayuda"><label for="trigger_cabeceras">Cabeceras (JSON)</label><%- ayudaApi('Cabeceras JSON', 'Datos adicionales que el servicio espera en cada solicitud, por ejemplo un tipo de contenido o una clave de acceso. Escribe un objeto JSON válido.') %></div>
+      <textarea id="trigger_cabeceras" name="cabeceras" rows="5" placeholder='{"Content-Type":"application/json"}'><%= formulario.cabeceras %></textarea>
+    </div>
+
+    <div>
+      <div class="campo-etiqueta-ayuda"><label for="trigger_plantilla_cuerpo">Cuerpo de la solicitud</label><%- ayudaApi('Cuerpo de la solicitud', 'Contenido que recibirá el servicio. Puedes escribir texto o JSON e insertar datos del monitor y del evento con las variables de abajo. GET no envía cuerpo.') %></div>
+      <textarea id="trigger_plantilla_cuerpo" name="plantillaCuerpo" rows="7" placeholder='{"evento":"{{eventoDisparo}}","monitor":"{{monitor.nombre}}"}'><%= formulario.plantillaCuerpo %></textarea>
+      <div class="trigger-api-variables" aria-label="Variables disponibles para el cuerpo y las cabeceras">
+        <p>Inserta una variable en el cuerpo o en una cabecera:</p>
+        <button type="button" data-trigger-api-insertar="{{monitor.nombre}}" title="Nombre del monitor que activó la acción">Monitor</button>
+        <button type="button" data-trigger-api-insertar="{{eventoDisparo}}" title="Evento que activó la acción">Evento</button>
+        <button type="button" data-trigger-api-insertar="{{transicion.estadoDetectado}}" title="Estado detectado en la transición">Estado</button>
+        <button type="button" data-trigger-api-insertar="{{configuracionEfectiva.parametroOpcional}}" title="Dato adicional definido arriba">Dato adicional</button>
+      </div>
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalPreviaApi">
+        <i class="bi bi-eye" aria-hidden="true"></i> Ver solicitud de ejemplo
+      </button>
+    </div>
+  </div>
+</details>

@@ -1,0 +1,73 @@
+<%
+const ayudasTemporalesRelativas = {
+  momento: {
+    etiqueta: 'Fecha informada (M)',
+    aria: 'Explicación de la fecha informada M',
+    contenido: `
+      <div class="tooltip-html-denso">
+        <strong>Fecha informada · M</strong>
+        <p>Es el <u>momento comunicado por el agente</u> en la última observación vigente de esta señal. Constituye el dato temporal que interpreta la regla; no es la hora en la que Sentinelia recibió el mensaje.</p>
+      </div>
+    `
+  },
+  presente: {
+    etiqueta: 'Presente evaluado (N)',
+    aria: 'Explicación del presente evaluado N',
+    contenido: `
+      <div class="tooltip-html-denso">
+        <strong>Presente evaluado · N</strong>
+        <p>Es el <u>instante autoritativo de Sentinelia</u> empleado en esta evaluación. La desviación se calcula enfrentando M contra este presente: <strong>D = M − N</strong>.</p>
+      </div>
+    `
+  },
+  desviacion: {
+    etiqueta: 'Desviación (D)',
+    aria: 'Explicación de la desviación D',
+    contenido: `
+      <div class="tooltip-html-denso">
+        <strong>Desviación temporal · D = M − N</strong>
+        <p>Indica cuántos segundos separan la fecha informada del presente evaluado. Un valor <strong>positivo</strong> sitúa M en el futuro; <strong>cero</strong>, en el presente; y un valor <strong>negativo</strong>, en el pasado. La regla compara D con sus límites e histéresis.</p>
+      </div>
+    `
+  },
+  frontera: {
+    etiqueta: 'Próxima frontera',
+    aria: 'Explicación de la próxima frontera temporal',
+    contenido: `
+      <div class="tooltip-html-denso">
+        <strong>Próxima frontera temporal</strong>
+        <p>Es el siguiente instante calculado en el que esta interpretación podría cambiar <u>aunque M no cambie</u>, porque N continúa avanzando. Se deriva de M, los límites, la histéresis y el estado actual. Una observación nueva o una modificación de la regla puede sustituir este cálculo antes de alcanzarlo.</p>
+      </div>
+    `
+  },
+  lado: {
+    etiqueta: 'Lado evaluado',
+    aria: 'Explicación del lado de atención temporal',
+    contenido: `
+      <div class="tooltip-html-denso">
+        <strong>Lado de atención</strong>
+        <p>Identifica qué frontera hace que la regla requiera atención. <strong>Inferior</strong> significa que M ha quedado demasiado atrás respecto a N; <strong>superior</strong>, que M está demasiado adelantada. <strong>Ninguno</strong> indica que, en esta evaluación, no se ha incumplido ninguna frontera temporal.</p>
+      </div>
+    `
+  }
+};
+const ayudaTemporalRelativa = ayudasTemporalesRelativas[campo];
+const mostrarEtiquetaAyudaTemporal = typeof soloIcono === 'undefined' || !soloIcono;
+%>
+<span class="campo-etiqueta-ayuda telemetria-temporal__etiqueta<%= mostrarEtiquetaAyudaTemporal ? '' : ' telemetria-temporal__ayuda-inline' %>">
+  <% if (mostrarEtiquetaAyudaTemporal) { %>
+    <span><%= ayudaTemporalRelativa.etiqueta %></span>
+  <% } %>
+  <button
+    type="button"
+    class="usuario-permiso-item__ayuda"
+    data-bs-toggle="tooltip"
+    data-bs-html="true"
+    data-bs-placement="top"
+    data-bs-custom-class="tooltip-html-denso-wrap"
+    data-bs-title="<%= ayudaTemporalRelativa.contenido %>"
+    aria-label="<%= ayudaTemporalRelativa.aria %>"
+  >
+    <i class="bi bi-info-circle" aria-hidden="true"></i>
+  </button>
+</span>

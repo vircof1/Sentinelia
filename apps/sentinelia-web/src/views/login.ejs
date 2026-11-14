@@ -1,0 +1,88 @@
+<%- include('parciales/cabecera', { titulo, usuarioActual: null }) %>
+
+<section class="panel-acceso">
+  <div class="acceso-layout">
+    <section class="acceso-intro card border-0 shadow-lg h-100">
+      <div class="card-body acceso-intro__cuerpo d-grid gap-4 p-4 p-lg-5">
+        <div class="acceso-marca">
+          <div class="acceso-marca__logo" aria-hidden="true">
+            <img src="/IMG/Sentinelia.svg" alt="">
+          </div>
+          <div class="acceso-marca__textos">
+            <strong><%= nombrePortalVisible || 'Sentinelia' %></strong>
+            <small>Portal operativo</small>
+          </div>
+        </div>
+        <div class="d-grid gap-2 align-content-start">
+          <h1>Acceso a Sentinelia</h1>
+          <p class="texto-apoyo mb-0">
+            Portal operativo para equipos internos. Utiliza tu cuenta para continuar.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <div class="caja-acceso card border-0 shadow-lg">
+      <div class="card-body caja-acceso__cuerpo p-4 p-lg-5">
+        <div class="d-grid gap-1 mb-4">
+          <h2 class="mb-0">Iniciar sesión</h2>
+          <p class="texto-ayuda-acceso mb-0">Completa tus credenciales para continuar.</p>
+        </div>
+
+        <% if (error) { %>
+          <div class="alert alert-danger mb-4" role="alert"><%= error %></div>
+        <% } %>
+
+        <form method="post" action="/login" class="formulario-acceso" data-formulario-login data-formulario-pow data-pow-endpoint="/pow/desafio">
+          <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+          <div>
+            <label for="usuario" class="form-label">Usuario</label>
+            <input
+              id="usuario"
+              name="usuario"
+              type="text"
+              class="form-control form-control-lg"
+              autocomplete="username"
+              value="<%= formulario.usuario %>"
+              required
+            >
+          </div>
+
+          <div>
+            <label for="password" class="form-label">Contraseña</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              class="form-control form-control-lg"
+              autocomplete="current-password"
+              required
+            >
+          </div>
+
+          <input type="hidden" name="pow_desafio_id" value="">
+          <input type="hidden" name="pow_nonce" value="">
+          <input type="hidden" name="pow_duracion_ms" value="">
+          <input type="hidden" name="pow_hashrate_cliente" value="">
+
+          <div
+            class="estado-pow alert alert-light border mb-0"
+            data-pow-estado
+            hidden
+            aria-live="polite"
+          ></div>
+
+          <button type="submit" class="btn btn-primary btn-lg w-100 boton-acceso-submit" data-boton-login data-boton-pow>Entrar</button>
+        </form>
+
+        <% if (typeof recuperacionPasswordDisponible !== 'undefined' && recuperacionPasswordDisponible) { %>
+          <a class="btn btn-outline-secondary w-100 mt-3" href="/recuperar-password">He olvidado mi contraseña</a>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script src="/js/login.js"></script>
+
+<%- include('parciales/pie') %>

@@ -1,0 +1,742 @@
+<%
+  const vistaEnlaces = superficieListado === 'enlaces';
+  const vistaAcciones = !vistaEnlaces;
+  const presentacionTiposAccion = {
+    api: { etiqueta: 'Llamada API', icono: 'bi-send-check' },
+    dns: { etiqueta: 'Mutación DNS', icono: 'bi-globe2' },
+    correo: { etiqueta: 'Correo electrónico', icono: 'bi-envelope-at' }
+  };
+  const tiposAccionCreables = (opcionesTipoTrigger || [])
+    .filter((opcion) => opcion.valor && presentacionTiposAccion[opcion.valor])
+    .map((opcion) => ({
+      valor: opcion.valor,
+      ...presentacionTiposAccion[opcion.valor]
+    }));
+  const retornoListadoSeguro = String(retornoListado || '').trim();
+  const urlListadoActual = retornoListadoSeguro
+    ? `${vistaEnlaces ? '/automatizacion/enlaces' : '/automatizacion/acciones'}?return_to=${encodeURIComponent(retornoListadoSeguro)}`
+    : (vistaEnlaces ? '/automatizacion/enlaces' : '/automatizacion/acciones');
+%>
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<section class="panel-general">
+  <section class="hero-operativo hero-monitores hero-automatizacion card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+              <span><%= vistaEnlaces ? 'Automatización' : 'Catálogo de automatización' %></span>
+            </span>
+            <h1><%= vistaEnlaces ? 'Enlaces monitor–acción' : 'Acciones' %></h1>
+            <p>
+              <% if (vistaEnlaces) { %>
+                Consulta qué monitor activa cada acción y ante qué evento.
+              <% } else { %>
+                Crea y gestiona acciones reutilizables de API, DNS y correo
+                dentro de tu alcance.
+              <% } %>
+            </p>
+            <div class="hero-etiquetas hero-monitores__etiquetas">
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                <span><%= vistaEnlaces ? alcanceActual.descripcion : `Alcance: ${alcanceActual.nivelScope}` %></span>
+              </span>
+              <% if (vistaAcciones) { %>
+                <span class="insignia d-inline-flex align-items-center gap-2">
+                  <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
+                  <span>API, DNS y correo</span>
+                </span>
+              <% } %>
+            </div>
+            <div class="hero-monitores__acciones">
+              <% if (retornoListadoSeguro) { %>
+                <a
+                  href="<%= retornoListadoSeguro %>"
+                  class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+                >
+                  <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                  <span>Volver</span>
+                </a>
+              <% } %>
+              <% if (vistaAcciones && puedeEditarTriggers) { %>
+                <div class="dropup">
+                  <button
+                    type="button"
+                    class="btn btn-light btn-sm dropdown-toggle d-inline-flex align-items-center gap-2"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                  >
+                    <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                    <span>Nueva acción</span>
+                  </button>
+                  <div class="dropdown-menu organizacion-acciones-menu">
+                    <% for (const tipoAccion of tiposAccionCreables) { %>
+                      <a
+                        href="/monitores/triggers/nuevo?tipo=<%= tipoAccion.valor %>&amp;return_to=<%= encodeURIComponent(urlListadoActual) %>"
+                        class="dropdown-item d-flex align-items-center gap-2"
+                      >
+                        <i class="bi <%= tipoAccion.icono %>" aria-hidden="true"></i>
+                        <span><%= tipoAccion.etiqueta %></span>
+                      </a>
+                    <% } %>
+                  </div>
+                </div>
+              <% } %>
+              <% if (vistaEnlaces && puedeGestionarVinculosTriggers && puedeVerMonitores) { %>
+                <a
+                  href="/monitores/triggers/vinculos/nuevo?return_to=<%= encodeURIComponent(urlListadoActual) %>"
+                  class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+                >
+                  <i class="bi bi-link-45deg" aria-hidden="true"></i>
+                  <span>Nuevo enlace</span>
+                </a>
+              <% } %>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis">
+            <% if (vistaAcciones) { %>
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-lightning" aria-hidden="true"></i>
+                <span class="etiqueta">Acciones visibles</span>
+              </span>
+              <strong data-kpi-triggers-total><%= resumenTriggers.totalTriggers %></strong>
+              <small>Resultado del filtro actual.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--ok hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-check-circle" aria-hidden="true"></i>
+                <span class="etiqueta">Activas</span>
+              </span>
+              <strong data-kpi-triggers-activos><%= resumenTriggers.totalActivos %></strong>
+              <small data-kpi-triggers-inactivos><%= resumenTriggers.totalInactivos %> inactivas.</small>
+            </article>
+            <% } else { %>
+            <article class="kpi-resumen kpi-resumen--advertencia hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-link-45deg" aria-hidden="true"></i>
+                <span class="etiqueta">Enlaces visibles</span>
+              </span>
+              <strong data-kpi-vinculos-total><%= resumenVinculos.totalAsignaciones %></strong>
+              <small data-kpi-vinculos-activos><%= resumenVinculos.totalActivas %> <%= resumenVinculos.totalActivas === 1 ? 'activo' : 'activos' %> · <%= resumenVinculos.totalInactivas %> <%= resumenVinculos.totalInactivas === 1 ? 'inactivo' : 'inactivos' %>.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--neutro hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-signpost-split" aria-hidden="true"></i>
+                <span class="etiqueta">Acciones asociadas</span>
+              </span>
+              <strong data-kpi-vinculos-acciones><%= resumenVinculos.totalTriggers %></strong>
+              <small data-kpi-vinculos-monitores><%= resumenVinculos.totalMonitores %> <%= resumenVinculos.totalMonitores === 1 ? 'monitor enlazado' : 'monitores enlazados' %>.</small>
+            </article>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <% if (flashTriggers) { %>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        if (window.portalToast?.show) {
+          window.portalToast.show({
+            tipo: '<%= flashTriggers.tipo === 'error' ? 'error' : 'satisfactorio' %>',
+            titulo: <%- JSON.stringify(vistaEnlaces ? 'Enlaces monitor–acción' : 'Acciones') %>,
+            cuerpo: <%- JSON.stringify(String(flashTriggers.mensaje || '')) %>
+          });
+        }
+      });
+    </script>
+  <% } %>
+
+  <section
+    class="seccion-panel"
+    data-triggers-admin
+    data-url-triggers="/monitores/triggers/api/listado"
+    data-sitio-id="<%= filtrosTriggers?.sitioId || '' %>"
+    data-url-vinculos="/monitores/triggers/api/vinculos"
+    data-puede-editar-triggers="<%= puedeEditarTriggers ? '1' : '0' %>"
+    data-puede-ver-monitores="<%= puedeVerMonitores ? '1' : '0' %>"
+    data-puede-gestionar-vinculos="<%= puedeGestionarVinculosTriggers ? '1' : '0' %>"
+  >
+    <% if (vistaAcciones) { %>
+    <div class="seccion-cabecera">
+      <div>
+        <h2>Catálogo de acciones</h2>
+        <% if (!vistaEnlaces && filtrosTriggers?.sitioId) { %><p class="texto-apoyo" data-triggers-sitio-contexto>Filtrado por sitio #<%= filtrosTriggers.sitioId %>.</p><% } %>
+        <p class="texto-apoyo"><%= alcanceActual.descripcion %></p>
+      </div>
+    </div>
+    <% } %>
+
+    <% if (vistaAcciones) { %>
+    <div class="tarjeta" data-triggers-shell>
+      <div class="seccion-cabecera">
+        <div>
+          <h3>Explorar catálogo</h3>
+          <p class="texto-apoyo">Busca, revisa y gestiona las acciones disponibles dentro de tu alcance.</p>
+        </div>
+      </div>
+
+      <div class="rejilla-filtros-listado">
+        <div>
+          <label for="triggers_q">Qué quieres encontrar</label>
+          <input
+            id="triggers_q"
+            type="search"
+            autocomplete="off"
+            placeholder="Nombre, descripción, destino, URL o alcance..."
+            data-triggers-q
+            value="<%= filtrosTriggers.textoBusqueda %>"
+          >
+        </div>
+        <div>
+          <label for="triggers_tipo">Tipo</label>
+          <select id="triggers_tipo" data-triggers-tipo>
+            <% for (const opcion of opcionesTipoTrigger) { %>
+              <option value="<%= opcion.valor %>" <%= filtrosTriggers.tipo === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+            <% } %>
+          </select>
+        </div>
+        <div>
+          <label for="triggers_activo">Estado</label>
+          <select id="triggers_activo" data-triggers-activo>
+            <option value="todos" <%= filtrosTriggers.activo === 'todos' ? 'selected' : '' %>>Todos los estados</option>
+            <option value="solo_activos" <%= filtrosTriggers.activo === 'solo_activos' ? 'selected' : '' %>>Solo activas</option>
+            <option value="solo_inactivos" <%= filtrosTriggers.activo === 'solo_inactivos' ? 'selected' : '' %>>Solo inactivas</option>
+          </select>
+        </div>
+      </div>
+
+      <details class="filtros-avanzados">
+        <summary>
+          <span><i class="bi bi-sliders" aria-hidden="true"></i> Más filtros</span>
+          <small data-triggers-filtros-avanzados-resumen>Alcance, filas y ordenación</small>
+        </summary>
+        <div class="filtros-avanzados__contenido rejilla-filtros-listado">
+          <div>
+            <label for="triggers_tenant">Tenant</label>
+            <select id="triggers_tenant" data-triggers-tenant>
+              <option value="">Todos los tenants</option>
+              <% for (const opcion of opcionesTenants) { %>
+                <option value="<%= opcion.valor %>" <%= String(filtrosTriggers.tenantId || '') === String(opcion.valor) ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div>
+            <label for="triggers_empresa">Empresa</label>
+            <select id="triggers_empresa" data-triggers-empresa>
+              <option value="">Todas las empresas</option>
+              <% for (const opcion of opcionesEmpresas) { %>
+                <option
+                  value="<%= opcion.valor %>"
+                  data-tenant-id="<%= opcion.tenantId %>"
+                  <%= String(filtrosTriggers.empresaId || '') === String(opcion.valor) ? 'selected' : '' %>
+                ><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+        <div>
+          <label for="triggers_page_size">Filas</label>
+          <select id="triggers_page_size" data-triggers-page-size>
+            <% for (const tamano of [10, 25, 50, 100]) { %>
+              <option value="<%= tamano %>" <%= Number(filtrosTriggers.tamanoPagina) === tamano ? 'selected' : '' %>><%= tamano %></option>
+            <% } %>
+          </select>
+        </div>
+        <div class="filtro-orden-listado">
+          <div>
+            <label for="triggers_sort_by">Ordenar por</label>
+            <select id="triggers_sort_by" data-triggers-sort-by>
+              <% for (const opcion of [
+                { valor: 'nombre', etiqueta: 'Nombre' },
+                { valor: 'tipo', etiqueta: 'Tipo' },
+                { valor: 'activo', etiqueta: 'Activo' },
+                { valor: 'creado', etiqueta: 'Creado' },
+                { valor: 'actualizado', etiqueta: 'Actualizado' }
+              ]) { %>
+                <option value="<%= opcion.valor %>" <%= filtrosTriggers.ordenarPor === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="filtro-orden-listado__direccion">
+            <label for="triggers_sort_dir">Dirección</label>
+            <button
+              type="button"
+              id="triggers_sort_dir"
+              class="boton-secundario filtro-orden-listado__boton"
+              value="<%= filtrosTriggers.direccionOrden %>"
+              data-triggers-sort-dir
+              aria-label="Orden <%= filtrosTriggers.direccionOrden === 'desc' ? 'descendente' : 'ascendente' %>"
+              title="Orden <%= filtrosTriggers.direccionOrden === 'desc' ? 'descendente' : 'ascendente' %>"
+            >
+              <i class="bi <%= filtrosTriggers.direccionOrden === 'desc' ? 'bi-sort-alpha-up-alt' : 'bi-sort-alpha-down' %>" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+        </div>
+      </details>
+
+      <div class="barra-acciones-filtros">
+        <button type="button" class="boton-secundario" data-triggers-limpiar hidden>Limpiar</button>
+      </div>
+
+      <div class="triggers-filtros-rapidos" aria-label="Filtros rápidos de acciones">
+        <button type="button" class="triggers-filtro-rapido" data-triggers-filtro-rapido="todos">
+          <i class="bi bi-stars" aria-hidden="true"></i>
+          <span>Todas</span>
+        </button>
+        <button type="button" class="triggers-filtro-rapido" data-triggers-filtro-rapido="activos">
+          <i class="bi bi-check-circle" aria-hidden="true"></i>
+          <span>Activas</span>
+        </button>
+        <button type="button" class="triggers-filtro-rapido" data-triggers-filtro-rapido="dns">
+          <i class="bi bi-globe2" aria-hidden="true"></i>
+          <span>DNS</span>
+        </button>
+        <button type="button" class="triggers-filtro-rapido" data-triggers-filtro-rapido="api">
+          <i class="bi bi-send-check" aria-hidden="true"></i>
+          <span>API</span>
+        </button>
+        <button type="button" class="triggers-filtro-rapido" data-triggers-filtro-rapido="correo">
+          <i class="bi bi-envelope-at" aria-hidden="true"></i>
+          <span>Correo</span>
+        </button>
+        <button type="button" class="triggers-filtro-rapido triggers-filtro-rapido--alerta" data-triggers-filtro-rapido="revision">
+          <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+          <span>Requieren revisión</span>
+        </button>
+      </div>
+
+      <div class="fila-encabezado fila-encabezado--compacta">
+        <p class="texto-apoyo" data-triggers-resumen-listado>Cargando acciones...</p>
+      </div>
+
+      <div class="table-responsive mt-4 organizacion-tabla triggers-tabla">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Acción</th>
+              <th scope="col">Tipo y alcance</th>
+              <th scope="col">Estado y uso</th>
+              <th scope="col">Última actividad</th>
+              <th scope="col" class="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody data-triggers-filas>
+            <tr>
+              <td colspan="5" class="text-body-secondary">
+                <div class="py-3 d-inline-flex align-items-center gap-2">
+                  <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+                  <span>Cargando acciones...</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="paginador-listado" data-triggers-paginador>
+        <span class="texto-apoyo" data-triggers-pagina-actual></span>
+        <div class="paginador-listado__acciones">
+          <button type="button" class="btn btn-outline-secondary" data-triggers-page-action="first">
+            <i class="bi bi-chevron-double-left me-2" aria-hidden="true"></i>
+            Primero
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-triggers-page-action="prev">
+            <i class="bi bi-chevron-left me-2" aria-hidden="true"></i>
+            Anterior
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-triggers-page-action="next">
+            Siguiente
+            <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-triggers-page-action="last">
+            Último
+            <i class="bi bi-chevron-double-right ms-2" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+      </div>
+    <% } %>
+
+    <% if (vistaEnlaces) { %>
+    <% if (!puedeVerMonitores) { %>
+      <div class="tarjeta">
+        <p class="texto-apoyo">La vista de vínculos requiere además permiso de lectura de monitores.</p>
+      </div>
+    <% } else { %>
+      <div class="tarjeta" data-vinculos-shell>
+        <div class="seccion-cabecera">
+          <div>
+            <h3>Explorar enlaces</h3>
+            <p class="texto-apoyo">Busca un monitor o una acción y revisa qué evento los conecta.</p>
+          </div>
+        </div>
+
+        <div class="rejilla-filtros-listado vinculos-filtros-principales" id="vinculos-filtros-principales">
+          <div>
+            <label for="vinculos_q">Buscar enlace</label>
+            <input
+              id="vinculos_q"
+              type="search"
+              autocomplete="off"
+              placeholder="Monitor, acción, evento o alcance..."
+              data-vinculos-q
+              value="<%= filtrosVinculos.textoBusqueda %>"
+            >
+            <small class="texto-apoyo">Para buscar por ID, abre los filtros avanzados.</small>
+          </div>
+          <div>
+            <label for="vinculos_tipo">Tipo</label>
+            <select id="vinculos_tipo" data-vinculos-tipo>
+              <% for (const opcion of opcionesTipoTrigger) { %>
+                <option value="<%= opcion.valor %>" <%= filtrosVinculos.tipo === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div>
+            <label for="vinculos_activo">Estado</label>
+            <select id="vinculos_activo" data-vinculos-activo>
+              <option value="todos" <%= filtrosVinculos.activo === 'todos' ? 'selected' : '' %>>Todos</option>
+              <option value="solo_activos" <%= filtrosVinculos.activo === 'solo_activos' ? 'selected' : '' %>>Solo activos</option>
+              <option value="solo_inactivos" <%= filtrosVinculos.activo === 'solo_inactivos' ? 'selected' : '' %>>Solo inactivos</option>
+            </select>
+          </div>
+          <div>
+            <label for="vinculos_evento">Evento</label>
+            <select id="vinculos_evento" data-vinculos-evento>
+              <% for (const opcion of opcionesEventosDisparo) { %>
+                <option value="<%= opcion.valor %>" <%= filtrosVinculos.eventoDisparo === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div>
+            <label for="vinculos_page_size">Filas</label>
+            <select id="vinculos_page_size" data-vinculos-page-size>
+              <% for (const tamano of [10, 25, 50, 100]) { %>
+                <option value="<%= tamano %>" <%= Number(filtrosVinculos.tamanoPagina) === tamano ? 'selected' : '' %>><%= tamano %></option>
+              <% } %>
+            </select>
+          </div>
+        </div>
+
+        <button type="button" class="vinculos-filtros-movil-toggle" data-vinculos-filtros-movil-toggle aria-expanded="false" aria-controls="vinculos-filtros-principales vinculos-filtros-secundarios vinculos-filtros-acciones">
+          <i class="bi bi-sliders" aria-hidden="true"></i>
+          <span>Más filtros y ordenación</span>
+          <i class="bi bi-chevron-down" aria-hidden="true"></i>
+        </button>
+
+        <details
+          id="vinculos-filtros-secundarios"
+          class="filtros-avanzados"
+          data-vinculos-filtros-avanzados
+          <%= filtrosVinculos.triggerId || filtrosVinculos.monitorId || filtrosVinculos.tenantId || filtrosVinculos.empresaId || filtrosVinculos.ordenarPor !== 'actualizado' || filtrosVinculos.direccionOrden !== 'desc' ? 'open' : '' %>
+        >
+          <summary>
+            <span>
+              <i class="bi bi-sliders" aria-hidden="true"></i>
+              Filtros avanzados
+            </span>
+            <small>IDs técnicas, pertenencia y ordenación</small>
+          </summary>
+          <div class="rejilla-filtros-listado filtros-avanzados__contenido">
+            <div>
+              <label for="vinculos_trigger">ID de acción</label>
+              <input
+                id="vinculos_trigger"
+                type="number"
+                min="1"
+                step="1"
+                placeholder="Ej: 7"
+                data-vinculos-trigger
+                value="<%= filtrosVinculos.triggerId %>"
+              >
+            </div>
+            <div>
+              <label for="vinculos_monitor">Monitor ID</label>
+              <input
+                id="vinculos_monitor"
+                type="number"
+                min="1"
+                step="1"
+                placeholder="Ej: 42"
+                data-vinculos-monitor
+                value="<%= filtrosVinculos.monitorId %>"
+              >
+            </div>
+            <div>
+              <label for="vinculos_tenant">Tenant</label>
+              <select id="vinculos_tenant" data-vinculos-tenant>
+                <option value="">Todos</option>
+                <% for (const opcion of opcionesTenants) { %>
+                  <option value="<%= opcion.valor %>"><%= opcion.etiqueta %></option>
+                <% } %>
+              </select>
+            </div>
+            <div>
+              <label for="vinculos_empresa">Empresa</label>
+              <select id="vinculos_empresa" data-vinculos-empresa>
+                <option value="">Todas</option>
+                <% for (const opcion of opcionesEmpresas) { %>
+                  <option value="<%= opcion.valor %>" data-tenant-id="<%= opcion.tenantId %>"><%= opcion.etiqueta %></option>
+                <% } %>
+              </select>
+            </div>
+            <div>
+              <label for="vinculos_sort_by">Ordenar por</label>
+              <select id="vinculos_sort_by" data-vinculos-sort-by>
+                <% for (const opcion of [
+                  { valor: 'actualizado', etiqueta: 'Actualizado' },
+                  { valor: 'monitor', etiqueta: 'Monitor' },
+                  { valor: 'trigger', etiqueta: 'Acción' },
+                  { valor: 'tipo', etiqueta: 'Tipo' },
+                  { valor: 'tenant', etiqueta: 'Tenant' },
+                  { valor: 'empresa', etiqueta: 'Empresa' },
+                  { valor: 'activo', etiqueta: 'Activo' },
+                  { valor: 'orden', etiqueta: 'Orden' },
+                  { valor: 'creado', etiqueta: 'Creado' }
+                ]) { %>
+                  <option value="<%= opcion.valor %>" <%= filtrosVinculos.ordenarPor === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                <% } %>
+              </select>
+            </div>
+            <div>
+              <label for="vinculos_sort_dir">Dirección</label>
+              <select id="vinculos_sort_dir" data-vinculos-sort-dir>
+                <option value="asc" <%= filtrosVinculos.direccionOrden === 'asc' ? 'selected' : '' %>>Ascendente</option>
+                <option value="desc" <%= filtrosVinculos.direccionOrden === 'desc' ? 'selected' : '' %>>Descendente</option>
+              </select>
+            </div>
+          </div>
+        </details>
+
+        <div class="barra-acciones-filtros vinculos-filtros-acciones" id="vinculos-filtros-acciones">
+          <button type="button" class="boton-primario" data-vinculos-aplicar>Aplicar filtros</button>
+          <button type="button" class="boton-secundario" data-vinculos-limpiar>Limpiar</button>
+        </div>
+
+        <div class="triggers-filtros-rapidos" aria-label="Filtros rápidos de enlaces">
+          <button type="button" class="triggers-filtro-rapido" data-vinculos-filtro-rapido="todos">
+            <i class="bi bi-stars" aria-hidden="true"></i>
+            <span>Todos</span>
+          </button>
+          <button type="button" class="triggers-filtro-rapido" data-vinculos-filtro-rapido="activos">
+            <i class="bi bi-check-circle" aria-hidden="true"></i>
+            <span>Activos</span>
+          </button>
+          <button type="button" class="triggers-filtro-rapido" data-vinculos-filtro-rapido="inactivos">
+            <i class="bi bi-pause-circle" aria-hidden="true"></i>
+            <span>Inactivos</span>
+          </button>
+          <button type="button" class="triggers-filtro-rapido" data-vinculos-filtro-rapido="dns">
+            <i class="bi bi-globe2" aria-hidden="true"></i>
+            <span>DNS</span>
+          </button>
+          <button type="button" class="triggers-filtro-rapido" data-vinculos-filtro-rapido="api">
+            <i class="bi bi-send-check" aria-hidden="true"></i>
+            <span>API</span>
+          </button>
+          <button type="button" class="triggers-filtro-rapido" data-vinculos-filtro-rapido="correo">
+            <i class="bi bi-envelope-at" aria-hidden="true"></i>
+            <span>Correo</span>
+          </button>
+          <button type="button" class="triggers-filtro-rapido" data-vinculos-filtro-rapido="apertura_alerta">
+            <i class="bi bi-bell" aria-hidden="true"></i>
+            <span>Apertura alerta</span>
+          </button>
+          <button type="button" class="triggers-filtro-rapido" data-vinculos-filtro-rapido="cierre_alerta">
+            <i class="bi bi-bell-slash" aria-hidden="true"></i>
+            <span>Cierre alerta</span>
+          </button>
+        </div>
+
+        <div class="fila-encabezado fila-encabezado--compacta">
+          <p class="texto-apoyo" data-vinculos-resumen-listado>Cargando enlaces...</p>
+        </div>
+
+        <div class="table-responsive mt-4 organizacion-tabla vinculos-tabla">
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Monitor</th>
+                <th scope="col">Acción</th>
+                <th scope="col">Activación</th>
+                <th scope="col">Alcance</th>
+                <th scope="col">Fechas</th>
+                <th scope="col" class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody data-vinculos-filas>
+              <tr>
+                <td colspan="6" class="text-body-secondary">
+                  <div class="py-3 d-inline-flex align-items-center gap-2">
+                    <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+                    <span>Cargando enlaces...</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="paginador-listado" data-vinculos-paginador>
+          <span class="texto-apoyo" data-vinculos-pagina-actual></span>
+          <div class="paginador-listado__acciones">
+            <button type="button" class="btn btn-outline-secondary" data-vinculos-page-action="first">
+              <i class="bi bi-chevron-double-left me-2" aria-hidden="true"></i>
+              Primero
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-vinculos-page-action="prev">
+              <i class="bi bi-chevron-left me-2" aria-hidden="true"></i>
+              Anterior
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-vinculos-page-action="next">
+              Siguiente
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-vinculos-page-action="last">
+              Último
+              <i class="bi bi-chevron-double-right ms-2" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    <% } %>
+    <% } %>
+
+    <% if (vistaEnlaces && puedeGestionarVinculosTriggers && puedeVerMonitores) { %>
+    <div class="modal fade modal-impacto-trigger modal-eliminar-vinculo" id="modalEliminarVinculo" tabindex="-1" aria-labelledby="modalEliminarVinculoTitulo" aria-hidden="true" data-modal-eliminar-vinculo>
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <h2 class="modal-title h4" id="modalEliminarVinculoTitulo">Eliminar enlace</h2>
+              <p class="texto-apoyo mb-0">Revisa qué conexión vas a retirar.</p>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-impacto-trigger__hero modal-impacto-trigger__hero--alerta">
+              <span class="organizacion-entidad__icono" aria-hidden="true"><i class="bi bi-link-45deg"></i></span>
+              <div>
+                <strong>Esta acción dejará de estar conectada a este monitor.</strong>
+                <p class="texto-apoyo mb-0">El monitor y la acción se conservarán. Solo se eliminará este enlace.</p>
+              </div>
+            </div>
+            <div class="modal-impacto-trigger__metricas">
+              <article><span>Monitor</span><strong data-modal-eliminar-vinculo-monitor></strong></article>
+              <article><span>Acción</span><strong data-modal-eliminar-vinculo-accion></strong></article>
+              <article><span>Se activa con</span><strong data-modal-eliminar-vinculo-evento></strong></article>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <form method="post" action="/monitores/triggers/vinculos/eliminar" class="d-inline">
+              <input type="hidden" name="id" data-modal-eliminar-vinculo-id>
+              <input type="hidden" name="return_to" data-modal-eliminar-vinculo-retorno>
+              <button type="submit" class="btn btn-danger d-inline-flex align-items-center gap-2"><i class="bi bi-trash3" aria-hidden="true"></i><span>Eliminar enlace</span></button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    <% } %>
+
+    <div
+      class="modal fade modal-uso-trigger"
+      id="modalUsoTrigger"
+      tabindex="-1"
+      aria-labelledby="modalUsoTriggerTitulo"
+      aria-hidden="true"
+      data-modal-uso-trigger
+    >
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <span class="insignia-suave d-inline-flex align-items-center gap-2 mb-2">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                <span>Uso operativo</span>
+              </span>
+              <h2 class="modal-title h4" id="modalUsoTriggerTitulo" data-modal-uso-trigger-titulo>
+                Uso operativo de la acción
+              </h2>
+              <p class="texto-apoyo mb-0" data-modal-uso-trigger-subtitulo>
+                Enlaces visibles, estado operativo y última actividad conocida.
+              </p>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body" data-modal-uso-trigger-cuerpo>
+            <div class="py-4 text-body-secondary d-inline-flex align-items-center gap-2">
+              <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+              <span>Preparando lectura operativa...</span>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="modal fade modal-impacto-trigger"
+      id="modalImpactoTrigger"
+      tabindex="-1"
+      aria-labelledby="modalImpactoTriggerTitulo"
+      aria-hidden="true"
+      data-modal-impacto-trigger
+    >
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <h2 class="modal-title h4" id="modalImpactoTriggerTitulo" data-modal-impacto-trigger-titulo>
+                Eliminar acción
+              </h2>
+              <p class="texto-apoyo mb-0" data-modal-impacto-trigger-subtitulo>
+                Revisa los enlaces y la alternativa segura antes de eliminar.
+              </p>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body" data-modal-impacto-trigger-cuerpo>
+            <div class="py-4 text-body-secondary d-inline-flex align-items-center gap-2">
+              <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+              <span>Preparando impacto...</span>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <a href="/automatizacion/acciones" class="btn btn-outline-secondary" data-modal-impacto-trigger-editar>
+              Editar / desactivar
+            </a>
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+              Cancelar
+            </button>
+            <form method="post" action="/monitores/triggers/eliminar" class="d-inline" data-modal-impacto-trigger-form>
+              <input type="hidden" name="id" value="" data-modal-impacto-trigger-id>
+              <input type="hidden" name="revisionDeclaracion" value="" data-modal-impacto-trigger-revision>
+              <button type="submit" class="btn btn-danger d-inline-flex align-items-center gap-2" data-modal-impacto-trigger-confirmar>
+                <i class="bi bi-trash3" aria-hidden="true"></i>
+                <span>Eliminar definitivamente</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<script src="/js/triggers.js?v=acciones-modal-mobile-20260923"></script>
+
+<%- include('../parciales/pie') %>

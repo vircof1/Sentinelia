@@ -1,0 +1,629 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const triggerSeleccionado = opcionesTriggers.find(
+    (opcion) => String(opcion.valor) === String(formulario.triggerId)
+  );
+  const monitorSeleccionado = opcionesMonitores.find(
+    (opcion) => String(opcion.valor) === String(formulario.monitorId)
+  );
+  const eventosSeleccionados = formulario.eventosDisparo || [];
+  const retornoVinculoSeguro = retornoListado || '/automatizacion/enlaces';
+  const vuelveAGestionMonitor = /^\/monitores\/editar\/\d+(?:\?.*)?$/.test(retornoVinculoSeguro);
+  const vuelveAGestionAccion = /^\/monitores\/triggers\/editar\/\d+(?:\?.*)?$/.test(retornoVinculoSeguro);
+  const retornoGestionEnlace = modo === 'editar' && asignacionObjetivo?.id
+    ? `/monitores/triggers/vinculos/editar/${asignacionObjetivo.id}?return_to=${encodeURIComponent(retornoVinculoSeguro)}`
+    : null;
+  const eventoHero = opcionesEventosDisparo
+    .filter((opcion) => eventosSeleccionados.includes(opcion.valor))
+    .map((opcion) => opcion.etiqueta)
+    .join(' · ') || 'Sin evento elegido';
+%>
+
+<section
+  class="panel-general"
+  data-trigger-vinculo-formulario
+  data-url-monitores-vinculo="/monitores/triggers/api/monitores-vinculo"
+  data-url-triggers-vinculo="/monitores/triggers/api/triggers-vinculo"
+  data-vinculo-correo-trigger-id="<%= triggerSeleccionado?.tipo === 'correo' ? triggerSeleccionado.valor : '' %>"
+  data-vinculo-correo-bloqueado="<%= triggerSeleccionado?.tipo === 'correo' && estadoCorreoVinculo?.operativo === false ? '1' : '0' %>"
+  data-vinculo-correo-canal-bloqueado="<%= estadoCorreoVinculo?.canal?.puedeDespachar === false ? '1' : '0' %>"
+  data-vinculo-correo-origen-invalido="<%= estadoCorreoVinculo?.origenPublicoValido === false ? '1' : '0' %>"
+>
+  <section class="hero-operativo hero-monitores hero-vinculo card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo">
+      <div class="hero-vinculo__cabecera">
+        <div class="hero-operativo__textos">
+          <span class="insignia-suave hero-monitores__insignia">
+            <i class="bi bi-link-45deg" aria-hidden="true"></i>
+            <span>Enlace monitor–acción</span>
+          </span>
+          <h1><%= modo === 'editar' ? 'Gestionar enlace' : 'Crear enlace' %></h1>
+          <p>Elige qué cambios del monitor activarán la acción vinculada.</p>
+          <div class="hero-vinculo__etiquetas" aria-label="Estado y eventos del enlace">
+            <span class="insignia" data-vinculo-hero-estado><%= formulario.activo ? 'Enlace activo' : 'Enlace inactivo' %></span>
+            <span class="insignia"><i class="bi bi-bell" aria-hidden="true"></i><span data-vinculo-hero-eventos><%= eventoHero %></span></span>
+          </div>
+          <div class="hero-vinculo__acciones">
+            <a href="<%= retornoVinculoSeguro %>" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2">
+              <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
+              <span><%= vuelveAGestionMonitor ? 'Volver al monitor' : vuelveAGestionAccion ? 'Volver a la acción' : 'Volver a enlaces' %></span>
+            </a>
+            <button
+              type="button"
+              class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+              data-bs-toggle="collapse"
+              data-bs-target="#vinculo-relaciones-cruzadas"
+              aria-expanded="false"
+              aria-controls="vinculo-relaciones-cruzadas"
+            >
+              <i class="bi bi-diagram-3" aria-hidden="true"></i>
+              <span>Relaciones cruzadas</span>
+              <span class="badge rounded-pill text-bg-light" data-vinculo-hero-relaciones-contador><%= Number(Boolean(monitorSeleccionado)) + Number(Boolean(triggerSeleccionado)) %></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="vinculo-relaciones-cruzadas" class="collapse hero-vinculo__relaciones" role="region" aria-label="Monitor y acción vinculados">
+        <div class="hero-vinculo__flujo">
+          <article class="hero-vinculo__extremo hero-vinculo__extremo--origen">
+            <span class="hero-vinculo__extremo-tipo"><i class="bi bi-broadcast-pin" aria-hidden="true"></i>Origen · monitor</span>
+            <% if (retornoGestionEnlace && monitorSeleccionado?.valor) { %>
+              <a href="/monitores/<%= monitorSeleccionado.valor %>?return_to=<%= encodeURIComponent(retornoGestionEnlace) %>" data-vinculo-hero-monitor-enlace data-vinculo-hero-monitor-nombre><%= monitorSeleccionado.etiqueta %></a>
+            <% } else { %>
+              <strong data-vinculo-hero-monitor-nombre><%= monitorSeleccionado?.etiqueta || 'Sin seleccionar' %></strong>
+            <% } %>
+            <small data-vinculo-hero-monitor-detalle><%= monitorSeleccionado ? `${String(monitorSeleccionado.tipo || '').toUpperCase()} · ${monitorSeleccionado.alcance}` : 'Selecciona un monitor en el formulario.' %></small>
+          </article>
+          <span class="hero-vinculo__flecha" aria-hidden="true"><i class="bi bi-arrow-right"></i></span>
+          <article class="hero-vinculo__extremo hero-vinculo__extremo--destino">
+            <span class="hero-vinculo__extremo-tipo"><i class="bi bi-lightning-charge" aria-hidden="true"></i>Destino · acción</span>
+            <% if (retornoGestionEnlace && triggerSeleccionado?.valor && puedeEditarTriggers) { %>
+              <a href="/monitores/triggers/editar/<%= triggerSeleccionado.valor %>?return_to=<%= encodeURIComponent(retornoGestionEnlace) %>" data-vinculo-hero-accion-enlace data-vinculo-hero-accion-nombre><%= triggerSeleccionado.etiqueta %></a>
+            <% } else { %>
+              <strong data-vinculo-hero-accion-nombre><%= triggerSeleccionado?.etiqueta || triggerPreseleccionado?.nombre || 'Sin seleccionar' %></strong>
+            <% } %>
+            <small data-vinculo-hero-accion-detalle><%= triggerSeleccionado ? `${String(triggerSeleccionado.tipo || '').toUpperCase()} · ${triggerSeleccionado.activo ? 'Activa' : 'Inactiva'}` : 'Selecciona una acción en el formulario.' %></small>
+          </article>
+        </div>
+        <p class="hero-vinculo__compatibilidad"><strong data-vinculo-resumen-compatibilidad>Pendiente de selección</strong><span data-vinculo-resumen-destino></span></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h2>Formulario de vínculo</h2>
+        <p class="texto-apoyo">
+          Solo aparecen monitores y acciones dentro de tu alcance.
+        </p>
+      </div>
+    </div>
+
+    <% if (errorFormulario) { %>
+      <div class="mensaje-error"><%= errorFormulario %></div>
+    <% } %>
+
+    <% if (opcionesTriggers.length === 0) { %>
+      <div class="tarjeta">
+        <p class="texto-apoyo">No hay acciones disponibles para vincular todavía.</p>
+      </div>
+    <% } else if (opcionesMonitores.length === 0) { %>
+      <div class="tarjeta">
+        <p class="texto-apoyo">No hay monitores visibles dentro de tu alcance actual para crear el vínculo.</p>
+      </div>
+    <% } else { %>
+      <div class="card border-0 shadow-sm overflow-hidden">
+        <form
+          method="post"
+          action="<%= modo === 'editar' ? `/monitores/triggers/vinculos/${asignacionObjetivo.id}/actualizar` : '/monitores/triggers/vinculos/crear' %>"
+          class="formulario-organizacion p-0"
+        >
+          <input type="hidden" name="return_to" value="<%= retornoVinculoSeguro %>">
+
+          <section class="card-body border-bottom">
+            <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
+              <div>
+                <span class="insignia-suave">
+                  <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                  Enlace
+                </span>
+                <h3 class="h4 mt-2 mb-1">Origen y acción</h3>
+                <p class="texto-apoyo">
+                  Selecciona el monitor que emite eventos y la acción que debe
+                  ejecutarse cuando esos eventos ocurran.
+                </p>
+              </div>
+              <span class="insignia-monitor insignia-monitor--suave">
+                <%= alcanceActual.descripcion %>
+              </span>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-12 col-xl-6">
+                <label for="vinculo_monitor_id" class="form-label fw-semibold">Monitor origen</label>
+                <select
+                  id="vinculo_monitor_id"
+                  name="monitorId"
+                  class="visually-hidden"
+                  data-vinculo-monitor
+                  required
+                  aria-hidden="true"
+                  tabindex="-1"
+                >
+                  <option value="">Selecciona monitor</option>
+                  <% for (const opcion of opcionesMonitores) { %>
+                    <option
+                      value="<%= opcion.valor %>"
+                      data-nombre="<%= opcion.etiqueta %>"
+                      data-tenant-id="<%= opcion.tenantId %>"
+                      data-empresa-id="<%= opcion.empresaId %>"
+                      data-sitio-id="<%= opcion.sitioId || '' %>"
+                      data-tipo="<%= opcion.tipo || '' %>"
+                      data-activo="<%= opcion.activo ? '1' : '0' %>"
+                      data-nivel-pertenencia="<%= opcion.sitioId ? 'sitio' : 'empresa' %>"
+                      data-alcance="<%= opcion.alcance %>"
+                      <%= String(formulario.monitorId) === String(opcion.valor) ? 'selected' : '' %>
+                    >
+                      <%= opcion.etiqueta %> · <%= String(opcion.tipo || '').toUpperCase() %> · <%= opcion.alcance %><%= opcion.activo ? '' : ' · inactivo' %>
+                    </option>
+                  <% } %>
+                </select>
+                <div class="trigger-vinculo-selector" data-vinculo-monitor-card>
+                  <div class="trigger-vinculo-selector__contenido">
+                    <span class="organizacion-entidad__icono" aria-hidden="true">
+                      <i class="bi bi-broadcast-pin"></i>
+                    </span>
+                    <div>
+                      <strong data-vinculo-monitor-resumen>
+                        <%= monitorSeleccionado?.etiqueta || 'Selecciona monitor origen' %>
+                      </strong>
+                      <p class="texto-apoyo mb-0" data-vinculo-monitor-detalle>
+                        <%= monitorSeleccionado?.alcance || 'El monitor decide cuándo nace el evento.' %>
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-2"
+                    data-vinculo-monitor-abrir-selector
+                  >
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <span>Buscar monitor</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="col-12 col-xl-6">
+                <label for="vinculo_trigger_id" class="form-label fw-semibold">Acción vinculada</label>
+                <select
+                  id="vinculo_trigger_id"
+                  name="triggerId"
+                  class="visually-hidden"
+                  data-vinculo-trigger
+                  required
+                  aria-hidden="true"
+                  tabindex="-1"
+                >
+                  <option value="">Selecciona una acción</option>
+                  <% for (const opcion of opcionesTriggers) { %>
+                    <option
+                      value="<%= opcion.valor %>"
+                      data-nombre="<%= opcion.etiqueta %>"
+                      data-tipo="<%= opcion.tipo || '' %>"
+                      data-activo="<%= opcion.activo ? '1' : '0' %>"
+                      data-tenant-id="<%= opcion.tenantId %>"
+                      data-empresa-id="<%= opcion.empresaId %>"
+                      data-sitio-id="<%= opcion.sitioId || '' %>"
+                      data-nivel-pertenencia="<%= opcion.nivelPertenencia %>"
+                      data-alcance="<%= opcion.alcance %>"
+                      data-scope-valido="<%= opcion.scopeValido ? '1' : '0' %>"
+                      data-puede-vincular="<%= opcion.puedeVincular ? '1' : '0' %>"
+                      <%= (!opcion.scopeValido || !opcion.puedeVincular) ? 'disabled' : '' %>
+                      <%= String(formulario.triggerId) === String(opcion.valor) ? 'selected' : '' %>
+                    >
+                      <%= opcion.etiqueta %> · <%= String(opcion.tipo || '').toUpperCase() %><%= opcion.activo ? '' : ' · inactivo' %><%= opcion.scopeValido ? '' : ' · alcance inválido' %>
+                    </option>
+                  <% } %>
+                </select>
+                <div class="trigger-vinculo-selector" data-vinculo-trigger-card>
+                  <div class="trigger-vinculo-selector__contenido">
+                    <span class="organizacion-entidad__icono" aria-hidden="true">
+                      <i class="bi bi-lightning-charge"></i>
+                    </span>
+                    <div>
+                      <strong data-vinculo-trigger-resumen>
+                        <%= triggerSeleccionado?.etiqueta || triggerPreseleccionado?.nombre || 'Selecciona una acción' %>
+                      </strong>
+                      <p class="texto-apoyo mb-0" data-vinculo-trigger-detalle>
+                        <%= triggerSeleccionado?.alcance || 'La acción indica qué ocurrirá al recibir un evento.' %>
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-2"
+                    data-vinculo-trigger-abrir-selector
+                  >
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <span>Buscar acción</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card-body border-bottom">
+            <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
+              <div>
+                <span class="insignia-suave">
+                  <i class="bi bi-play-circle" aria-hidden="true"></i>
+                  Ejecución
+                </span>
+                <h3 class="h4 mt-2 mb-1">Estado y orden</h3>
+                <p class="texto-apoyo">
+                  Decide si el enlace queda activo y en qué orden se atenderá
+                  cuando coincida con otros enlaces.
+                </p>
+              </div>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-12 col-lg-4">
+                <label for="vinculo_activo" class="form-label fw-semibold"><%= modo === 'editar' ? 'Estado del enlace' : 'Estado inicial' %></label>
+                <select id="vinculo_activo" name="activo" class="form-select">
+                  <option value="1" <%= formulario.activo ? 'selected' : '' %>>Activo</option>
+                  <option value="0" <%= !formulario.activo ? 'selected' : '' %>>Inactivo</option>
+                </select>
+              </div>
+
+              <div class="col-12 col-lg-4">
+                <label for="vinculo_orden_ejecucion" class="form-label fw-semibold">Orden de ejecución</label>
+                <input
+                  id="vinculo_orden_ejecucion"
+                  name="ordenEjecucion"
+                  type="number"
+                  class="form-control"
+                  min="0"
+                  max="65535"
+                  step="1"
+                  value="<%= formulario.ordenEjecucion %>"
+                  required
+                >
+              </div>
+
+              <div class="col-12 col-lg-4">
+                <div class="alert alert-info trigger-vinculo-prioridad mb-0 h-100">
+                  <strong>Orden menor, ejecución antes.</strong>
+                  <span class="d-block mt-1">Si dos vínculos comparten evento, este número decide la prioridad.</span>
+                </div>
+              </div>
+            </div>
+            <div class="alert alert-warning mt-3 mb-0 d-none" role="status" data-vinculo-operatividad></div>
+          </section>
+
+          <section class="card-body border-bottom">
+            <div class="mb-4">
+              <span class="insignia-suave">
+                <i class="bi bi-bell" aria-hidden="true"></i>
+                Eventos
+              </span>
+              <h3 class="h4 mt-2 mb-1">Cuándo se dispara</h3>
+              <p class="texto-apoyo">Selecciona qué cambios del monitor activarán la acción.</p>
+            </div>
+
+            <div class="row g-3">
+              <% for (const opcion of opcionesEventosDisparo) { %>
+                <div class="col-12 col-lg-6">
+                  <label class="tarjeta-permiso h-100">
+                    <input
+                      type="checkbox"
+                      name="eventosDisparo"
+                      value="<%= opcion.valor %>"
+                      <%= eventosSeleccionados.includes(opcion.valor) ? 'checked' : '' %>
+                    >
+                    <span class="tarjeta-permiso__texto">
+                      <strong><%= opcion.etiqueta %></strong>
+                      <span><%= opcion.descripcion %></span>
+                    </span>
+                  </label>
+                </div>
+              <% } %>
+            </div>
+            <div class="alert alert-warning mt-3 mb-0 d-none" data-vinculo-eventos-alerta>
+              <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+              Selecciona al menos un evento de disparo para que el vínculo pueda ejecutarse.
+            </div>
+          </section>
+
+          <section class="card-body border-bottom">
+            <details class="filtros-avanzados" <%= formulario.configuracionOverride ? 'open' : '' %>>
+              <summary>
+                <span>
+                  <i class="bi bi-braces" aria-hidden="true"></i>
+                  Configuración específica de API
+                </span>
+                <small>Solo si este monitor necesita una configuración especial</small>
+              </summary>
+              <div class="filtros-avanzados__contenido">
+                <p class="texto-apoyo mb-3">
+                  Cambia parte de la configuración técnica de esta acción API
+                  solo para este monitor. Déjalo vacío si no necesitas un ajuste especial.
+                </p>
+                <label for="vinculo_configuracion_override" class="form-label fw-semibold">Configuración específica en JSON</label>
+                <textarea
+                  id="vinculo_configuracion_override"
+                  name="configuracionOverride"
+                  rows="7"
+                  class="form-control font-monospace"
+                  placeholder='{"timeoutMs":3000,"parametroOpcional":"canal-secundario"}'
+                ><%= formulario.configuracionOverride || '' %></textarea>
+              </div>
+            </details>
+          </section>
+
+          <div class="acciones-formulario p-4">
+            <button type="submit" class="boton-primario"><%= modo === 'editar' ? 'Guardar vínculo' : 'Crear vínculo' %></button>
+            <a href="<%= retornoVinculoSeguro %>" class="boton-secundario enlace-boton">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    <% } %>
+  </section>
+
+  <div
+    class="modal fade"
+    id="vinculo_monitor_selector_modal"
+    tabindex="-1"
+    aria-labelledby="vinculo_monitor_selector_modal_titulo"
+    aria-hidden="true"
+    data-vinculo-monitor-selector-modal
+  >
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <p class="text-uppercase text-primary-emphasis fw-semibold small mb-1">
+              Monitor origen
+            </p>
+            <h2 class="modal-title h5" id="vinculo_monitor_selector_modal_titulo">
+              Seleccionar monitor
+            </h2>
+            <p class="text-body-secondary mb-0">
+              Solo aparecen monitores visibles para tu sesión y aptos para vinculación.
+            </p>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3 align-items-end mb-3">
+            <div class="col-12 col-lg-8">
+              <label for="vinculo_monitor_selector_busqueda" class="form-label">Buscar monitor</label>
+              <input
+                id="vinculo_monitor_selector_busqueda"
+                type="search"
+                class="form-control"
+                placeholder="Nombre, empresa, sitio, tipo..."
+                data-vinculo-monitor-selector-busqueda
+              >
+            </div>
+            <div class="col-12 col-lg-4">
+              <button
+                type="button"
+                class="btn btn-primary w-100 d-inline-flex align-items-center justify-content-center gap-2"
+                data-vinculo-monitor-selector-buscar
+              >
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <span>Buscar</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="texto-apoyo mb-3" data-vinculo-monitor-selector-estado>
+            Abre el buscador para localizar monitores visibles.
+          </div>
+
+          <div class="table-responsive border rounded">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th scope="col">Monitor</th>
+                  <th scope="col">Tipo</th>
+                  <th scope="col">Alcance</th>
+                  <th scope="col">Estado</th>
+                  <th scope="col" class="text-end">Acción</th>
+                </tr>
+              </thead>
+              <tbody data-vinculo-monitor-selector-resultados>
+                <tr>
+                  <td colspan="5" class="text-body-secondary">
+                    Sin resultados todavía.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="paginador-listado mt-3" data-vinculo-monitor-selector-paginador>
+            <span class="text-body-secondary" data-vinculo-monitor-selector-pagina>
+              Página 1 de 1
+            </span>
+            <div class="grupo-paginacion">
+              <button type="button" class="btn btn-outline-secondary" data-vinculo-monitor-selector-page-action="first">
+                <i class="bi bi-chevron-double-left" aria-hidden="true"></i>
+                <span>Primero</span>
+              </button>
+              <button type="button" class="btn btn-outline-secondary" data-vinculo-monitor-selector-page-action="prev">
+                <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                <span>Anterior</span>
+              </button>
+              <button type="button" class="btn btn-outline-secondary" data-vinculo-monitor-selector-page-action="next">
+                <span>Siguiente</span>
+                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="btn btn-outline-secondary" data-vinculo-monitor-selector-page-action="last">
+                <span>Último</span>
+                <i class="bi bi-chevron-double-right" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="modal fade"
+    id="vinculo_trigger_selector_modal"
+    tabindex="-1"
+    aria-labelledby="vinculo_trigger_selector_modal_titulo"
+    aria-hidden="true"
+    data-vinculo-trigger-selector-modal
+  >
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <p class="text-uppercase text-primary-emphasis fw-semibold small mb-1">
+              Acción vinculada
+            </p>
+            <h2 class="modal-title h5" id="vinculo_trigger_selector_modal_titulo">
+              Seleccionar acción
+            </h2>
+            <p class="text-body-secondary mb-0">
+              Solo aparecen acciones visibles y vinculables para tu sesión.
+            </p>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3 align-items-end mb-3">
+            <div class="col-12 col-lg-8">
+              <label for="vinculo_trigger_selector_busqueda" class="form-label">Buscar acción</label>
+              <input
+                id="vinculo_trigger_selector_busqueda"
+                type="search"
+                class="form-control"
+                placeholder="Nombre, tipo, alcance, descripción..."
+                data-vinculo-trigger-selector-busqueda
+              >
+            </div>
+            <div class="col-12 col-lg-4">
+              <button
+                type="button"
+                class="btn btn-primary w-100 d-inline-flex align-items-center justify-content-center gap-2"
+                data-vinculo-trigger-selector-buscar
+              >
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <span>Buscar</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="texto-apoyo mb-3" data-vinculo-trigger-selector-estado>
+            Abre el buscador para localizar acciones vinculables.
+          </div>
+
+          <div class="table-responsive border rounded">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th scope="col">Acción</th>
+                  <th scope="col">Tipo</th>
+                  <th scope="col">Alcance</th>
+                  <th scope="col">Estado</th>
+                  <th scope="col" class="text-end">Acción</th>
+                </tr>
+              </thead>
+              <tbody data-vinculo-trigger-selector-resultados>
+                <tr>
+                  <td colspan="5" class="text-body-secondary">
+                    Sin resultados todavía.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="paginador-listado mt-3" data-vinculo-trigger-selector-paginador>
+            <span class="text-body-secondary" data-vinculo-trigger-selector-pagina>
+              Página 1 de 1
+            </span>
+            <div class="grupo-paginacion">
+              <button type="button" class="btn btn-outline-secondary" data-vinculo-trigger-selector-page-action="first">
+                <i class="bi bi-chevron-double-left" aria-hidden="true"></i>
+                <span>Primero</span>
+              </button>
+              <button type="button" class="btn btn-outline-secondary" data-vinculo-trigger-selector-page-action="prev">
+                <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                <span>Anterior</span>
+              </button>
+              <button type="button" class="btn btn-outline-secondary" data-vinculo-trigger-selector-page-action="next">
+                <span>Siguiente</span>
+                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="btn btn-outline-secondary" data-vinculo-trigger-selector-page-action="last">
+                <span>Último</span>
+                <i class="bi bi-chevron-double-right" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="modal fade modal-plan-trigger"
+    id="modalPlanVinculo"
+    tabindex="-1"
+    aria-labelledby="modalPlanVinculoTitulo"
+    aria-hidden="true"
+    data-vinculo-plan-modal
+  >
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <p class="text-uppercase text-primary-emphasis fw-semibold small mb-1">
+              Plan de vínculo
+            </p>
+            <h2 class="modal-title h4" id="modalPlanVinculoTitulo">
+              Revisión antes de guardar
+            </h2>
+            <p class="text-body-secondary mb-0">
+              Confirma qué monitor activará la acción y con qué eventos.
+            </p>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body" data-vinculo-plan-cuerpo>
+          Preparando resumen del enlace...
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+            Revisar
+          </button>
+          <button type="button" class="btn btn-primary" data-vinculo-plan-confirmar>
+            Confirmar y guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script src="/js/trigger-vinculo-formulario.js"></script>
+<%- include('../parciales/pie') %>

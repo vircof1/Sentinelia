@@ -1,0 +1,190 @@
+<div
+  class="modal fade"
+  id="modal-selector-monitor-historico"
+  tabindex="-1"
+  aria-labelledby="modal-selector-monitor-historico-titulo"
+  aria-hidden="true"
+  data-historico-selector-modal
+  data-url-listado="/monitores/api/listado"
+>
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <div>
+          <span class="badge text-bg-info-subtle text-info-emphasis rounded-pill mb-2 d-inline-flex align-items-center gap-2">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            Selección guiada
+          </span>
+          <h2
+            class="modal-title fs-4 d-inline-flex align-items-center gap-2"
+            id="modal-selector-monitor-historico-titulo"
+          >
+            <i class="bi bi-hdd-network" aria-hidden="true"></i>
+            <span>Buscar monitor para el histórico</span>
+          </h2>
+          <p class="text-body-secondary mb-0">
+            Filtra por nombre, tipo o alcance y elige un monitor visible dentro de tu scope actual.
+          </p>
+        </div>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Cerrar"
+        ></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="row g-3 align-items-end">
+          <div class="col-12 col-lg-4">
+            <label for="historico_selector_q" class="form-label">Monitor o descripción</label>
+            <input
+              id="historico_selector_q"
+              type="search"
+              class="form-control"
+              placeholder="Buscar por nombre, descripción o alcance"
+              autocomplete="off"
+              data-historico-selector-q
+            >
+          </div>
+          <div class="col-6 col-lg-2">
+            <label for="historico_selector_tipo" class="form-label">Tipo</label>
+            <select id="historico_selector_tipo" class="form-select" data-historico-selector-tipo>
+              <% for (const opcion of opcionesTipo) { %>
+                <option value="<%= opcion.valor %>"><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-6 col-lg-3">
+            <label for="historico_selector_tenant" class="form-label">Tenant</label>
+            <select id="historico_selector_tenant" class="form-select" data-historico-selector-tenant>
+              <option value="">Todos</option>
+              <% for (const opcion of opcionesTenants) { %>
+                <option value="<%= opcion.valor %>"><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-12 col-lg-3">
+            <label for="historico_selector_empresa" class="form-label">Empresa</label>
+            <select id="historico_selector_empresa" class="form-select" data-historico-selector-empresa>
+              <option value="">Todas</option>
+              <% for (const opcion of opcionesEmpresas) { %>
+                <option value="<%= opcion.valor %>" data-tenant-id="<%= opcion.tenantId %>"><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-6 col-lg-2">
+            <label for="historico_selector_pertenencia" class="form-label">Pertenencia</label>
+            <select id="historico_selector_pertenencia" class="form-select" data-historico-selector-pertenencia>
+              <% for (const opcion of opcionesPertenencia) { %>
+                <option value="<%= opcion.valor %>"><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-6 col-lg-2">
+            <label for="historico_selector_activo" class="form-label">Estado</label>
+            <select id="historico_selector_activo" class="form-select" data-historico-selector-activo>
+              <% for (const opcion of opcionesEstadoListado) { %>
+                <option value="<%= opcion.valor %>" <%= opcion.valor === 'solo_activos' ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-6 col-lg-2">
+            <label for="historico_selector_filas" class="form-label">Filas</label>
+            <select id="historico_selector_filas" class="form-select" data-historico-selector-page-size>
+              <% for (const opcion of opcionesTamanoPaginaListado) { %>
+                <option value="<%= opcion %>" <%= Number(opcion) === 10 ? 'selected' : '' %>><%= opcion %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-6 col-lg-3">
+            <label for="historico_selector_sort_by" class="form-label">Ordenar por</label>
+            <select id="historico_selector_sort_by" class="form-select" data-historico-selector-sort-by>
+              <% for (const opcion of opcionesOrdenListado) { %>
+                <option value="<%= opcion.valor %>" <%= opcion.valor === 'nombre' ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-6 col-lg-3">
+            <label for="historico_selector_sort_dir" class="form-label">Dirección</label>
+            <select id="historico_selector_sort_dir" class="form-select" data-historico-selector-sort-dir>
+              <option value="asc" selected>Ascendente</option>
+              <option value="desc">Descendente</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mt-3">
+          <button
+            type="button"
+            class="btn btn-primary d-inline-flex align-items-center gap-2"
+            data-historico-selector-aplicar
+          >
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <span>Buscar</span>
+          </button>
+          <button
+            type="button"
+            class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
+            data-historico-selector-limpiar
+          >
+            <i class="bi bi-eraser" aria-hidden="true"></i>
+            <span>Limpiar</span>
+          </button>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mt-4 mb-3">
+          <p class="text-body-secondary mb-0" data-historico-selector-resumen-listado>
+            Cargando monitores...
+          </p>
+          <p class="text-body-secondary mb-0">
+            Alcance actual: <strong><%= alcanceActual.descripcion %></strong>
+          </p>
+        </div>
+
+        <div class="table-responsive">
+          <div data-historico-selector-estado class="text-body-secondary mb-2">Cargando monitores...</div>
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Monitor</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Scope</th>
+                <th scope="col">Runtime</th>
+                <th scope="col">Cadencia</th>
+                <th scope="col" class="text-end">Selección</th>
+              </tr>
+            </thead>
+            <tbody data-historico-selector-filas>
+              <tr>
+                <td colspan="6" class="text-body-secondary">Cargando monitores...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer d-flex justify-content-between align-items-center gap-3 flex-wrap">
+        <span class="text-body-secondary" data-historico-selector-pagina-actual></span>
+        <div class="btn-group" role="group" aria-label="Paginación selector de monitores">
+          <button type="button" class="btn btn-outline-secondary" data-historico-selector-page-action="first">
+            <i class="bi bi-chevron-double-left me-2" aria-hidden="true"></i>
+            Primero
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-historico-selector-page-action="prev">
+            <i class="bi bi-chevron-left me-2" aria-hidden="true"></i>
+            Anterior
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-historico-selector-page-action="next">
+            Siguiente
+            <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-historico-selector-page-action="last">
+            Último
+            <i class="bi bi-chevron-double-right ms-2" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

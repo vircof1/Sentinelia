@@ -1,0 +1,174 @@
+<input type="hidden" name="versionCorreo" value="<%= formulario.versionCorreo || '1' %>">
+<% const destinatariosSinCorreoDisponible = Math.max(0, experienciaCorreo.resumen.relacionesTotal - experienciaCorreo.resumen.relacionesEntregables); %>
+
+<% if (experienciaCorreo.estado.diagnosticos.length) { %>
+  <div class="alert alert-warning" role="status">
+    <strong>El correo necesita atención.</strong>
+    Revisa: <%= experienciaCorreo.estado.diagnosticos.join(', ') %>.
+  </div>
+<% } %>
+
+<div class="campo-formulario">
+  <label for="trigger_correo_asunto">Asunto del correo</label>
+  <input
+    id="trigger_correo_asunto"
+    name="asuntoPlantilla"
+    type="text"
+    maxlength="255"
+    required
+    value="<%= formulario.asuntoPlantilla || '' %>"
+  >
+  <p class="texto-apoyo">
+    Puedes insertar <code>{{portal}}</code>, <code>{{transicion}}</code>,
+    <code>{{monitor}}</code> o <code>{{estado}}</code>; se sustituirán al enviar.
+  </p>
+</div>
+
+<div class="campo-formulario">
+  <label for="trigger_correo_introduccion">Introducción opcional</label>
+  <textarea id="trigger_correo_introduccion" name="textoIntroduccion" maxlength="2000" rows="5"><%= formulario.textoIntroduccion || '' %></textarea>
+  <p class="texto-apoyo">Aparecerá al principio del mensaje. Se respetan los saltos de línea.</p>
+</div>
+
+<div class="campo-formulario">
+  <label for="trigger_correo_cierre">Cierre opcional</label>
+  <textarea id="trigger_correo_cierre" name="textoCierre" maxlength="2000" rows="5"><%= formulario.textoCierre || '' %></textarea>
+  <p class="texto-apoyo">Aparecerá después de los datos del aviso. El enlace para dejar de recibir correos se añade automáticamente.</p>
+</div>
+
+<section class="bloque-configuracion-monitor" data-trigger-correo-audiencia data-relaciones-total="<%= experienciaCorreo.resumen.relacionesTotal %>" data-relaciones-entregables="<%= experienciaCorreo.resumen.relacionesEntregables %>" data-vinculos-total="<%= experienciaCorreo.resumen.vinculosTotal %>">
+  <div class="bloque-configuracion-monitor__cabecera">
+    <div>
+      <h3>Destinatarios</h3>
+      <p class="texto-apoyo">
+        Añade direcciones o usuarios y marca los que quieras retirar. Los cambios se
+        aplicarán cuando guardes la acción.
+      </p>
+    </div>
+  </div>
+
+  <div class="rejilla-resumen trigger-correo-audiencia__resumen mb-3">
+    <article class="kpi-resumen"><span class="etiqueta">Destinatarios</span><strong><%= experienciaCorreo.resumen.relacionesTotal %></strong></article>
+    <article class="kpi-resumen"><span class="etiqueta">Pueden recibir avisos</span><strong><%= experienciaCorreo.resumen.relacionesEntregables %></strong><% if (destinatariosSinCorreoDisponible > 0) { %><small><%= destinatariosSinCorreoDisponible %> <%= destinatariosSinCorreoDisponible === 1 ? 'no puede recibirlos ahora' : 'no pueden recibirlos ahora' %></small><% } %></article>
+  </div>
+
+  <% if (experienciaCorreo.resumen.vinculosTotal > 0) { %>
+    <div class="alert alert-info">
+      <strong><%= experienciaCorreo.resumen.vinculosTotal %>
+        <%= experienciaCorreo.resumen.vinculosTotal === 1 ? 'monitor vinculado' : 'monitores vinculados' %></strong>
+      <%= experienciaCorreo.resumen.vinculosTotal === 1 ? 'podría' : 'podrían' %>
+      utilizar estos cambios en sus próximos avisos.
+    </div>
+  <% } %>
+
+  <% if (experienciaCorreo.audiencia.relaciones.length) { %>
+    <div class="table-responsive mb-3 trigger-correo-audiencia__contenedor">
+      <table class="table table-sm align-middle trigger-correo-audiencia__tabla">
+        <thead><tr><th>Destinatario</th><th>Estado</th><th>Cambio</th></tr></thead>
+        <tbody>
+          <% for (const relacion of experienciaCorreo.audiencia.relaciones) { %>
+            <tr>
+              <td>
+                <% if (relacion.restringida) { %>
+                  <span class="text-body-secondary">Usuario fuera de alcance</span>
+                <% } else if (relacion.tipo === 'manual') { %>
+                  <strong><%= relacion.email %></strong><small class="d-block"><%= relacion.nombre || 'Dirección manual' %></small>
+                <% } else { %>
+                  <strong><%= relacion.usuario.nombre %></strong><small class="d-block"><%= relacion.usuario.email || 'Email no utilizable' %></small>
+                <% } %>
+              </td>
+              <td><%= relacion.estadoParticipacion === 'activa' ? 'Recibe avisos' : relacion.estadoParticipacion === 'desuscrita' ? 'Dejó de recibir avisos' : relacion.estadoParticipacion %></td>
+              <td>
+                <% if (!relacion.restringida && relacion.estadoParticipacion === 'activa') { %>
+                  <label><input type="checkbox" name="retirarRelacionesIds" value="<%= relacion.relacionId %>"> Retirar</label>
+                <% } else if (!relacion.restringida && relacion.estadoParticipacion === 'desuscrita') { %>
+                  <label><input type="checkbox" name="reincorporarRelacionesIds" value="<%= relacion.relacionId %>"> Reincorporar</label>
+                <% } else { %>
+                  <span class="text-body-secondary">Sin acción directa</span>
+                <% } %>
+              </td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+  <div class="campo-formulario">
+    <label for="trigger_correo_audiencia_manuales">Nuevas direcciones manuales</label>
+    <textarea id="trigger_correo_audiencia_manuales" name="audienciaManuales" rows="3" placeholder="una-direccion@ejemplo.es&#10;otra@ejemplo.es"><%= formulario.audienciaManuales || '' %></textarea>
+    <p class="texto-apoyo">Una dirección por línea. No necesita una cuenta de Sentinelia.</p>
+  </div>
+
+  <% if (modo === 'editar') { %>
+    <div class="campo-formulario" data-trigger-correo-selector-usuarios data-url="/monitores/triggers/<%= triggerObjetivo.id %>/correo/usuarios">
+      <label for="trigger_correo_buscar_usuario">Añadir usuarios por identidad</label>
+      <div class="input-group">
+        <input id="trigger_correo_buscar_usuario" type="search" placeholder="Nombre, cuenta o email" data-trigger-correo-busqueda-usuario>
+        <button type="button" class="btn btn-outline-secondary" data-trigger-correo-buscar-usuario>Buscar</button>
+      </div>
+      <div class="mt-2" data-trigger-correo-resultados-usuarios></div>
+    </div>
+  <% } else if (experienciaCorreo.usuariosElegibles?.length) { %>
+    <fieldset class="campo-formulario">
+      <legend class="fs-6">Usuarios internos alcanzables</legend>
+      <% for (const usuario of experienciaCorreo.usuariosElegibles) { %>
+        <label class="d-flex gap-2 align-items-start border rounded p-2 mb-2">
+          <input type="checkbox" name="audienciaUsuarios" value="<%= usuario.id %>">
+          <span>
+            <strong><%= usuario.nombre %></strong>
+            <small class="d-block"><%= usuario.email %></small>
+            <% if (!usuario.entregableAhora) { %>
+              <small class="d-block text-warning">No recibirá avisos hasta que tenga un correo validado y disponible.</small>
+            <% } %>
+          </span>
+        </label>
+      <% } %>
+    </fieldset>
+  <% } %>
+</section>
+
+<section class="bloque-configuracion-monitor">
+  <h3>Vista previa del correo</h3>
+  <p class="texto-apoyo">Comprueba cómo se leerá el mensaje con datos de ejemplo. Abrir la vista previa no envía ningún correo.</p>
+  <p class="trigger-correo-previa__resumen"><span class="d-block text-body-secondary small">Asunto de ejemplo</span><strong data-trigger-correo-previa-asunto><%= experienciaCorreo.previa.mensajeMaterializado.asunto %></strong></p>
+  <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalPreviaCorreo">
+    <i class="bi bi-eye" aria-hidden="true"></i> Leer correo de ejemplo
+  </button>
+  <p class="texto-apoyo mt-2 mb-0" role="status" data-trigger-correo-previa-estado></p>
+</section>
+
+<% if (modo === 'editar') { %>
+  <section class="bloque-configuracion-monitor">
+    <h3>Probar el correo</h3>
+    <div class="campo-formulario">
+      <label for="trigger_correo_prueba_destinatario">Buzón para la prueba</label>
+      <input id="trigger_correo_prueba_destinatario" name="destinatarioEmail" type="email" placeholder="diagnostico@ejemplo.es">
+      <p class="texto-apoyo">Se envía solo a ese buzón para revisar el mensaje; no crea una alerta ni cambia el estado del monitor.</p>
+      <button class="btn btn-outline-primary" type="submit" formnovalidate formaction="/monitores/triggers/<%= triggerObjetivo.id %>/correo/probar" formmethod="post">
+        Enviar correo de prueba
+      </button>
+    </div>
+  </section>
+<% } %>
+
+<% if (modo === 'editar') { %>
+  <section class="bloque-configuracion-monitor">
+    <h3>Actividad de correo reciente</h3>
+    <% if (experienciaCorreo.resumen.backlogAceptado > 0) { %>
+      <p class="texto-apoyo"><%= experienciaCorreo.resumen.backlogAceptado %> <%= experienciaCorreo.resumen.backlogAceptado === 1 ? 'envío en curso o en espera' : 'envíos en curso o en espera' %>.</p>
+    <% } %>
+    <% if (!experienciaCorreo.historico.elementos.length) { %>
+      <p class="texto-apoyo">Todavía no hay actividad de correo visible para esta acción.</p>
+    <% } else { %>
+      <ul class="list-group">
+        <% for (const ejecucion of experienciaCorreo.historico.elementos) { %>
+          <li class="list-group-item d-flex justify-content-between gap-3">
+            <span><strong><%= ejecucion.eventoDisparo %></strong> · <%= ejecucion.estadoEjecucion %></span>
+            <a href="/monitores/triggers/correo/ejecuciones/<%= ejecucion.ejecucionId %>" target="_blank" rel="noopener">Ver detalle autorizado</a>
+          </li>
+        <% } %>
+      </ul>
+    <% } %>
+  </section>
+<% } %>

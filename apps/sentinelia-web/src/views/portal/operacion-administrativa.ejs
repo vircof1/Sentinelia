@@ -1,0 +1,169 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+<%
+  const sujeto = operacion.sujeto;
+  const plural = sujeto.tipo === 'tenant' ? 'tenants' : `${sujeto.tipo}s`;
+  const vuelta = sujeto.tipo === 'agente' ? '/agentes' : `/organizacion/${plural}`;
+  const etiquetaTipo = ({ agente: 'Agente', tenant: 'Tenant', empresa: 'Empresa', sitio: 'Sitio' })[sujeto.tipo] || 'Recurso';
+  const fases = [
+    { codigo: 'preparacion', etiqueta: 'Preparación', ayuda: 'Reserva y fotografía' },
+    { codigo: 'validacion', etiqueta: 'Validación', ayuda: 'Comprobaciones finales' },
+    { codigo: 'eliminacion', etiqueta: 'Eliminación', ayuda: 'Borrado del agregado' },
+    { codigo: 'commit', etiqueta: 'Confirmación', ayuda: 'Resultado durable' },
+    { codigo: 'limpieza', etiqueta: 'Limpieza', ayuda: 'Tareas posteriores' }
+  ];
+  const etiquetasEstado = {
+    encolada: 'En espera', ejecutando: 'En curso', completada: 'Completada',
+    completada_con_advertencias: 'Completada con avisos', fallida: 'Fallida'
+  };
+  const resumenesEstado = {
+    encolada: 'La eliminación está encolada y todavía no ha comenzado.',
+    ejecutando: 'La eliminación se está ejecutando en segundo plano.',
+    completada: sujeto.tipo === 'agente'
+      ? 'El agente y su agregado propio se han eliminado.'
+      : 'La organización y su agregado propio se han eliminado.',
+    completada_con_advertencias: 'La raíz se ha eliminado, pero la limpieza técnica requiere atención.',
+    fallida: sujeto.tipo === 'agente'
+      ? 'La operación terminó sin eliminar el agente.'
+      : 'La operación terminó sin eliminar la organización.'
+  };
+  const tonosEstado = {
+    encolada: 'espera', ejecutando: 'curso', completada: 'completada',
+    completada_con_advertencias: 'advertencia', fallida: 'fallida'
+  };
+  const iconosEstado = {
+    encolada: 'hourglass-split', ejecutando: 'arrow-repeat', completada: 'check-circle',
+    completada_con_advertencias: 'exclamation-triangle', fallida: 'x-circle'
+  };
+  const estadoInicial = etiquetasEstado[operacion.estado] || operacion.estado;
+  const tonoInicial = tonosEstado[operacion.estado] || 'espera';
+  const indiceFaseInicial = fases.findIndex(({ codigo }) => codigo === operacion.fase);
+  const limpiezaInicial = operacion.limpiezaPostcommit;
+  const textoLimpiezaInicial = !limpiezaInicial
+    ? 'Pendiente de cálculo'
+    : ({
+        no_requerida: 'No requerida',
+        convergida: `Completada (${limpiezaInicial.total} tareas)`,
+        pendiente: `${limpiezaInicial.completadas} de ${limpiezaInicial.total} tareas`,
+        bloqueada: `${limpiezaInicial.bloqueadas} tareas bloqueadas`
+      })[limpiezaInicial.estado] || limpiezaInicial.estado;
+%>
+
+<section class="panel-general operacion-seguimiento"
+         data-operacion-eliminacion
+         data-tipo-sujeto="<%= sujeto.tipo %>"
+         data-url-operacion="/api/operaciones-administrativas/<%= encodeURIComponent(operacion.operacionId) %>">
+  <section class="hero-operativo operacion-seguimiento__hero card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="operacion-seguimiento__hero-grid">
+        <div class="hero-operativo__textos">
+          <span class="insignia-suave operacion-seguimiento__insignia">
+            <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+            <span>Operación administrativa</span>
+          </span>
+          <h1>Seguimiento de eliminación</h1>
+          <p>
+            <strong><%= etiquetaTipo %><% if (sujeto.nombre) { %> · <%= sujeto.nombre %><% } %></strong>
+            <% if (sujeto.ubicacion) { %><span class="d-block"><%= sujeto.ubicacion %></span><% } %>
+          </p>
+          <div class="hero-etiquetas">
+            <span class="insignia"><i class="bi bi-hash" aria-hidden="true"></i><%= sujeto.id %></span>
+            <span class="insignia"><i class="bi bi-shield-check" aria-hidden="true"></i>Operación durable</span>
+            <% if (sujeto.fotografiaFinal || sujeto.evidenciaFinal) { %>
+              <span class="insignia"><i class="bi bi-camera" aria-hidden="true"></i>Evidencia final</span>
+            <% } %>
+          </div>
+          <div class="hero-organizacion__acciones">
+            <a href="<%= vuelta %>" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2">
+              <i class="bi bi-arrow-left" aria-hidden="true"></i>
+              <span>Volver a <%= plural %></span>
+            </a>
+            <% if (sujeto.disponible && sujeto.enlace) { %>
+              <a href="<%= sujeto.enlace %>" class="btn btn-light btn-sm d-inline-flex align-items-center gap-2">
+                <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                <span>Ver <%= etiquetaTipo.toLowerCase() %></span>
+              </a>
+            <% } %>
+          </div>
+        </div>
+
+        <aside class="operacion-estado-principal operacion-estado-principal--<%= tonoInicial %>" data-operacion-panel-estado aria-live="polite">
+          <span class="operacion-estado-principal__icono"><i class="bi bi-<%= iconosEstado[operacion.estado] || 'hourglass-split' %>" data-operacion-icono-estado aria-hidden="true"></i></span>
+          <span class="etiqueta">Estado actual</span>
+          <strong data-operacion-estado><%= estadoInicial %></strong>
+          <p data-operacion-resumen><%= resumenesEstado[operacion.estado] || 'Consultando el estado durable de la operación.' %></p>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="tarjeta operacion-recorrido" aria-labelledby="titulo-recorrido-operacion">
+    <header class="operacion-seccion-cabecera">
+      <div>
+        <span class="etiqueta">Progreso semántico</span>
+        <h2 id="titulo-recorrido-operacion">Recorrido de la operación</h2>
+        <p>No representa porcentajes ni calcula tiempos restantes.</p>
+      </div>
+      <div class="operacion-recorrido__actualizacion">
+        <span class="insignia-suave <%= operacion.terminal ? 'insignia-suave--neutra' : '' %>" data-operacion-seguimiento-estado>
+          <i class="bi <%= operacion.terminal ? 'bi-check2' : 'bi-broadcast' %>" aria-hidden="true"></i>
+          <span><%= operacion.terminal ? 'Ejecución finalizada' : 'Actualización automática' %></span>
+        </span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-operacion-actualizar>
+          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i><span>Actualizar</span>
+        </button>
+      </div>
+    </header>
+
+    <ol class="operacion-fases" data-operacion-fases aria-label="Fases de la eliminación">
+      <% fases.forEach(function (fase, indice) { %>
+        <% const completada = indice < indiceFaseInicial || operacion.estado === 'completada' || operacion.estado === 'completada_con_advertencias'; %>
+        <% const actual = indice === indiceFaseInicial && !operacion.terminal; %>
+        <% const fallida = indice === indiceFaseInicial && operacion.estado === 'fallida'; %>
+        <li data-fase="<%= fase.codigo %>" class="<%= completada ? 'operacion-fase--completada' : '' %> <%= actual ? 'operacion-fase--actual' : '' %> <%= fallida ? 'operacion-fase--fallida' : '' %>" <%= actual ? 'aria-current="step"' : '' %>>
+          <span class="operacion-fase__trazo" aria-hidden="true"></span>
+          <span class="operacion-fase__contenido">
+            <span class="operacion-fase__marca" aria-hidden="true"><i class="bi <%= completada ? 'bi-check-lg' : (fallida ? 'bi-x-lg' : 'bi-circle-fill') %>"></i></span>
+            <span><strong><%= fase.etiqueta %></strong><small><%= fase.ayuda %></small></span>
+          </span>
+        </li>
+      <% }); %>
+    </ol>
+    <div class="alert alert-danger d-none mb-0" role="alert" data-operacion-error></div>
+  </section>
+
+  <section class="operacion-resumen" aria-label="Resumen de la operación">
+    <article class="tarjeta operacion-resumen__tarjeta">
+      <span class="operacion-resumen__icono"><i class="bi bi-arrow-repeat" aria-hidden="true"></i></span>
+      <span class="etiqueta">Intentos realizados</span>
+      <strong data-operacion-intentos><%= operacion.intentos %></strong>
+      <small>Máximo previsto: <span data-operacion-max-intentos><%= operacion.maxIntentos %></span></small>
+    </article>
+    <article class="tarjeta operacion-resumen__tarjeta">
+      <span class="operacion-resumen__icono"><i class="bi bi-stars" aria-hidden="true"></i></span>
+      <span class="etiqueta">Limpieza técnica</span>
+      <strong data-operacion-limpieza><%= textoLimpiezaInicial %></strong>
+      <small data-operacion-limpieza-ayuda>Trabajo posterior a la eliminación principal.</small>
+    </article>
+    <article class="tarjeta operacion-resumen__tarjeta">
+      <span class="operacion-resumen__icono"><i class="bi bi-clock-history" aria-hidden="true"></i></span>
+      <span class="etiqueta">Última actualización</span>
+      <strong class="operacion-resumen__fecha" data-operacion-actualizada><time data-fecha-utc="<%= operacion.actualizadaEnUtc %>"><%= operacion.actualizadaEnUtc %></time></strong>
+      <small>Hora local de este dispositivo.</small>
+    </article>
+  </section>
+
+  <section class="tarjeta operacion-detalles" aria-labelledby="titulo-detalles-operacion">
+    <header class="operacion-seccion-cabecera">
+      <div><span class="etiqueta">Trazabilidad</span><h2 id="titulo-detalles-operacion">Detalles de la operación</h2></div>
+    </header>
+    <dl class="operacion-eliminacion-meta">
+      <div><dt>Creada</dt><dd><time data-fecha-utc="<%= operacion.creadaEnUtc %>"><%= operacion.creadaEnUtc %></time></dd></div>
+      <div><dt>Finalizada</dt><dd data-operacion-finalizada><% if (operacion.terminadaEnUtc) { %><time data-fecha-utc="<%= operacion.terminadaEnUtc %>"><%= operacion.terminadaEnUtc %></time><% } else { %>Todavía en curso<% } %></dd></div>
+      <div><dt>Tipo</dt><dd>Eliminación de <%= etiquetaTipo.toLowerCase() %></dd></div>
+      <div><dt>Versión de contrato</dt><dd><%= operacion.version %></dd></div>
+      <div class="operacion-eliminacion-meta__id"><dt>Identificador</dt><dd><code><%= operacion.operacionId %></code></dd></div>
+    </dl>
+  </section>
+</section>
+<script src="/js/eliminacion-agentes.js?v=operacion-seguimiento-ux-1"></script>
+<%- include('../parciales/pie') %>

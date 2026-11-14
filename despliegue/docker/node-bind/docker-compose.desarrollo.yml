@@ -1,0 +1,16 @@
+services:
+  app:
+    build:
+      context: ../../..
+      dockerfile: despliegue/docker/node-bind/Dockerfile
+    environment:
+      NODE_ENV: development
+      AGENTES_ELIMINACION_ADMINISTRATIVA_HTTP_HABILITADA: ${AGENTES_ELIMINACION_ADMINISTRATIVA_HTTP_HABILITADA:-false}
+      AGENTES_DDNS_HABILITADO: ${AGENTES_DDNS_HABILITADO:-false}
+    volumes:
+      - ../../..:/app
+      - node_modules_dev:/app/node_modules
+    command: ["node", "despliegue/docker/node-bind/supervisor-sentinelia.mjs"]
+
+volumes:
+  node_modules_dev:

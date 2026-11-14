@@ -1,0 +1,758 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const puedeEditarMonitores = Boolean(contextoUsuarioActual?.permisos?.editar);
+  const permisosOrganizacion = contextoUsuarioActual?.permisos || {};
+  const puedeNavegarTenant = Boolean(
+    monitor?.tenantId &&
+    (permisosOrganizacion.administrarTenants || permisosOrganizacion.administrarOrganizacion)
+  );
+  const puedeNavegarEmpresa = Boolean(
+    monitor?.empresaId &&
+    (permisosOrganizacion.administrarEmpresas || permisosOrganizacion.administrarOrganizacion)
+  );
+  const puedeNavegarSitio = Boolean(
+    monitor?.sitioId &&
+    (permisosOrganizacion.administrarSitios || permisosOrganizacion.administrarOrganizacion)
+  );
+  const ubicacionMonitor = [
+    { etiqueta: 'Tenant', nombre: monitor?.tenantNombre, id: monitor?.tenantId, icono: 'bi-diagram-3', puedeNavegar: puedeNavegarTenant, ruta: monitor?.tenantId ? `/organizacion/tenants/${monitor.tenantId}/editar` : null },
+    { etiqueta: 'Empresa', nombre: monitor?.empresaNombre, id: monitor?.empresaId, icono: 'bi-buildings', puedeNavegar: puedeNavegarEmpresa, ruta: monitor?.empresaId ? `/organizacion/empresas/${monitor.empresaId}/editar` : null },
+    { etiqueta: 'Sitio', nombre: monitor?.sitioNombre, id: monitor?.sitioId, icono: 'bi-geo-alt', puedeNavegar: puedeNavegarSitio, ruta: monitor?.sitioId ? `/organizacion/sitios/${monitor.sitioId}/editar` : null }
+  ].filter((elemento) => elemento.nombre);
+  const ubicacionPrincipal = ubicacionMonitor.length > 0
+    ? ubicacionMonitor[ubicacionMonitor.length - 1]
+    : null;
+  const ubicacionContexto = ubicacionMonitor
+    .slice(0, -1)
+    .map((elemento) => elemento.nombre)
+    .join(' · ');
+  const estadoRuntime = monitor?.estadoRuntime || null;
+  const resumenRuntime = estadoRuntime?.resumenHumano || null;
+  const metricasTecnicas = Array.isArray(monitor?.resumenTecnico?.metricas)
+    ? monitor.resumenTecnico.metricas
+    : [];
+  const resumenLogico = monitor?.resumenTecnico?.logica || null;
+  const dependenciasLogicas = Array.isArray(resumenLogico?.dependencias)
+    ? resumenLogico.dependencias
+    : [];
+  const tonoAlerta = alertaActiva
+    ? (alertaActiva.resumen?.tono === 'ok'
+      ? 'ok'
+      : (alertaActiva.resumen?.tono === 'advertencia' ? 'advertencia' : 'alerta'))
+    : 'ok';
+  const tonoRuntime = resumenRuntime?.tono === 'ok'
+    ? 'ok'
+    : (resumenRuntime?.tono === 'advertencia' ? 'advertencia' : 'suave');
+  const mostrarInterpretacionEstado =
+    monitor?.tipo !== 'booleano' && monitor?.interpretacionEstado === 'invertida';
+  const tieneContextoOperativo = Boolean(
+    mostrarInterpretacionEstado ||
+    monitor?.descripcionFallo ||
+    monitor?.posibleSolucion ||
+    estadoRuntime?.estadoTecnicoDetectado ||
+    alertaActiva?.resultadoTecnico?.estadoDetectado
+  );
+  const contextoOperativoPrioritario = Boolean(
+    alertaActiva ||
+    estadoRuntime?.estado === 'indisponible' ||
+    resumenRuntime?.tono === 'alerta'
+  );
+  const etiquetaCodigoTecnico = (codigo) => {
+    const texto = String(codigo || '').trim();
+    return !texto || texto === 'sin_resultado'
+      ? 'Sin resultado técnico'
+      : texto;
+  };
+  const etiquetaEventoTrigger = (evento) => ({
+    apertura_alerta: 'Apertura de alerta',
+    cierre_alerta: 'Cierre de alerta'
+  })[String(evento || '').trim()] || String(evento || 'Evento');
+  const describirAccionTrigger = (asignacion) => {
+    const tipo = String(asignacion.trigger?.tipo || asignacion.triggerTipo || '').toLowerCase();
+    const configuracion = asignacion.trigger?.configuracion || {};
+
+    if (asignacion.triggerVisible === false) {
+      return 'Automatización existente, pero configuración oculta por alcance.';
+    }
+
+    if (tipo === 'dns') {
+      const operacion = configuracion.operacion || configuracion.operacionDns || '';
+      const mapa = {
+        editar_valor: `Editar valor DNS${configuracion.valorPrincipal ? ` a ${configuracion.valorPrincipal}` : ''}`,
+        activar: 'Activar registro DNS gobernado',
+        desactivar: 'Desactivar registro DNS gobernado',
+        seguir_estado_monitor: 'Seguir estado del monitor sobre el registro DNS'
+      };
+
+      return mapa[operacion] || 'Cambio DNS gobernado por automatización.';
+    }
+
+    if (tipo === 'api') {
+      return `${configuracion.metodo || 'HTTP'} ${configuracion.url || 'endpoint externo'}`;
+    }
+
+    return 'Acción operativa configurada en la automatización.';
+  };
+  const resolverEstadoBinding = (asignacion) => {
+    if (!asignacion.activo) {
+      return {
+        clase: 'insignia-monitor--off',
+        icono: 'bi-pause-circle',
+        etiqueta: 'Vínculo inactivo',
+        detalle: 'No se ejecutará aunque el monitor dispare eventos.'
+      };
+    }
+
+    if (asignacion.ultimaEjecucion?.estadoEjecucion === 'error') {
+      return {
+        clase: 'insignia-monitor--alerta',
+        icono: 'bi-exclamation-octagon',
+        etiqueta: 'Error reciente',
+        detalle: asignacion.ultimaEjecucion.mensajeResultado || asignacion.ultimaEjecucion.codigoResultado || 'La última ejecución terminó con error.'
+      };
+    }
+
+    if (asignacion.ultimaEjecucion?.estadoEjecucion === 'ok') {
+      return {
+        clase: 'insignia-monitor--ok',
+        icono: 'bi-check-circle',
+        etiqueta: 'Ejecutado',
+        detalle: asignacion.ultimaEjecucion.mensajeResultado || asignacion.ultimaEjecucion.codigoResultado || 'Última ejecución correcta.'
+      };
+    }
+
+    return {
+      clase: 'insignia-monitor--suave',
+      icono: 'bi-clock-history',
+      etiqueta: 'Sin traza',
+      detalle: 'Todavía no hay ejecución visible para este vínculo.'
+    };
+  };
+%>
+
+<section class="panel-general">
+  <% if (flashMonitores) { %>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        if (window.portalToast?.show) {
+          window.portalToast.show({
+            tipo: '<%= flashMonitores.tipo === 'error' ? 'error' : 'satisfactorio' %>',
+            titulo: 'Monitores',
+            cuerpo: <%- JSON.stringify(String(flashMonitores.mensaje || '')) %>
+          });
+        }
+      });
+    </script>
+  <% } %>
+
+  <section class="hero-operativo hero-monitores hero-monitor-detalle card border-0 shadow-lg overflow-hidden <%= alertaActiva ? 'hero-operativo--alerta' : '' %>">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido hero-monitor-detalle__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-activity" aria-hidden="true"></i>
+              <span>Supervisión operativa</span>
+            </span>
+            <h1><%= monitor.nombre %></h1>
+            <p><%= monitor.descripcion || 'Monitor visible dentro de tu alcance actual, con lectura de estado, alerta activa y tendencia operativa.' %></p>
+            <% if (ubicacionMonitor.length > 0) { %>
+              <nav class="hero-monitor-detalle__ubicacion" aria-label="Ubicación organizativa del monitor">
+                <% ubicacionMonitor.forEach((elemento, indice) => { %>
+                  <% if (indice > 0) { %>
+                    <span class="hero-monitor-detalle__ubicacion-separador" aria-hidden="true">/</span>
+                  <% } %>
+                  <% if (elemento.puedeNavegar) { %>
+                    <a href="<%= elemento.ruta %>" class="hero-monitor-detalle__ubicacion-enlace" aria-label="Gestionar <%= elemento.etiqueta.toLowerCase() %>: <%= elemento.nombre %>">
+                      <i class="bi <%= elemento.icono %>" aria-hidden="true"></i>
+                      <span><%= elemento.nombre %></span>
+                    </a>
+                  <% } else { %>
+                    <span class="hero-monitor-detalle__ubicacion-texto">
+                      <i class="bi <%= elemento.icono %>" aria-hidden="true"></i>
+                      <span><%= elemento.nombre %></span>
+                    </span>
+                  <% } %>
+                <% }) %>
+              </nav>
+            <% } %>
+            <div class="hero-etiquetas hero-monitores__etiquetas">
+              <span class="insignia-monitor insignia-monitor--<%= monitor.tipo %>"><%= String(monitor.tipo || '').toUpperCase() %></span>
+              <% if (resumenLogico) { %>
+                <span class="insignia-monitor insignia-monitor--booleano">Comportamiento modelado</span>
+              <% } %>
+              <span class="insignia-monitor insignia-monitor--suave">#<%= monitor.id %></span>
+              <span class="insignia-monitor <%= monitor.activo ? 'insignia-monitor--ok' : 'insignia-monitor--off' %>"><%= monitor.activo ? 'Activo' : 'Inactivo' %></span>
+              <span class="insignia-monitor insignia-monitor--<%= tonoAlerta %>"><%= alertaActiva ? 'Alerta activa' : 'Sin alerta activa' %></span>
+              <% if (mostrarInterpretacionEstado) { %>
+                <span class="insignia-monitor insignia-monitor--alerta">Falló porque respondió</span>
+              <% } %>
+            </div>
+            <div class="hero-monitor-detalle__acciones hero-monitores__acciones">
+              <a
+                href="<%= retornoListado || '/monitores' %>"
+                class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+              >
+                <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                <span>Volver</span>
+              </a>
+              <% if (puedeEditarMonitores) { %>
+                <a
+                  href="/monitores/editar/<%= monitor.id %>?return_to=<%= encodeURIComponent(retornoListado || '/monitores') %>"
+                  class="btn btn-primary btn-sm d-inline-flex align-items-center gap-2"
+                >
+                  <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                  <span>Gestionar</span>
+                </a>
+              <% } %>
+              <%- include('parciales/enlace-actividad-auditada', {
+                sujetoTipo: 'monitor',
+                sujetoId: monitor.id,
+                retorno: `/monitores/${monitor.id}${retornoListado ? `?return_to=${encodeURIComponent(retornoListado)}` : ''}`,
+                permisoFuncional: contextoUsuarioActual?.permisos?.verMonitores
+              }) %>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis hero-monitor-detalle__kpis">
+            <article class="kpi-resumen kpi-resumen--<%= tonoRuntime %> hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-broadcast" aria-hidden="true"></i>
+                <span class="etiqueta">Estado operativo actual</span>
+              </span>
+              <strong><%= resumenRuntime?.etiquetaEstado || 'Sin estado actual' %></strong>
+              <small><%= resumenRuntime?.detalle || 'Todavía no hay una lectura operativa visible.' %></small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--neutro hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-clock-history" aria-hidden="true"></i>
+                <span class="etiqueta">Última ejecución</span>
+              </span>
+              <strong>
+                <% if (estadoRuntime?.fechaUltimaEjecucionUtc) { %>
+                  <time data-fecha-utc="<%= estadoRuntime.fechaUltimaEjecucionUtc %>"><%= estadoRuntime.fechaUltimaEjecucionUtc %></time>
+                <% } else { %>
+                  No ejecutado
+                <% } %>
+              </strong>
+              <small
+                data-monitor-frescura
+                data-ultima-ejecucion-utc="<%= estadoRuntime?.fechaUltimaEjecucionUtc || '' %>"
+                data-cadencia-segundos="<%= monitor.intervaloEjecucionSegundos || '' %>"
+              ><%= etiquetaCodigoTecnico(estadoRuntime?.codigoResultado) %></small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-stopwatch" aria-hidden="true"></i>
+                <span class="etiqueta">Cadencia</span>
+              </span>
+              <strong data-duracion-segundos="<%= monitor.intervaloEjecucionSegundos %>" data-duracion-aproximada="true"><%= monitor.intervaloEjecucionSegundos %> s</strong>
+              <small><%= monitor.intervaloEjecucionSegundos %> s configurados entre ejecuciones.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--neutro hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                <span class="etiqueta">Ubicación</span>
+              </span>
+              <strong><%= ubicacionPrincipal?.nombre || 'Sin ubicación' %></strong>
+              <small><%= ubicacionContexto || (ubicacionPrincipal ? ubicacionPrincipal.etiqueta : 'Monitor visible en tu alcance actual.') %></small>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <% if (tieneContextoOperativo && contextoOperativoPrioritario) { %>
+    <%- include('parciales/monitor-contexto-operativo', {
+      contextoOperativoPrioritario,
+      mostrarInterpretacionEstado,
+      estadoRuntime,
+      alertaActiva,
+      tituloContexto: 'Guía operativa',
+      descripcionContexto: 'Información para interpretar el fallo actual y decidir el siguiente paso.'
+    }) %>
+  <% } %>
+
+  <% if (resumenLogico) { %>
+    <section class="seccion-panel">
+      <div class="seccion-cabecera">
+        <div>
+          <h2>Lógica y dependencias</h2>
+          <p class="texto-apoyo">
+            Este monitor no sondea fuera: modela comportamiento leyendo señales internas y publicando una salida estable.
+          </p>
+        </div>
+      </div>
+
+      <div class="tarjeta monitor-logico-detalle">
+        <div class="monitor-logico-detalle__principal">
+          <article class="monitor-logico-detalle__expresion">
+            <span class="monitor-logico-constructor__etiqueta">Expresión evaluada</span>
+            <strong><code><%= resumenLogico.expresion || 'Pendiente' %></code></strong>
+            <p class="texto-apoyo mb-0">
+            Si todas las entradas tienen estado observable, la evaluación operativa resuelve esta fórmula y produce una única salida: disponible o indisponible.
+            </p>
+          </article>
+
+          <div class="monitor-logico-detalle__kpis">
+            <article class="kpi-resumen kpi-resumen--<%= estadoRuntime?.estado === 'disponible' ? 'ok' : 'advertencia' %>">
+              <span class="etiqueta">Salida estable</span>
+              <strong><%= resumenRuntime?.etiquetaEstado || estadoRuntime?.estado || resumenLogico.estadoInicial %></strong>
+              <small><%= resumenRuntime?.detalle || 'Se conservará la salida inicial hasta disponer de todas las entradas.' %></small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--suave">
+              <span class="etiqueta">Retardo señal</span>
+              <strong>
+                <%= Number(resumenLogico.retardoSenalSegundos || 0) > 0 ? `${resumenLogico.retardoSenalSegundos} s` : 'Sin retardo' %>
+              </strong>
+              <small>
+                <%= Number(resumenLogico.retardoSenalSegundos || 0) > 0
+                  ? 'La salida candidata debe permanecer estable antes de mutar la salida real.'
+                  : 'La salida puede cambiar en cuanto la evaluación sea concluyente.' %>
+              </small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--neutro">
+              <span class="etiqueta">Entradas incompletas</span>
+              <strong>
+                <%= resumenLogico.politicaEntradasIncompletas === 'conservar_salida'
+                  ? 'Conservar salida'
+                  : (resumenLogico.politicaEntradasIncompletas || 'Conservar salida') %>
+              </strong>
+              <small>No se fuerza una salida nueva hasta tener todas las entradas.</small>
+            </article>
+          </div>
+        </div>
+
+        <div class="monitor-logico-detalle__grid">
+          <article>
+            <h3>Variables</h3>
+            <% if (dependenciasLogicas.length > 0) { %>
+              <div class="monitor-logico-detalle__dependencias">
+                <% for (const dependencia of dependenciasLogicas) { %>
+                  <div>
+                    <span><%= dependencia.variable || '-' %></span>
+                    <strong>
+                      <% if (dependencia.monitorId) { %>
+                        Monitor #<%= dependencia.monitorId %>
+                      <% } else { %>
+                        Dependencia no visible
+                      <% } %>
+                    </strong>
+                    <small><%= dependencia.etiqueta || dependencia.fuente || 'monitor' %></small>
+                  </div>
+                <% } %>
+              </div>
+            <% } else { %>
+              <p class="texto-apoyo">No hay dependencias declaradas en la configuración visible.</p>
+            <% } %>
+          </article>
+
+          <article>
+            <h3>Causa de indisponibilidad</h3>
+            <p class="texto-apoyo mb-0">
+              <%= resumenLogico.mensajeFallo || 'Sin mensaje humano configurado todavía.' %>
+            </p>
+          </article>
+
+          <article>
+            <h3>Última evaluación</h3>
+            <div class="metadatos-configuracion">
+              <span>Resultado: <code><%= etiquetaCodigoTecnico(estadoRuntime?.codigoResultado) %></code></span>
+              <span>Detalle: <%= resumenRuntime?.detalle || estadoRuntime?.mensajeResultado || 'Sin evaluación visible todavía.' %></span>
+              <span>Última ejecución: <code><time data-fecha-utc="<%= estadoRuntime?.fechaUltimaEjecucionUtc || '' %>"><%= estadoRuntime?.fechaUltimaEjecucionUtc || 'No ejecutado' %></time></code></span>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+  <% } %>
+
+  <section
+    class="seccion-panel"
+    data-monitor-eventos-grafica
+    data-url-eventos="/monitores/eventos/api"
+    data-url-hitos="/monitores/eventos/api/hitos"
+    data-monitor-id="<%= monitor.id %>"
+    data-monitor-tipo="<%= monitor.tipo %>"
+  >
+    <div class="seccion-cabecera">
+      <div>
+        <h2>Tendencia real del monitor</h2>
+        <p class="texto-apoyo">La gráfica muestra las ejecuciones operativas registradas. El histórico se conserva con la compactación configurada por el portal y, con valor 0, guarda cada ejecución.</p>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <div class="rejilla-filtros-listado">
+        <div>
+          <label for="detalle_eventos_desde">Inicio</label>
+          <input id="detalle_eventos_desde" type="datetime-local" data-detalle-eventos-desde>
+        </div>
+        <div>
+          <label for="detalle_eventos_hasta">Fin</label>
+          <input id="detalle_eventos_hasta" type="datetime-local" data-detalle-eventos-hasta>
+        </div>
+        <div>
+          <label for="detalle_eventos_limite">Límite</label>
+          <select id="detalle_eventos_limite" data-detalle-eventos-limite>
+            <option value="100">100</option>
+            <option value="250">250</option>
+            <option value="500" selected>500</option>
+            <option value="1000">1000</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="barra-acciones-filtros barra-acciones-filtros--tendencia">
+        <button type="button" class="boton-primario" data-detalle-eventos-aplicar>Actualizar gráfica</button>
+        <div class="acciones-tendencia__grupo" role="group" aria-label="Rango temporal">
+          <span class="acciones-tendencia__etiqueta">Rango</span>
+          <div class="acciones-tendencia__botones">
+            <button type="button" class="boton-secundario" data-detalle-eventos-preseleccion="1d">24 h</button>
+            <button type="button" class="boton-secundario" data-detalle-eventos-preseleccion="7d">7 días</button>
+            <button type="button" class="boton-secundario" data-detalle-eventos-preseleccion="30d">30 días</button>
+          </div>
+        </div>
+        <div class="acciones-tendencia__grupo" role="group" aria-label="Hitos operativos">
+          <span class="acciones-tendencia__etiqueta">Hitos</span>
+          <div class="acciones-tendencia__botones">
+            <button type="button" class="boton-secundario" data-detalle-eventos-hito="fallo" disabled>Desde último fallo</button>
+            <button type="button" class="boton-secundario" data-detalle-eventos-hito="recuperacion" disabled>Desde última recuperación</button>
+          </div>
+          <small class="acciones-tendencia__ayuda" data-detalle-eventos-hitos-ayuda hidden></small>
+        </div>
+      </div>
+
+      <div class="rejilla-resumen">
+        <article class="kpi-resumen">
+          <span class="etiqueta">Puntos visibles</span>
+          <strong data-detalle-eventos-total>0</strong>
+          <small data-detalle-eventos-total-detalle>Sin lectura todavía.</small>
+        </article>
+        <article class="kpi-resumen">
+          <span class="etiqueta">Fuente</span>
+          <strong data-detalle-eventos-fuente>Eventos operativos</strong>
+          <small data-detalle-eventos-fuente-detalle>La compactación depende de la configuración activa del portal.</small>
+        </article>
+        <article class="kpi-resumen">
+          <span class="etiqueta">Latencia visible</span>
+          <strong data-detalle-eventos-metrica>Sin puntos</strong>
+          <small data-detalle-eventos-metrica-detalle>El eje Y se pinta invertido: arriba 0 ms, abajo el peor tiempo.</small>
+        </article>
+      </div>
+
+      <div class="visor-eventos">
+        <div class="visor-eventos__grafico">
+          <div class="visor-eventos__lienzo">
+            <canvas data-detalle-eventos-canvas aria-label="Gráfico real de eventos del monitor"></canvas>
+          </div>
+          <p class="visor-eventos__leyenda" data-detalle-eventos-leyenda hidden></p>
+        </div>
+        <aside class="visor-eventos__detalle" data-detalle-eventos-panel>
+          <h3>Detalle del punto</h3>
+          <p class="texto-apoyo">Pasa el cursor o toca una ejecución para dejarla seleccionada.</p>
+        </aside>
+      </div>
+      <section class="visor-eventos__incidencia" data-detalle-eventos-incidencia hidden aria-live="polite"></section>
+    </div>
+  </section>
+
+  <% if (tieneContextoOperativo && !contextoOperativoPrioritario) { %>
+    <%- include('parciales/monitor-contexto-operativo', {
+      contextoOperativoPrioritario,
+      mostrarInterpretacionEstado,
+      estadoRuntime,
+      alertaActiva,
+      tituloContexto: 'Notas operativas',
+      descripcionContexto: 'Información de referencia para interpretar una alerta o una recaída futura.'
+    }) %>
+  <% } %>
+
+  <section class="seccion-panel">
+    <details class="monitor-detalle__plegable">
+      <summary>
+        <span>
+          <strong>Configuración y alcance</strong>
+          <small>Destino, cadencia, pertenencia y configuración del monitor.</small>
+        </span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </summary>
+      <div class="monitor-detalle__plegable-contenido tarjeta">
+      <div class="fila-encabezado">
+        <div>
+          <h2>Configuración y alcance</h2>
+          <p class="texto-apoyo">Destino, cadencia, pertenencia y estado operativo actual del monitor.</p>
+        </div>
+        <p class="texto-apoyo">Alcance actual: <strong><%= alcanceActual.descripcion %></strong></p>
+      </div>
+
+      <div class="tabla-configuracion tabla-configuracion--compacta">
+        <div class="fila-configuracion fila-monitor fila-monitor--sin-acciones">
+          <div class="celda-clave">
+            <strong><%= monitor.nombre %></strong>
+            <div class="fila-monitor__etiquetas">
+              <span class="insignia-monitor insignia-monitor--<%= monitor.tipo %>"><%= String(monitor.tipo || '').toUpperCase() %></span>
+              <span class="insignia-monitor insignia-monitor--suave">#<%= monitor.id %></span>
+              <span class="insignia-monitor <%= monitor.activo ? 'insignia-monitor--ok' : 'insignia-monitor--off' %>"><%= monitor.activo ? 'Activo' : 'Inactivo' %></span>
+            </div>
+            <span class="etiqueta-secundaria"><%= monitor.descripcion || 'Sin descripción' %></span>
+          </div>
+
+          <div class="metadatos-configuracion">
+            <span>Tenant: <code><%= monitor.tenantNombre || '-' %></code></span>
+            <span>Empresa: <code><%= monitor.empresaNombre || '-' %></code></span>
+            <span>Sitio: <code><%= monitor.sitioNombre || 'No aplica' %></code></span>
+            <span>Pertenencia: <code><%= monitor.nivelPertenencia %></code></span>
+          </div>
+
+          <div class="metadatos-configuracion">
+            <div class="chips-monitor">
+              <% for (const metrica of metricasTecnicas) { %>
+                <span class="chip-monitor <%= metrica.destacada ? 'chip-monitor--primario' : '' %>">
+                  <small><%= metrica.etiqueta %></small>
+                  <strong><%= metrica.valor %></strong>
+                </span>
+              <% } %>
+            </div>
+            <span>Intervalo: <code><%= monitor.intervaloEjecucionSegundos %> s</code></span>
+            <span>Desfase inicial: <code><%= monitor.desfaseInicialSegundos %> s</code></span>
+            <% if (monitor.tipo !== 'booleano') { %>
+              <span>Lectura: <code><%= monitor.interpretacionEstado === 'invertida' ? 'Falló porque respondió' : 'Normal' %></code></span>
+            <% } %>
+            <span>Actualizado: <code><time data-fecha-utc="<%= monitor.fechaActualizacion %>"><%= monitor.fechaActualizacion %></time></code></span>
+          </div>
+        </div>
+      </div>
+      </div>
+    </details>
+  </section>
+
+  <section class="seccion-panel">
+    <details class="monitor-detalle__plegable" <%= alertaActiva ? 'open' : '' %>>
+      <summary>
+        <span>
+          <strong>Estado operativo y alertas</strong>
+          <small><%= alertaActiva ? 'Hay una alerta activa que requiere atención.' : 'Estado técnico, cambios recientes y alertas abiertas.' %></small>
+        </span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </summary>
+      <div class="monitor-detalle__plegable-contenido tarjeta">
+      <div class="rejilla-resumen">
+        <article class="tarjeta">
+          <h2>Estado operativo</h2>
+          <% if (estadoRuntime) { %>
+            <div class="fila-monitor__etiquetas fila-monitor__etiquetas--separadas">
+              <span class="insignia-monitor insignia-monitor--<%= resumenRuntime?.tono === 'ok' ? 'ok' : (resumenRuntime?.tono === 'advertencia' ? 'advertencia' : 'alerta') %>"><%= resumenRuntime?.etiquetaEstado || estadoRuntime.estado %></span>
+              <span class="insignia-monitor insignia-monitor--suave"><%= resumenRuntime?.etiquetaTecnica || etiquetaCodigoTecnico(estadoRuntime.codigoResultado) %></span>
+            </div>
+            <div class="metadatos-configuracion">
+              <span>Resultado: <code><%= etiquetaCodigoTecnico(estadoRuntime.codigoResultado) %></code></span>
+              <span>Detalle: <%= resumenRuntime?.detalle || estadoRuntime.mensajeResultado || 'Sin detalle operativo adicional.' %></span>
+              <% if (estadoRuntime.estadoTecnicoDetectado) { %>
+                <span>Resultado técnico: <code><%= estadoRuntime.estadoTecnicoDetectado %> / <%= etiquetaCodigoTecnico(estadoRuntime.codigoResultadoTecnico) %></code></span>
+              <% } %>
+              <span>Última ejecución: <code><time data-fecha-utc="<%= estadoRuntime.fechaUltimaEjecucionUtc || '' %>"><%= estadoRuntime.fechaUltimaEjecucionUtc || 'No ejecutado' %></time></code></span>
+              <span>Último cambio: <code><time data-fecha-utc="<%= estadoRuntime.fechaUltimoCambioUtc || '' %>"><%= estadoRuntime.fechaUltimoCambioUtc || 'Sin cambio registrado' %></time></code></span>
+            </div>
+          <% } else { %>
+            <p class="texto-apoyo">No hay estado actual materializado todavía para este monitor.</p>
+          <% } %>
+        </article>
+
+        <article class="tarjeta">
+          <h2>Alerta activa</h2>
+          <% if (alertaActiva) { %>
+            <div class="fila-monitor__etiquetas fila-monitor__etiquetas--separadas">
+              <span class="insignia-monitor insignia-monitor--<%= alertaActiva.resumen?.tono === 'advertencia' ? 'advertencia' : 'alerta' %>"><%= alertaActiva.resumen?.etiquetaEstado || alertaActiva.estadoDetectado %></span>
+              <span class="insignia-monitor insignia-monitor--suave"><%= alertaActiva.codigoUltimoResultado %></span>
+            </div>
+            <div class="metadatos-configuracion">
+              <span>Detalle: <%= alertaActiva.resumen?.detalle || alertaActiva.mensajeUltimoResultado %></span>
+              <% if (alertaActiva.resultadoTecnico?.estadoDetectado) { %>
+                <span>Resultado técnico: <code><%= alertaActiva.resultadoTecnico.estadoDetectado %> / <%= etiquetaCodigoTecnico(alertaActiva.resultadoTecnico.codigoResultado) %></code></span>
+              <% } %>
+              <span>Abierta desde: <code><time data-fecha-utc="<%= alertaActiva.validoDesdeUtc %>"><%= alertaActiva.validoDesdeUtc %></time></code></span>
+              <span>Última confirmación: <code><time data-fecha-utc="<%= alertaActiva.ultimaConfirmacionUtc %>"><%= alertaActiva.ultimaConfirmacionUtc %></time></code></span>
+              <span>Repeticiones: <code><%= alertaActiva.contadorRepeticiones %></code></span>
+            </div>
+          <% } else { %>
+            <p class="texto-apoyo">No existe alerta activa para este monitor.</p>
+          <% } %>
+        </article>
+      </div>
+      </div>
+    </details>
+  </section>
+
+  <% if (vistaVinculosTriggerMonitor) { %>
+    <section class="seccion-panel">
+      <details class="monitor-detalle__plegable">
+        <summary>
+          <span>
+            <strong>Automatizaciones vinculadas</strong>
+            <small><%= vistaVinculosTriggerMonitor.totalAsignaciones || 0 %> vínculos visibles para este monitor.</small>
+          </span>
+          <i class="bi bi-chevron-down" aria-hidden="true"></i>
+        </summary>
+        <div class="monitor-detalle__plegable-contenido">
+      <div class="seccion-cabecera">
+        <div>
+          <h2>Automatizaciones vinculadas</h2>
+          <p class="texto-apoyo">
+            Vínculos visibles para este monitor. Si la automatización no está dentro de tu alcance
+            administrativo o no tienes permiso de catálogo, solo se mostrará el vínculo y su identificador.
+          </p>
+        </div>
+        <% if (puedeGestionarVinculosTriggers) { %>
+          <a
+            href="/monitores/triggers/vinculos/nuevo?monitor_id=<%= monitor.id %>&return_to=<%= encodeURIComponent(retornoVinculos || `/monitores/${monitor.id}`) %>"
+            class="boton-primario enlace-boton"
+          >Nuevo vínculo</a>
+        <% } %>
+      </div>
+
+      <% if (!vistaVinculosTriggerMonitor || (vistaVinculosTriggerMonitor.totalAsignaciones || 0) === 0) { %>
+        <div class="tarjeta">
+          <p class="texto-apoyo">Este monitor todavía no tiene automatizaciones vinculadas.</p>
+        </div>
+      <% } else { %>
+        <div class="tarjeta monitor-triggers-operativos">
+          <div class="fila-encabezado">
+            <div>
+              <h2>Automatizaciones operativas</h2>
+              <p class="texto-apoyo">
+                <%= vistaVinculosTriggerMonitor.asignacionesActivas %>/<%= vistaVinculosTriggerMonitor.totalAsignaciones %> vínculos activos. La ejecución nace de eventos del monitor, no del catálogo aislado.
+              </p>
+            </div>
+          </div>
+
+          <div class="monitor-triggers-operativos__lista">
+            <% for (const asignacion of vistaVinculosTriggerMonitor.asignaciones) { %>
+              <%
+                const estadoBinding = resolverEstadoBinding(asignacion);
+                const nombreTrigger = asignacion.triggerVisible === false
+                  ? (asignacion.triggerNombre || `Automatización #${asignacion.triggerId}`)
+                  : (asignacion.trigger?.nombre || asignacion.triggerNombre || `Automatización #${asignacion.triggerId}`);
+                const tipoTrigger = String(asignacion.trigger?.tipo || asignacion.triggerTipo || 'api').toLowerCase();
+                const eventos = Array.isArray(asignacion.eventosDisparo) ? asignacion.eventosDisparo : [];
+              %>
+              <article class="monitor-trigger-card">
+                <div class="monitor-trigger-card__principal">
+                  <span class="organizacion-entidad__icono" aria-hidden="true">
+                    <i class="bi <%= tipoTrigger === 'dns' ? 'bi-globe2' : tipoTrigger === 'correo' ? 'bi-envelope-at' : 'bi-send-check' %>"></i>
+                  </span>
+                  <div>
+                    <h3><%= nombreTrigger %></h3>
+                    <div class="monitor-trigger-card__badges">
+                      <% if (asignacion.triggerVisible !== false) { %>
+                        <span class="insignia-monitor insignia-monitor--<%= tipoTrigger %>"><%= tipoTrigger.toUpperCase() %></span>
+                      <% } else { %>
+                        <span class="insignia-monitor insignia-monitor--suave">Oculto</span>
+                      <% } %>
+                      <span class="insignia-monitor <%= estadoBinding.clase %> d-inline-flex align-items-center gap-1">
+                        <i class="bi <%= estadoBinding.icono %>" aria-hidden="true"></i>
+                        <span><%= estadoBinding.etiqueta %></span>
+                      </span>
+                      <% if (asignacion.configuracionOverride) { %>
+                        <span class="insignia-monitor insignia-monitor--advertencia">Configuración específica</span>
+                      <% } %>
+                    </div>
+                    <p class="texto-apoyo mb-0"><%= estadoBinding.detalle %></p>
+                  </div>
+                </div>
+
+                <div class="monitor-trigger-card__flujo">
+                  <div>
+                    <span class="monitor-trigger-card__label">Cuando ocurra</span>
+                    <div class="monitor-trigger-card__chips">
+                      <% if (eventos.length > 0) { %>
+                        <% for (const evento of eventos) { %>
+                          <span class="triggers-estado-chip triggers-estado-chip--neutro">
+                            <i class="bi <%= evento === 'cierre_alerta' ? 'bi-bell-slash' : 'bi-bell' %>" aria-hidden="true"></i>
+                            <span><%= etiquetaEventoTrigger(evento) %></span>
+                          </span>
+                        <% } %>
+                      <% } else { %>
+                        <span class="triggers-estado-chip triggers-estado-chip--neutro">Sin evento</span>
+                      <% } %>
+                    </div>
+                  </div>
+                  <div>
+                    <span class="monitor-trigger-card__label">Entonces hará</span>
+                    <strong><%= describirAccionTrigger(asignacion) %></strong>
+                  </div>
+                  <div>
+                    <span class="monitor-trigger-card__label">Última actividad</span>
+                    <% if (asignacion.ultimaEjecucion) { %>
+                      <strong><time data-fecha-utc="<%= asignacion.ultimaEjecucion.iniciadoEnUtc %>"><%= asignacion.ultimaEjecucion.iniciadoEnUtc %></time></strong>
+                      <small><%= etiquetaCodigoTecnico(asignacion.ultimaEjecucion.codigoResultado || asignacion.ultimaEjecucion.estadoEjecucion) %></small>
+                    <% } else { %>
+                      <strong>Sin ejecución registrada</strong>
+                      <small>Esperando evento del monitor.</small>
+                    <% } %>
+                  </div>
+                </div>
+
+                <div class="monitor-trigger-card__meta">
+                  <span>Orden <code><%= asignacion.ordenEjecucion %></code></span>
+                  <span>Automatización <code>#<%= asignacion.triggerId %></code></span>
+                  <% if (asignacion.triggerVisible === false) { %>
+                    <span>Detalle <code>oculto por alcance</code></span>
+                  <% } %>
+                </div>
+
+                <% if (puedeGestionarVinculosTriggers && asignacion.puedeGestionarVinculo) { %>
+                  <div class="dropup organizacion-acciones monitor-trigger-card__acciones">
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary btn-sm organizacion-acciones-toggle"
+                      data-bs-toggle="dropdown"
+                      data-bs-auto-close="outside"
+                      aria-expanded="false"
+                      aria-label="Acciones del vínculo <%= asignacion.id %>"
+                    >
+                      <i class="bi bi-gear" aria-hidden="true"></i>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end organizacion-acciones-menu">
+                      <a
+                        href="/monitores/triggers/vinculos/editar/<%= asignacion.id %>?return_to=<%= encodeURIComponent(retornoVinculos || `/monitores/${monitor.id}`) %>"
+                        class="dropdown-item d-flex align-items-center gap-2"
+                      >
+                        <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                        <span>Editar vínculo</span>
+                      </a>
+                      <form method="post" action="/monitores/triggers/vinculos/eliminar">
+                        <input type="hidden" name="id" value="<%= asignacion.id %>">
+                        <input type="hidden" name="return_to" value="<%= retornoVinculos || `/monitores/${monitor.id}` %>">
+                        <button type="submit" class="dropdown-item dropdown-item--danger d-flex align-items-center gap-2">
+                          <i class="bi bi-trash3" aria-hidden="true"></i>
+                          <span>Eliminar vínculo</span>
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                <% } else if (puedeGestionarVinculosTriggers && !asignacion.puedeGestionarVinculo) { %>
+                  <div class="monitor-trigger-card__acciones">
+                    <span class="insignia-monitor insignia-monitor--suave">Sin acciones</span>
+                    <span class="texto-apoyo">Automatización fuera de tu alcance de gestión.</span>
+                  </div>
+                <% } %>
+              </article>
+            <% } %>
+          </div>
+        </div>
+      <% } %>
+        </div>
+      </details>
+    </section>
+  <% } %>
+
+</section>
+
+<script src="/vendor/chartjs/chart.umd.js"></script>
+<script src="/js/monitor-detalle-eventos.js?v=monitor-detail-series-type-20261106"></script>
+<%- include('../parciales/pie') %>

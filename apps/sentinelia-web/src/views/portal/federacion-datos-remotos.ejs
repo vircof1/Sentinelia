@@ -1,0 +1,508 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const textoScope = (scope) => scope.sitioId
+    ? `Tenant #${scope.tenantId} · Empresa #${scope.empresaId} · Sitio #${scope.sitioId}`
+    : scope.empresaId
+      ? `Tenant #${scope.tenantId} · Empresa #${scope.empresaId}`
+      : scope.tenantId
+        ? `Tenant #${scope.tenantId}`
+        : 'Portal completo';
+  const claseCompletitud = (valor) => valor === 'completa'
+    ? 'insignia-monitor--ok'
+    : valor === 'degradada'
+      ? 'insignia-monitor--alerta'
+      : 'insignia-monitor--advertencia';
+  const flashExplorador = typeof flashFederacion === 'undefined'
+    ? null
+    : flashFederacion;
+  const navegacion = typeof navegacionRemota === 'undefined'
+    ? { vista: 'instalaciones', installationOrigenId: null, familia: null }
+    : navegacionRemota;
+  const visorTriggers = typeof triggersRemotos === 'undefined' ? null : triggersRemotos;
+  const instalacionesPorId = new Map();
+  for (const elemento of explorador.elementos) {
+    if (!instalacionesPorId.has(elemento.installationOrigenId)) {
+      instalacionesPorId.set(elemento.installationOrigenId, {
+        installationId: elemento.installationOrigenId,
+        nombre: elemento.nombreInstalacionOrigen || 'Instalación remota',
+        familias: new Set()
+      });
+    }
+    instalacionesPorId.get(elemento.installationOrigenId).familias.add(elemento.familia);
+  }
+  const instalaciones = [...instalacionesPorId.values()];
+  const instalacionActual = instalacionesPorId.get(navegacion.installationOrigenId) || {
+    installationId: navegacion.installationOrigenId,
+    nombre: 'Instalación remota',
+    familias: new Set(explorador.elementos.map((elemento) => elemento.familia))
+  };
+  const seccionesRemotas = [
+    { vista: 'resumen', etiqueta: 'Resumen', icono: 'bi-grid-1x2' },
+    { vista: 'organizacion', familia: 'estructuraOrganizativa', etiqueta: 'Organización', icono: 'bi-diagram-3' },
+    { vista: 'agentes', familias: ['contextoOperativoAgentesSesiones', 'telemetria'], etiqueta: 'Agentes', icono: 'bi-cpu' },
+    { vista: 'monitores', familia: 'monitores', etiqueta: 'Monitores', icono: 'bi-broadcast' },
+    { vista: 'triggers', familia: 'triggersInformativos', etiqueta: 'Triggers', icono: 'bi-lightning-charge' },
+    { vista: 'alertas', familia: 'monitores', etiqueta: 'Alertas', icono: 'bi-bell' },
+    { vista: 'avisos', familia: 'avisosFederados', etiqueta: 'Avisos remotos', icono: 'bi-exclamation-diamond' },
+    { vista: 'auditoria', familia: 'auditoria', etiqueta: 'Auditoría', icono: 'bi-journal-check' },
+    { vista: 'tecnica', etiqueta: 'Vista técnica', icono: 'bi-braces' }
+  ];
+  const familiasSeccion = (seccion) => seccion.familias || (seccion.familia ? [seccion.familia] : []);
+  const seccionDisponible = (seccion) => familiasSeccion(seccion)
+    .some((familia) => instalacionActual.familias.has(familia));
+  const seccionActual = seccionesRemotas.find((seccion) => seccion.vista === navegacion.vista);
+  const subseccionesPorVista = {
+    organizacion: [
+      { id: 'jerarquia', etiqueta: 'Jerarquía' }, { id: 'tenants', etiqueta: 'Tenants' },
+      { id: 'empresas', etiqueta: 'Empresas' }, { id: 'sitios', etiqueta: 'Sitios' }
+    ],
+    monitores: [
+      { id: 'inventario', etiqueta: 'Inventario' }, { id: 'estado', etiqueta: 'Estado actual' },
+      { id: 'historico', etiqueta: 'Histórico' }, { id: 'alertas', etiqueta: 'Alertas' },
+      { id: 'triggers', etiqueta: 'Triggers vinculados' }
+    ],
+    triggers: [
+      { id: 'inventario', etiqueta: 'Inventario' }, { id: 'resumen', etiqueta: 'Resumen' },
+      { id: 'asignaciones', etiqueta: 'Asignaciones' }, { id: 'ejecuciones', etiqueta: 'Ejecuciones' }
+    ],
+    alertas: [
+      { id: 'activas', etiqueta: 'Activas en origen' },
+      { id: 'sin-vigencia', etiqueta: 'Sin vigencia' },
+      { id: 'historico', etiqueta: 'Histórico' }
+    ],
+    avisos: [
+      { id: 'actuales', etiqueta: 'Estado actual' },
+      { id: 'actividad', etiqueta: 'Actividad' },
+      { id: 'historico', etiqueta: 'Histórico' }
+    ],
+    auditoria: [{ id: 'resumen', etiqueta: 'Vista general' }, { id: 'actividad', etiqueta: 'Actividad' }, { id: 'historico', etiqueta: 'Histórico' }],
+    agentes: [
+      { id: 'resumen', etiqueta: 'Agentes y señales' },
+      { id: 'actividad', etiqueta: 'Cronología de telemetría' },
+      { id: 'historico', etiqueta: 'Histórico de telemetría' }
+    ]
+  };
+  const urlEspacio = (installationId, vista = 'resumen') =>
+    `/federacion/datos-remotos?procedencia=${encodeURIComponent(installationId)}&vista=${vista}`;
+  const identidadElementoActual = navegacion.vista === 'triggers'
+    ? navegacion.triggerOrigenId
+    : navegacion.monitorOrigenId;
+  const urlSubvista = (subvista, identidadElemento = identidadElementoActual) => {
+    const base = `${urlEspacio(instalacionActual.installationId, navegacion.vista)}&subvista=${subvista}`;
+    if (!identidadElemento) return base;
+    const parametro = navegacion.vista === 'triggers' ? 'trigger' : 'monitor';
+    return `${base}&${parametro}=${encodeURIComponent(identidadElemento)}`;
+  };
+  const urlPagina = (pagina) => {
+    const parametros = new URLSearchParams();
+    if (explorador.filtros.familia) parametros.set('familia', explorador.filtros.familia);
+    if (explorador.filtros.installationOrigenId) parametros.set('procedencia', explorador.filtros.installationOrigenId);
+    if (explorador.filtros.proyeccionId) parametros.set('proyeccion', explorador.filtros.proyeccionId);
+    parametros.set('vista', 'tecnica');
+    parametros.set('pagina', pagina);
+    parametros.set('limite', explorador.paginacion.limite);
+    return `/federacion/datos-remotos?${parametros.toString()}`;
+  };
+%>
+
+<section class="panel-general">
+  <section class="hero-operativo hero-monitores card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="row g-4 align-items-start">
+        <div class="col-12 col-xl-8">
+          <span class="insignia-suave"><i class="bi bi-collection" aria-hidden="true"></i> Espacios remotos autorizados</span>
+          <h1>Instalaciones federadas</h1>
+          <p>
+            Navega por cada instalación y por los ámbitos concedidos dentro de
+            tu scope. Todo el espacio es de solo lectura: la autoridad sobre los
+            recursos continúa en su instalación de origen.
+          </p>
+          <div class="alert alert-info mb-0">
+            Organización, agentes, monitores, triggers, alertas y avisos remotos
+            presentan datos materializados sin transferir autoridad operativa
+            al receptor.
+          </div>
+        </div>
+        <div class="col-12 col-xl-4">
+          <article class="kpi-resumen kpi-resumen--suave">
+            <span class="etiqueta"><%= navegacion.vista === 'triggers' ? 'Triggers visibles' : navegacion.vista === 'agentes' ? 'Agentes con telemetría' : 'Proyecciones visibles' %></span>
+            <strong><%= navegacion.vista === 'triggers' && visorTriggers ? visorTriggers.resumen.total : navegacion.vista === 'agentes' && telemetriaRemota ? telemetriaRemota.resumen.fuentes : explorador.paginacion.total %></strong>
+            <small><%= navegacion.vista === 'triggers' ? 'Definiciones actuales después de aplicar concesión, scope y permisos.' : navegacion.vista === 'agentes' ? 'Agentes produciendo datos visibles dentro de la concesión y el scope.' : 'Después de aplicar familia, procedencia, scope y permisos.' %></small>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <% if (errorFiltros) { %>
+    <div class="mensaje-error mt-4" role="alert">
+      <strong>No se pudieron aplicar los filtros</strong>
+      <p class="mb-0"><%= errorFiltros %></p>
+    </div>
+  <% } %>
+
+  <% if (flashExplorador) { %>
+    <div class="alert <%= flashExplorador.tipo === 'exito' ? 'alert-success' : 'alert-danger' %> mt-4" role="alert">
+      <%= flashExplorador.mensaje %>
+    </div>
+  <% } %>
+
+  <% if (navegacion.vista === 'instalaciones') { %>
+    <section class="tarjeta mt-4">
+      <div class="seccion-cabecera">
+        <div>
+          <span class="insignia-suave">Primer nivel</span>
+          <h2>Instalaciones remotas</h2>
+          <p class="mb-0">Elige una contraparte para entrar en su espacio concedido.</p>
+        </div>
+      </div>
+      <% if (instalaciones.length === 0) { %>
+        <div class="estado-vacio-remoto">
+          <i class="bi bi-cloud-slash" aria-hidden="true"></i>
+          <div><strong>No hay instalaciones con datos visibles.</strong><br>El menú aparecerá cuando exista alguna proyección autorizada.</div>
+        </div>
+      <% } else { %>
+        <div class="rejilla-instalaciones-remotas mt-3">
+          <% for (const instalacion of instalaciones) { %>
+            <a class="instalacion-remota-card" href="<%= urlEspacio(instalacion.installationId) %>">
+              <span class="instalacion-remota-card__icono"><i class="bi bi-hdd-network" aria-hidden="true"></i></span>
+              <span class="instalacion-remota-card__contenido">
+                <strong><%= instalacion.nombre %></strong>
+                <code class="text-break"><%= instalacion.installationId %></code>
+                <small><%= instalacion.familias.size %> áreas visibles en esta lectura</small>
+              </span>
+              <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            </a>
+          <% } %>
+        </div>
+      <% } %>
+    </section>
+  <% } else { %>
+    <nav class="miga-remota mt-4" aria-label="Ruta del espacio remoto">
+      <a href="/federacion/datos-remotos"><i class="bi bi-hdd-stack" aria-hidden="true"></i> Instalaciones</a>
+      <i class="bi bi-chevron-right" aria-hidden="true"></i>
+      <span><%= instalacionActual.nombre %></span>
+      <i class="bi bi-chevron-right" aria-hidden="true"></i>
+      <strong><%= seccionActual?.etiqueta || 'Resumen' %></strong>
+    </nav>
+
+    <section class="espacio-remoto mt-3">
+      <header class="espacio-remoto__barra">
+        <div class="espacio-remoto__identidad-compacta">
+          <span class="insignia-suave">Instalación remota</span>
+          <div>
+            <strong><%= instalacionActual.nombre %></strong>
+            <code class="text-break"><%= instalacionActual.installationId %></code>
+          </div>
+        </div>
+        <div class="espacio-remoto__acciones">
+          <span class="espacio-remoto__concesion-compacta"><i class="bi bi-shield-check" aria-hidden="true"></i> Concesión visible · solo lectura</span>
+          <details class="espacio-remoto__selector">
+            <summary>
+              <i class="bi <%= seccionActual?.icono || 'bi-grid' %>" aria-hidden="true"></i>
+              <span><small>Área federada</small><strong><%= seccionActual?.etiqueta || 'Resumen' %></strong></span>
+              <i class="bi bi-chevron-down espacio-remoto__selector-chevron" aria-hidden="true"></i>
+            </summary>
+            <div class="espacio-remoto__desplegable">
+              <div class="espacio-remoto__desplegable-cabecera">
+                <strong>Elementos federados</strong>
+                <small>Selecciona un área de la concesión</small>
+              </div>
+              <nav class="espacio-remoto__menu" aria-label="Áreas de la concesión remota">
+                <% for (const seccion of seccionesRemotas) { %>
+                  <a href="<%= urlEspacio(instalacionActual.installationId, seccion.vista) %>"
+                    class="<%= navegacion.vista === seccion.vista ? 'activo' : '' %>"
+                    <%= navegacion.vista === seccion.vista ? 'aria-current="page"' : '' %>>
+                    <i class="bi <%= seccion.icono %>" aria-hidden="true"></i>
+                    <span><%= seccion.etiqueta %></span>
+                    <% if (seccionDisponible(seccion)) { %>
+                      <span class="espacio-remoto__disponible" title="Familia visible"></span>
+                    <% } %>
+                  </a>
+                <% } %>
+              </nav>
+            </div>
+          </details>
+        </div>
+      </header>
+
+      <div class="espacio-remoto__contenido">
+        <% if (navegacion.vista === 'resumen') { %>
+          <span class="insignia-suave">Portada de la concesión</span>
+          <h2 class="mt-2">Resumen remoto</h2>
+          <p>Este será el punto de entrada para comprender qué comparte la instalación, su alcance y el estado general de recepción.</p>
+          <div class="rejilla-destinos-remotos mt-4">
+            <% for (const seccion of seccionesRemotas.filter((item) => familiasSeccion(item).length > 0)) { %>
+              <a href="<%= urlEspacio(instalacionActual.installationId, seccion.vista) %>" class="destino-remoto">
+                <i class="bi <%= seccion.icono %>" aria-hidden="true"></i>
+                <span><strong><%= seccion.etiqueta %></strong><small>Explorar área</small></span>
+                <i class="bi bi-arrow-right" aria-hidden="true"></i>
+              </a>
+            <% } %>
+          </div>
+        <% } else if (navegacion.vista === 'organizacion') { %>
+          <%- include('parciales/federacion-organizacion-remota', {
+            organizacionRemota,
+            navegacion,
+            seccionActual,
+            subsecciones: subseccionesPorVista.organizacion,
+            urlSubvista
+          }) %>
+        <% } else if (navegacion.vista === 'monitores') { %>
+          <%- include('parciales/federacion-monitores-remotos', {
+            monitoresRemotos,
+            navegacion,
+            seccionActual,
+            subsecciones: subseccionesPorVista.monitores,
+            urlSubvista
+          }) %>
+        <% } else if (navegacion.vista === 'triggers') { %>
+          <%- include('parciales/federacion-triggers-remotos', {
+            triggersRemotos: visorTriggers,
+            navegacion,
+            seccionActual,
+            subsecciones: subseccionesPorVista.triggers,
+            urlSubvista
+          }) %>
+        <% } else if (navegacion.vista === 'agentes') { %>
+          <%- include('parciales/federacion-telemetria-remota', {
+            telemetriaRemota,
+            navegacion,
+            seccionActual,
+            subsecciones: subseccionesPorVista.agentes,
+            urlSubvista
+          }) %>
+        <% } else if (navegacion.vista === 'alertas') { %>
+          <%- include('parciales/federacion-alertas-remotas', {
+            alertasRemotas,
+            navegacion,
+            seccionActual,
+            subsecciones: subseccionesPorVista.alertas,
+            urlSubvista
+          }) %>
+        <% } else if (navegacion.vista === 'avisos') { %>
+          <%- include('parciales/federacion-avisos-remotos', {
+            avisosFederadosRemotos,
+            navegacion,
+            seccionActual,
+            subsecciones: subseccionesPorVista.avisos,
+            urlSubvista
+          }) %>
+        <% } else if (navegacion.vista === 'auditoria') { %>
+          <%- include('parciales/federacion-auditoria-remota', {
+            auditoriaRemota,
+            navegacion,
+            seccionActual,
+            subsecciones: subseccionesPorVista.auditoria,
+            urlSubvista
+          }) %>
+        <% } else if (navegacion.vista !== 'tecnica') { %>
+          <span class="insignia-suave">
+            <%= navegacion.vista === 'alertas'
+              ? 'Información operativa remota · solo lectura'
+              : navegacion.vista === 'avisos'
+                ? 'Estado de plataforma remota · solo lectura'
+                : 'Área remota · solo lectura' %>
+          </span>
+          <h2 class="mt-2"><i class="bi <%= seccionActual?.icono %>" aria-hidden="true"></i> <%= seccionActual?.etiqueta %></h2>
+          <% if (navegacion.vista === 'alertas') { %>
+            <p>Estados de alerta declarados por monitores de la instalación de origen. Son informativos: no ejecutan lógica local ni permiten cerrar la alerta remota.</p>
+          <% } else if (navegacion.vista === 'avisos') { %>
+            <p>Incidencias de plataforma publicadas por la instalación de origen. No son avisos locales y no entran en el contador de incidencias de este portal.</p>
+          <% } else { %>
+            <p>La navegación de esta sección ya está situada dentro de la instalación y la concesión seleccionadas.</p>
+          <% } %>
+          <div class="submenus-remotos mt-4">
+            <% for (const subseccion of (subseccionesPorVista[navegacion.vista] || [])) { %>
+              <a href="<%= urlSubvista(subseccion.id) %>"
+                class="<%= navegacion.subvista === subseccion.id ? 'activo' : '' %>"><%= subseccion.etiqueta %></a>
+            <% } %>
+          </div>
+          <div class="estado-vacio-remoto mt-4">
+            <i class="bi bi-layout-text-window-reverse" aria-hidden="true"></i>
+            <div><strong><%= (subseccionesPorVista[navegacion.vista] || []).find((item) => item.id === navegacion.subvista)?.etiqueta %>: contenido pendiente.</strong><br>Esta iteración no consulta ni presenta todavía inventarios o históricos.</div>
+          </div>
+        <% } else { %>
+          <span class="insignia-suave">Compatibilidad</span>
+          <h2 class="mt-2">Explorador técnico existente</h2>
+          <p class="mb-0">Acceso directo a las proyecciones materializadas, filtros y referencias opacas actuales.</p>
+        <% } %>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (navegacion.vista === 'tecnica') { %>
+
+  <% if (explorador.filtros.proyeccionId) { %>
+    <div class="alert alert-info mt-4" role="status">
+      Navegación causal acotada a la proyección remota
+      <code class="text-break"><%= explorador.filtros.proyeccionId %></code>.
+      Si tu autoridad actual no permite resolverla, esta vista no revelará otro
+      elemento como sustituto.
+    </div>
+  <% } %>
+
+  <section class="tarjeta mt-4">
+    <div class="seccion-cabecera">
+      <div>
+        <span class="insignia-suave">Filtros autorizados</span>
+        <h2>Familia y procedencia</h2>
+      </div>
+    </div>
+    <form method="get" action="/federacion/datos-remotos" class="row g-3 align-items-end">
+      <input type="hidden" name="vista" value="tecnica">
+      <% if (explorador.filtros.proyeccionId) { %>
+        <input type="hidden" name="proyeccion" value="<%= explorador.filtros.proyeccionId %>">
+      <% } %>
+      <div class="col-12 col-lg-4">
+        <label for="familia" class="form-label">Familia</label>
+        <select id="familia" name="familia" class="form-select">
+          <option value="">Todas las familias visibles</option>
+          <% for (const familia of explorador.familias) { %>
+            <option value="<%= familia.nombre %>" <%= explorador.filtros.familia === familia.nombre ? 'selected' : '' %>>
+              <%= familia.etiqueta %> · contrato v<%= familia.versionContrato %>
+            </option>
+          <% } %>
+        </select>
+      </div>
+      <div class="col-12 col-lg-6">
+        <label for="procedencia" class="form-label">Identidad de instalación de origen</label>
+        <input id="procedencia" name="procedencia" class="form-control font-monospace"
+          value="<%= explorador.filtros.installationOrigenId || '' %>"
+          placeholder="sfid1.instalacion.…" maxlength="64">
+      </div>
+      <div class="col-12 col-lg-2 d-grid">
+        <button class="btn btn-primary" type="submit">Aplicar</button>
+      </div>
+    </form>
+  </section>
+
+  <% if (explorador.elementos.length === 0) { %>
+    <section class="tarjeta mt-4">
+      <h2>Sin datos remotos visibles</h2>
+      <p class="mb-0">No hay proyecciones publicadas que coincidan con los filtros y tu autoridad actual.</p>
+    </section>
+  <% } %>
+
+  <section class="d-grid gap-3 mt-4" aria-label="Datos remotos visibles">
+    <% for (const elemento of explorador.elementos) { %>
+      <article class="tarjeta federacion-dato-remoto">
+        <div class="d-flex flex-wrap justify-content-between gap-3 align-items-start">
+          <div>
+            <span class="insignia-monitor insignia-monitor--neutro"><%= elemento.familiaEtiqueta %></span>
+            <h2 class="h4 mt-2 mb-1"><%= elemento.detalle?.nombre || elemento.detalle?.tipoRegistro || 'Elemento remoto' %></h2>
+            <code class="text-break"><%= elemento.elementoOrigenId %></code>
+          </div>
+          <div class="text-end">
+            <small class="d-block text-muted">Procedencia</small>
+            <% if (elemento.nombreInstalacionOrigen) { %><strong class="d-block"><%= elemento.nombreInstalacionOrigen %></strong><% } %>
+            <code class="text-break"><%= elemento.installationOrigenId %></code>
+          </div>
+        </div>
+
+        <dl class="row mt-4 mb-0">
+          <dt class="col-sm-3">Scope receptor</dt><dd class="col-sm-9"><%= textoScope(elemento.scopeRecepcion) %></dd>
+          <dt class="col-sm-3">Estado publicado</dt>
+          <dd class="col-sm-9">
+            <%= elemento.dimensiones.materializacion %> · <%= elemento.dimensiones.vigencia %> ·
+            <%= elemento.dimensiones.soporte %> · <%= elemento.dimensiones.autorizacion %>
+          </dd>
+          <dt class="col-sm-3">Completitud recibida</dt>
+          <dd class="col-sm-9 d-flex flex-wrap gap-2">
+            <% for (const [capacidad, valor] of Object.entries(elemento.dimensiones.completitudRecepcion)) { %>
+              <span class="insignia-monitor <%= claseCompletitud(valor) %>"><%= capacidad %>: <%= valor %></span>
+            <% } %>
+          </dd>
+          <dt class="col-sm-3">Visibilidad actual</dt>
+          <dd class="col-sm-9">
+            <strong><%= elemento.visibilidadUsuario.estado %></strong>
+            <% if (elemento.visibilidadUsuario.contenidoNoVisible) { %>
+              <span> · existe una categoría contractual que esta vista no solicita; no se revelan nombres, valores, tipos ni cantidades.</span>
+            <% } %>
+          </dd>
+          <% if (elemento.detalle) { %>
+            <dt class="col-sm-3">Último registro visible</dt>
+            <dd class="col-sm-9">
+              <%= elemento.detalle.estadoRegistro %>
+              <% if (elemento.detalle.estadoResumen) { %> · <%= elemento.detalle.estadoResumen %><% } %>
+              · dato: <time data-fecha-utc="<%= elemento.detalle.tiempoDatoUtc || '' %>"><%= elemento.detalle.tiempoDatoUtc || 'No declarado' %></time>
+              · materializado: <time data-fecha-utc="<%= elemento.detalle.materializadaEnUtc || '' %>"><%= elemento.detalle.materializadaEnUtc || 'No declarado' %></time>
+            </dd>
+          <% } %>
+        </dl>
+
+        <% if (elemento.detalle?.referencias?.length) { %>
+          <details class="mt-3">
+            <summary>Referencias opacas (<%= elemento.detalle.referencias.length %>)</summary>
+            <ul class="mt-2 mb-0">
+              <% for (const referencia of elemento.detalle.referencias) { %>
+                <li><code class="text-break"><%= referencia.elementoOrigenId %></code> · no resuelta</li>
+              <% } %>
+            </ul>
+          </details>
+        <% } %>
+
+        <% if (elemento.familia === 'monitores' || elemento.familia === 'triggersInformativos') { %>
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            <% if (
+              elemento.familia === 'monitores' &&
+              elemento.detalle?.tipoRegistro === 'definicion' &&
+              contextoUsuarioActual?.permisos?.editar
+            ) { %>
+              <form method="post" action="/federacion/datos-remotos/borradores/monitor">
+                <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                <input type="hidden" name="proyeccion_id" value="<%= elemento.proyeccionId %>">
+                <button type="submit" class="btn btn-outline-primary btn-sm">
+                  Convertir a monitor lógico local
+                </button>
+              </form>
+            <% } %>
+            <% if (elemento.familia === 'triggersInformativos' && contextoUsuarioActual?.permisos?.editarTriggers) { %>
+              <form method="post" action="/federacion/datos-remotos/borradores/trigger">
+                <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                <input type="hidden" name="proyeccion_id" value="<%= elemento.proyeccionId %>">
+                <button type="submit" class="btn btn-outline-primary btn-sm">
+                  Usar como plantilla de trigger local
+                </button>
+              </form>
+            <% } %>
+          </div>
+        <% } %>
+      </article>
+    <% } %>
+  </section>
+
+  <% if (explorador.paginacion.paginas > 1) { %>
+    <nav class="d-flex justify-content-between align-items-center mt-4" aria-label="Paginación de datos remotos">
+      <% if (explorador.paginacion.pagina > 1) { %><a class="btn btn-outline-secondary" href="<%= urlPagina(explorador.paginacion.pagina - 1) %>">Anterior</a><% } else { %><span></span><% } %>
+      <span>Página <%= explorador.paginacion.pagina %> de <%= explorador.paginacion.paginas %></span>
+      <% if (explorador.paginacion.pagina < explorador.paginacion.paginas) { %><a class="btn btn-outline-secondary" href="<%= urlPagina(explorador.paginacion.pagina + 1) %>">Siguiente</a><% } else { %><span></span><% } %>
+    </nav>
+  <% } %>
+  <% } %>
+</section>
+
+<% if (
+  navegacion.vista === 'monitores' &&
+  navegacion.subvista === 'historico' &&
+  monitoresRemotos?.monitorSeleccionado &&
+  monitoresRemotos.historico.length > 0
+) { %>
+  <script src="/vendor/chartjs/chart.umd.js"></script>
+  <script src="/js/federacion-monitor-remoto-historico.js?v=5-22-18d-grafico-1"></script>
+<% } %>
+
+<% if (
+  navegacion.vista === 'agentes' &&
+  navegacion.subvista === 'actividad'
+) { %>
+  <% if (telemetriaRemota?.grafico?.unidades?.length) { %><script src="/vendor/chartjs/chart.umd.js"></script><% } %>
+  <script src="/js/federacion-telemetria-remota-actividad.js?v=5-24-6-momento-utc-graficable"></script>
+<% } %>
+
+<% if (navegacion.vista === 'alertas') { %>
+  <script src="/js/federacion-alertas-remotas.js?v=5-22-alertas-remotas-1"></script>
+<% } %>
+
+<%- include('../parciales/pie') %>

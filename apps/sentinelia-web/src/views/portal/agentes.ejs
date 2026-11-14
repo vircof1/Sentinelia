@@ -1,0 +1,316 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+<%
+  const alcanceHeroAgentes = {
+    portal: 'Todo el portal',
+    tenant: 'Organización actual',
+    empresa: 'Empresa actual',
+    sitio: 'Sitio actual'
+  }[alcanceActual.nivelScope] || 'Alcance actual';
+%>
+
+<section class="panel-general">
+  <section class="hero-operativo hero-monitores hero-agentes card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-hdd-network" aria-hidden="true"></i>
+              <span>Supervisión de agentes</span>
+            </span>
+            <h1>Agentes Sentinelia</h1>
+            <p>
+              Consulta el estado de los agentes de tus sitios y gestiona su acceso.
+            </p>
+            <div class="hero-etiquetas hero-monitores__etiquetas">
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                <span><%= alcanceHeroAgentes %></span>
+              </span>
+            </div>
+            <div class="hero-monitores__acciones hero-agentes__acciones">
+              <% if (puedeModificarAgentes) { %>
+                <a
+                  href="/agentes/nuevo"
+                  class="btn btn-light btn-sm d-inline-flex align-items-center gap-2"
+                >
+                  <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                  <span>Nuevo agente</span>
+                </a>
+              <% } %>
+              <a
+                href="/agentes/openapi"
+                class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+              >
+                <i class="bi bi-filetype-yml" aria-hidden="true"></i>
+                <span>Contrato OpenAPI</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis">
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-hdd-stack" aria-hidden="true"></i>
+                <span class="etiqueta">Visibles</span>
+              </span>
+              <strong data-kpi-agentes-total><%= resumen.total %></strong>
+              <small>Agentes dentro del alcance actual.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--ok hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-check-circle" aria-hidden="true"></i>
+                <span class="etiqueta">Habilitados</span>
+              </span>
+              <strong data-kpi-agentes-activos><%= resumen.activos %></strong>
+              <small>Su acceso no se ha desactivado manualmente.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--neutro hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-broadcast-pin" aria-hidden="true"></i>
+                <span class="etiqueta">En línea</span>
+              </span>
+              <strong data-kpi-agentes-vivos><%= resumen.vivos %></strong>
+              <small>Han enviado una señal de vida reciente.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--advertencia hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
+                <span class="etiqueta">En cuarentena</span>
+              </span>
+              <strong data-kpi-agentes-cuarentena><%= resumen.enCuarentena %></strong>
+              <small>Bloqueos automáticos visibles.</small>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <% if (flashAgentes && !flashAgentes.operacionId) { %>
+    <section class="seccion-panel">
+      <div class="alert <%= flashAgentes.tipo === 'exito' ? 'alert-success' : 'alert-warning' %> shadow-sm">
+        <strong><%= flashAgentes.mensaje %></strong>
+        <% if (flashAgentes.credenciales) { %>
+          <div class="mt-3 p-3 bg-white border rounded">
+            <p class="mb-2 fw-semibold">
+              Guarda estas credenciales ahora. No se volverán a mostrar.
+            </p>
+            <div class="row g-3">
+              <div class="col-12 col-lg-5">
+                <span class="d-block text-body-secondary small">GUID técnico</span>
+                <code class="d-block text-break"><%= flashAgentes.credenciales.guid %></code>
+              </div>
+              <div class="col-12 col-lg-5">
+                <span class="d-block text-body-secondary small">Secreto persistente</span>
+                <code class="d-block text-break"><%= flashAgentes.credenciales.secreto %></code>
+              </div>
+              <div class="col-12 col-lg-2">
+                <span class="d-block text-body-secondary small">Versión</span>
+                <strong><%= flashAgentes.credenciales.versionSecreto %></strong>
+              </div>
+            </div>
+          </div>
+        <% } %>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (flashAgentes?.operacionId || queryActual?.operacion_id) { %>
+    <% const operacionSeguimientoId = flashAgentes?.operacionId || queryActual.operacion_id; %>
+    <section class="seccion-panel operacion-seguimiento-listado"
+             data-operacion-eliminacion
+             data-url-operacion="/api/operaciones-administrativas/<%= encodeURIComponent(operacionSeguimientoId) %>"
+             data-url-detalle="/operaciones-administrativas/<%= encodeURIComponent(operacionSeguimientoId) %>">
+      <div class="alert alert-info border shadow-sm mb-0" role="status" aria-live="polite" data-operacion-aviso>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <div>
+            <strong data-operacion-titulo>Estado de la eliminación</strong>
+            <span class="d-block small" data-operacion-resumen>Recuperando su estado durable.</span>
+          </div>
+          <a class="btn btn-sm btn-outline-primary" href="/operaciones-administrativas/<%= encodeURIComponent(operacionSeguimientoId) %>">
+            Ver seguimiento
+          </a>
+        </div>
+      </div>
+    </section>
+  <% } %>
+
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h2>Listado de agentes</h2>
+        <p class="texto-apoyo">Agentes dentro de tu alcance.</p>
+      </div>
+    </div>
+
+    <div
+      class="tarjeta"
+      data-agentes-lista
+      data-url-listado="/agentes/api/listado"
+      data-puede-modificar="<%= puedeModificarAgentes ? '1' : '0' %>"
+      data-puede-eliminar="<%= puedeEliminarAgentes ? '1' : '0' %>"
+    >
+      <form method="get" action="/agentes" data-agentes-filtros>
+        <div class="rejilla-filtros-listado agentes-filtros__principales">
+          <div>
+            <label for="filtro_busqueda_agentes">Buscar agente</label>
+            <input
+              id="filtro_busqueda_agentes"
+              name="q"
+              type="search"
+              data-agentes-busqueda
+              placeholder="Nombre, GUID, equipo o sitio"
+              autocomplete="off"
+              value="<%= filtros.textoBusqueda %>"
+            >
+          </div>
+          <div>
+            <label for="filtro_estado_admin_agentes">Habilitación</label>
+            <select id="filtro_estado_admin_agentes" name="estado_administrativo" data-agentes-estado-administrativo>
+              <% for (const opcion of opcionesFiltros.estadosAdministrativos) { %>
+                <option value="<%= opcion.valor %>" <%= filtros.estadoAdministrativo === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div>
+            <label for="filtro_estado_acceso_agentes">Restricciones de acceso</label>
+            <select id="filtro_estado_acceso_agentes" name="estado_acceso" data-agentes-estado-acceso>
+              <% for (const opcion of opcionesFiltros.estadosAcceso) { %>
+                <option value="<%= opcion.valor %>" <%= filtros.estadoAcceso === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div>
+            <label for="filtro_estado_pol_agentes">Conexión del agente</label>
+            <select id="filtro_estado_pol_agentes" name="estado_vida_pol" data-agentes-estado-vida-pol>
+              <% for (const opcion of opcionesFiltros.estadosVidaPol) { %>
+                <option value="<%= opcion.valor %>" <%= filtros.estadoVidaPol === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+        </div>
+
+        <details class="agentes-filtros__visualizacion" <%= Number(filtros.tamanoPagina || 10) !== 10 || filtros.ordenarPor !== 'nombre' || filtros.direccionOrden !== 'asc' ? 'open' : '' %>>
+          <summary>Opciones de visualización</summary>
+          <div class="rejilla-filtros-listado agentes-filtros__opciones">
+            <div>
+              <label for="filtro_filas_agentes">Filas por página</label>
+              <select id="filtro_filas_agentes" name="page_size" data-agentes-page-size>
+                <% for (const tamano of [10, 25, 50, 100]) { %>
+                  <option value="<%= tamano %>" <%= Number(filtros.tamanoPagina || 10) === tamano ? 'selected' : '' %>><%= tamano %></option>
+                <% } %>
+              </select>
+            </div>
+            <div>
+              <label for="filtro_orden_agentes">Ordenar por</label>
+              <select id="filtro_orden_agentes" name="sort_by" data-agentes-sort-by>
+                <option value="nombre" <%= filtros.ordenarPor === 'nombre' ? 'selected' : '' %>>Nombre</option>
+                <option value="sitio" <%= filtros.ordenarPor === 'sitio' ? 'selected' : '' %>>Sitio</option>
+                <option value="empresa" <%= filtros.ordenarPor === 'empresa' ? 'selected' : '' %>>Empresa</option>
+                <option value="tenant" <%= filtros.ordenarPor === 'tenant' ? 'selected' : '' %>>Tenant</option>
+                <option value="estado" <%= filtros.ordenarPor === 'estado' ? 'selected' : '' %>>Estado</option>
+                <option value="login" <%= filtros.ordenarPor === 'login' ? 'selected' : '' %>>Último inicio de sesión</option>
+                <option value="heartbeat" <%= filtros.ordenarPor === 'heartbeat' ? 'selected' : '' %>>Última señal</option>
+                <option value="actualizado" <%= filtros.ordenarPor === 'actualizado' ? 'selected' : '' %>>Última actualización</option>
+              </select>
+            </div>
+            <div>
+              <label for="filtro_direccion_agentes">Sentido del orden</label>
+              <select id="filtro_direccion_agentes" name="sort_dir" data-agentes-sort-dir>
+                <option value="asc" <%= filtros.direccionOrden !== 'desc' ? 'selected' : '' %>>Ascendente</option>
+                <option value="desc" <%= filtros.direccionOrden === 'desc' ? 'selected' : '' %>>Descendente</option>
+              </select>
+            </div>
+          </div>
+        </details>
+
+        <div class="barra-acciones-filtros">
+          <button type="submit" class="boton-primario" data-agentes-aplicar>Aplicar filtros</button>
+          <button type="button" class="boton-secundario" data-agentes-limpiar>Limpiar</button>
+        </div>
+      </form>
+
+      <div class="fila-encabezado fila-encabezado--compacta">
+        <p class="texto-apoyo" data-agentes-resumen-listado>
+          Cargando agentes visibles...
+        </p>
+      </div>
+
+      <div class="texto-apoyo mb-3" data-agentes-estado>Cargando agentes...</div>
+
+      <div class="table-responsive organizacion-tabla agentes-tabla">
+        <table class="table table-sm table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Agente</th>
+              <th scope="col">Ubicación</th>
+              <th scope="col">Estado</th>
+              <th scope="col">Actividad</th>
+              <th scope="col">Diagnóstico</th>
+              <th scope="col" class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody data-agentes-filas>
+            <tr>
+              <td colspan="6" class="text-body-secondary">
+                Cargando agentes visibles...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="agentes-tarjetas" data-agentes-tarjetas aria-label="Agentes visibles"></div>
+
+      <div class="paginador-listado mt-3" data-agentes-paginador>
+        <span class="text-body-secondary" data-agentes-pagina-actual>Página 1 de 1</span>
+        <div class="grupo-paginacion">
+          <button type="button" class="boton-secundario" data-page-action="first">Primera</button>
+          <button type="button" class="boton-secundario" data-page-action="prev">Anterior</button>
+          <button type="button" class="boton-secundario" data-page-action="next">Siguiente</button>
+          <button type="button" class="boton-secundario" data-page-action="last">Última</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<% if (puedeEliminarAgentes) { %>
+  <div class="modal fade modal-impacto-trigger modal-eliminar-agente" id="modalEliminarAgente" tabindex="-1" aria-labelledby="modalEliminarAgenteTitulo" aria-hidden="true" data-agentes-modal-eliminar>
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title h4" id="modalEliminarAgenteTitulo" data-agentes-eliminar-titulo>Eliminar agente</h2>
+            <p class="texto-apoyo mb-0">Revisa el impacto antes de solicitar la eliminación.</p>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="texto-apoyo mb-0" role="status" aria-live="polite" data-agentes-eliminar-carga>Preparando la revisión…</p>
+          <form id="formularioEliminarAgenteModal" method="post" data-agentes-eliminar-formulario hidden>
+            <input type="hidden" name="tokenCSRF" value="<%= tokenCSRFPortal %>">
+            <input type="hidden" name="tokenConfirmacion" data-agentes-eliminar-token>
+            <div data-agentes-eliminar-impacto></div>
+            <label for="fraseEliminarAgenteModal" class="form-label fw-semibold mt-3">
+              Escribe exactamente <code data-agentes-eliminar-frase-exacta></code>
+            </label>
+            <input id="fraseEliminarAgenteModal" name="fraseConfirmacion" type="text" class="form-control" autocomplete="off" spellcheck="false" aria-describedby="estadoEliminarAgenteModal" data-agentes-eliminar-frase>
+            <p id="estadoEliminarAgenteModal" class="small text-body-secondary mt-2 mb-0" aria-live="polite" data-agentes-eliminar-estado>La frase todavía no coincide.</p>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" form="formularioEliminarAgenteModal" class="btn btn-danger" disabled data-agentes-eliminar-enviar>Encolar eliminación</button>
+        </div>
+      </div>
+    </div>
+  </div>
+<% } %>
+
+<script src="/js/agentes.js?v=agentes-ux-modal-20260926"></script>
+<script src="/js/eliminacion-agentes.js?v=eliminacion-5-25-13b"></script>
+<%- include('../parciales/pie') %>

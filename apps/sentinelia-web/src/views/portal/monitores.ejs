@@ -1,0 +1,416 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<section class="panel-general">
+  <% const puedeEditarMonitores = Boolean(contextoUsuarioActual?.permisos?.editar); %>
+  <% const etiquetaTipoActivo = contextoTipo.etiquetaTipo || 'Todos'; %>
+  <% const iconoTipoActivo = contextoTipo.icono || 'hdd-network'; %>
+  <%
+    const urlListadoPorTipo = (tipo, mantenerContexto = true) => {
+      const parametros = new URLSearchParams(
+        mantenerContexto ? contextoHero.filtrosNavegacion : {}
+      );
+      if (tipo) parametros.set('tipo', tipo);
+      return `/monitores${parametros.size ? `?${parametros.toString()}` : ''}`;
+    };
+    const contextoInterpretacion =
+      Number(filtros.agenteTelemetriaId) > 0 &&
+      Number(filtros.senalTelemetriaId) > 0 &&
+      Number(filtros.reglaTelemetriaId) > 0
+      ? {
+          agenteId: filtros.agenteTelemetriaId,
+          senalId: filtros.senalTelemetriaId,
+          reglaId: filtros.reglaTelemetriaId
+        }
+      : null;
+    const parametrosAltaContextual = contextoInterpretacion
+      ? `&agente_id=${encodeURIComponent(contextoInterpretacion.agenteId)}` +
+        `&senal_id=${encodeURIComponent(contextoInterpretacion.senalId)}` +
+        `&regla_id=${encodeURIComponent(contextoInterpretacion.reglaId)}`
+      : '';
+    const nombreAlcance = {
+      tenant: contextoHero.tenant ? `Tenant: ${contextoHero.tenant}` : 'Tenant acotado',
+      empresa: contextoHero.empresa ? `Empresa: ${contextoHero.empresa}` : 'Empresa acotada',
+      sitio: contextoHero.sitio ? `Sitio: ${contextoHero.sitio}` : 'Sitio acotado'
+    }[alcanceActual.nivelScope] || alcanceActual.descripcion;
+  %>
+  <section class="hero-operativo hero-monitores card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-<%= iconoTipoActivo %>" aria-hidden="true"></i>
+              <span>Supervisión operativa</span>
+            </span>
+            <h1><%= contextoTipo.tituloListado %></h1>
+            <p>Consulta los monitores visibles y su estado de configuración.</p>
+            <div class="hero-etiquetas hero-monitores__etiquetas">
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-filter-circle" aria-hidden="true"></i>
+                <span>Tipo: <span data-hero-monitores-tipo><%= etiquetaTipoActivo %></span></span>
+              </span>
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-shield-check" aria-hidden="true"></i>
+                <span>Alcance: <%= contextoHero.alcance %></span>
+              </span>
+              <% if (contextoHero.tenant) { %>
+                <span class="insignia d-inline-flex align-items-center gap-2"><i class="bi bi-diagram-3" aria-hidden="true"></i>Tenant: <%= contextoHero.tenant %></span>
+              <% } %>
+              <% if (contextoHero.empresa) { %>
+                <span class="insignia d-inline-flex align-items-center gap-2"><i class="bi bi-buildings" aria-hidden="true"></i>Empresa: <%= contextoHero.empresa %></span>
+              <% } %>
+              <% if (contextoHero.sitio) { %>
+                <span class="insignia d-inline-flex align-items-center gap-2"><i class="bi bi-geo-alt" aria-hidden="true"></i>Sitio: <%= contextoHero.sitio %></span>
+              <% } %>
+            </div>
+            <div class="hero-monitores__acciones">
+              <a
+                href="<%= urlListadoPorTipo('') %>"
+                class="btn <%= !tipoListadoActivo ? 'btn-light' : 'btn-outline-light' %> btn-sm d-inline-flex align-items-center gap-2"
+                data-hero-monitores-enlace-tipo=""
+                <%- !tipoListadoActivo ? 'aria-current="page"' : '' %>
+              >
+                <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
+                <span>Todos</span>
+              </a>
+              <% for (const opcionTipo of opcionesTipo.filter((opcion) => opcion.valor)) { %>
+                <a
+                  href="<%= urlListadoPorTipo(opcionTipo.valor) %>"
+                  class="btn <%= tipoListadoActivo === opcionTipo.valor ? 'btn-light' : 'btn-outline-light' %> btn-sm d-inline-flex align-items-center gap-2"
+                  data-hero-monitores-enlace-tipo="<%= opcionTipo.valor %>"
+                  <%- tipoListadoActivo === opcionTipo.valor ? 'aria-current="page"' : '' %>
+                >
+                  <i class="bi bi-<%= opcionTipo.icono || 'hdd-network' %>" aria-hidden="true"></i>
+                  <span><%= opcionTipo.etiqueta %></span>
+                </a>
+              <% } %>
+              <a
+                href="/monitores/historico"
+                class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+              >
+                <i class="bi bi-clock-history" aria-hidden="true"></i>
+                <span>Histórico</span>
+              </a>
+              <% if (contextoHero.tieneFiltroOrganizativo) { %>
+                <a href="<%= urlListadoPorTipo(tipoListadoActivo, false) %>" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2">
+                  <i class="bi bi-x-circle" aria-hidden="true"></i>
+                  <span>Ver todo mi alcance</span>
+                </a>
+              <% } %>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis">
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-hdd-network" aria-hidden="true"></i>
+                <span class="etiqueta">Total</span>
+              </span>
+              <strong data-kpi-total-monitores>0</strong>
+              <small>Monitores visibles con los filtros actuales.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--ok hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-check-circle" aria-hidden="true"></i>
+                <span class="etiqueta">Habilitados</span>
+              </span>
+              <strong data-kpi-total-habilitados>0</strong>
+              <small>Configurados para operar.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--advertencia hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-pause-circle" aria-hidden="true"></i>
+                <span class="etiqueta">Deshabilitados</span>
+              </span>
+              <strong data-kpi-total-deshabilitados>0</strong>
+              <small>Desactivados en la configuración.</small>
+            </article>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section
+    class="seccion-panel"
+    data-monitores-lista
+    data-url-listado="/monitores/api/listado"
+    data-puede-editar="<%= puedeEditarMonitores ? '1' : '0' %>"
+    data-retorno-listado="<%= retornoListado %>"
+    data-tipo-fijo="<%= tipoListadoActivo %>"
+    data-agente-telemetria-id="<%= contextoInterpretacion?.agenteId || '' %>"
+    data-senal-telemetria-id="<%= contextoInterpretacion?.senalId || '' %>"
+    data-regla-telemetria-id="<%= contextoInterpretacion?.reglaId || '' %>"
+    data-catalogo-tipos="<%= JSON.stringify(catalogoTiposMonitor || { tipos: [], fallback: null }) %>"
+  >
+    <% if (contextoInterpretacion) { %>
+      <div class="alert alert-info d-flex justify-content-between align-items-center gap-3 flex-wrap" role="status">
+        <span>
+          Mostrando exclusivamente los monitores vinculados a la interpretación
+          <strong>#<%= contextoInterpretacion.reglaId %></strong> de la señal
+          <strong>#<%= contextoInterpretacion.senalId %></strong> del agente
+          <strong>#<%= contextoInterpretacion.agenteId %></strong>.
+        </span>
+        <a href="/monitores?tipo=telemetria" class="btn btn-outline-info btn-sm">Ver todos</a>
+      </div>
+    <% } %>
+    <% if (flashMonitores) { %>
+      <script>
+        document.addEventListener('DOMContentLoaded', function () {
+          if (window.portalToast?.show) {
+            window.portalToast.show({
+              tipo: '<%= flashMonitores.tipo === 'error' ? 'error' : 'satisfactorio' %>',
+              titulo: 'Monitores',
+              cuerpo: <%- JSON.stringify(String(flashMonitores.mensaje || '')) %>
+            });
+          }
+        });
+      </script>
+    <% } %>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 pb-0">
+        <div class="seccion-cabecera mb-0">
+          <div>
+            <h2>Catálogo de monitores</h2>
+            <!-- <%= contextoTipo.ayudaListado %> -->
+          </div>
+        </div>
+      </div>
+
+      <div class="card-body pt-3">
+      <div class="rejilla-filtros-listado">
+        <div>
+          <label for="filtro_busqueda_monitores">Buscar monitores</label>
+          <input
+            id="filtro_busqueda_monitores"
+            type="search"
+            placeholder="Nombre, descripción o ubicación"
+            autocomplete="off"
+            data-monitores-busqueda
+            value="<%= filtros.textoBusqueda %>"
+          >
+        </div>
+        <% if (!tipoListadoActivo) { %>
+          <div>
+            <label for="filtro_tipo_monitores">Tipo</label>
+            <select id="filtro_tipo_monitores" data-monitores-tipo>
+              <% for (const opcion of opcionesTipo) { %>
+                <option
+                  value="<%= opcion.valor %>"
+                  <%= filtros.tipo === opcion.valor ? 'selected' : '' %>
+                ><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+        <% } %>
+        <div>
+          <label for="filtro_tenant_monitores">Tenant</label>
+          <select id="filtro_tenant_monitores" data-monitores-tenant>
+            <option value="">Todos</option>
+            <% for (const opcion of opcionesTenants) { %>
+              <option
+                value="<%= opcion.valor %>"
+                <%= String(filtros.tenantId) === String(opcion.valor) ? 'selected' : '' %>
+              ><%= opcion.etiqueta %></option>
+            <% } %>
+          </select>
+        </div>
+        <div>
+          <label for="filtro_empresa_monitores">Empresa</label>
+          <select id="filtro_empresa_monitores" data-monitores-empresa>
+            <option value="">Todas</option>
+            <% for (const opcion of opcionesEmpresas) { %>
+              <option
+                value="<%= opcion.valor %>"
+                data-tenant-id="<%= opcion.tenantId %>"
+                <%= String(filtros.empresaId) === String(opcion.valor) ? 'selected' : '' %>
+              ><%= opcion.etiqueta %></option>
+            <% } %>
+          </select>
+        </div>
+        <div>
+          <label for="filtro_sitio_monitores">Sitio</label>
+          <select id="filtro_sitio_monitores" data-monitores-sitio>
+            <option value="">Todos</option>
+            <% for (const opcion of opcionesSitios) { %>
+              <option
+                value="<%= opcion.valor %>"
+                data-tenant-id="<%= opcion.tenantId %>"
+                data-empresa-id="<%= opcion.empresaId %>"
+                <%= String(filtros.sitioId) === String(opcion.valor) ? 'selected' : '' %>
+              ><%= opcion.etiqueta %></option>
+            <% } %>
+          </select>
+        </div>
+        <div>
+          <label for="filtro_pertenencia_monitores">Pertenencia</label>
+          <select id="filtro_pertenencia_monitores" data-monitores-pertenencia>
+            <% for (const opcion of opcionesPertenencia) { %>
+              <option
+                value="<%= opcion.valor %>"
+                <%= filtros.nivelPertenencia === opcion.valor ? 'selected' : '' %>
+              ><%= opcion.etiqueta %></option>
+            <% } %>
+          </select>
+        </div>
+        <div>
+          <label for="filtro_activo_monitores">Estado</label>
+          <select id="filtro_activo_monitores" data-monitores-activo>
+            <option value="todos" <%= filtros.activo === 'todos' ? 'selected' : '' %>>Todos</option>
+            <option value="solo_activos" <%= filtros.activo === 'solo_activos' ? 'selected' : '' %>>Habilitados</option>
+            <option value="solo_inactivos" <%= filtros.activo === 'solo_inactivos' ? 'selected' : '' %>>Deshabilitados</option>
+          </select>
+          <small class="texto-apoyo">Habilitado o deshabilitado; no indica el estado operativo.</small>
+        </div>
+        <div>
+          <label for="filtro_filas_monitores">Filas</label>
+          <select id="filtro_filas_monitores" data-monitores-page-size>
+            <% for (const tamano of [10, 25, 50, 100]) { %>
+              <option value="<%= tamano %>" <%= Number(filtros.tamanoPagina) === tamano ? 'selected' : '' %>><%= tamano %></option>
+            <% } %>
+          </select>
+        </div>
+      </div>
+
+      <div class="barra-acciones-filtros">
+        <button type="button" class="boton-secundario" data-monitores-limpiar>
+          Limpiar
+        </button>
+        <% if (puedeEditarMonitores) { %>
+          <a href="/monitores/nuevo?tipo=<%= encodeURIComponent(tipoListadoActivo) %><%= parametrosAltaContextual %>&return_to=<%= encodeURIComponent(retornoListado) %>" class="boton-primario enlace-boton" data-monitores-nuevo><%= contextoTipo.etiquetaNuevaEntidad %></a>
+        <% } %>
+      </div>
+      <div class="monitores-filtros-activos" data-monitores-filtros-activos hidden aria-label="Filtros activos"></div>
+
+      <div class="fila-encabezado fila-encabezado--compacta">
+        <p class="texto-apoyo" data-monitores-resumen-listado>
+          Cargando monitores...
+        </p>
+        <p class="texto-apoyo">
+          Alcance actual: <strong><%= nombreAlcance %></strong>
+        </p>
+      </div>
+
+      <p id="monitores-tabla-desplazamiento" class="d-flex d-md-none align-items-center justify-content-end gap-2 small text-body-secondary mt-3 mb-0">
+        <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+        Desliza horizontalmente para ver más columnas
+      </p>
+      <div class="table-responsive mt-2 mt-md-4 organizacion-tabla monitores-tabla" tabindex="0" role="region" aria-label="Listado de monitores" aria-describedby="monitores-tabla-desplazamiento">
+        <div data-monitores-estado class="texto-apoyo monitores-tabla__estado">Cargando monitores...</div>
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col" aria-sort="none"><button type="button" class="boton-orden" data-monitores-sort-by="nombre">Monitor</button></th>
+              <th scope="col" class="monitores-tabla__tipo" aria-sort="none"><button type="button" class="boton-orden" data-monitores-sort-by="tipo">Tipo</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="boton-orden" data-monitores-sort-by="ubicacion">Ubicación</button></th>
+              <th scope="col" class="monitores-tabla__estado" aria-sort="none"><button type="button" class="boton-orden" data-monitores-sort-by="activo">Estado</button></th>
+              <th scope="col" class="monitores-tabla__runtime">Runtime</th>
+              <th scope="col" aria-sort="none"><button type="button" class="boton-orden" data-monitores-sort-by="actualizado">Actualizado</button></th>
+              <th scope="col" class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody data-monitores-filas>
+            <tr>
+              <td colspan="7" class="text-body-secondary">
+                Cargando monitores...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div
+        class="d-flex justify-content-between align-items-center gap-3 flex-wrap border-top mt-4 pt-3"
+        data-monitores-paginador
+      >
+        <span class="text-body-secondary" data-monitores-pagina-actual></span>
+
+        <div class="btn-group" role="group" aria-label="Paginación monitores">
+          <button type="button" class="btn btn-outline-secondary" data-page-action="first">
+            <i class="bi bi-chevron-double-left me-2" aria-hidden="true"></i>
+            Primero
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-page-action="prev">
+            <i class="bi bi-chevron-left me-2" aria-hidden="true"></i>
+            Anterior
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-page-action="next">
+            Siguiente
+            <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-page-action="last">
+            Último
+            <i class="bi bi-chevron-double-right ms-2" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<% if (puedeEditarMonitores) { %>
+  <div class="modal fade modal-eliminacion-monitor" id="modal-eliminacion-monitor" tabindex="-1" aria-labelledby="modal-eliminacion-monitor-titulo" aria-hidden="true" data-monitores-modal-eliminacion>
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <form method="post" action="/monitores/eliminar" data-monitores-eliminacion-form>
+          <div class="modal-header">
+            <div>
+              <h2 class="modal-title fs-4" id="modal-eliminacion-monitor-titulo">Eliminar monitor</h2>
+              <p class="text-body-secondary mb-0" data-monitores-eliminacion-identidad></p>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" name="id" data-monitores-eliminacion-id>
+            <input type="hidden" name="return_to" data-monitores-eliminacion-retorno>
+
+            <div class="alert alert-warning mb-4" role="note">
+              <strong>La eliminación es inmediata.</strong>
+              El monitor y su historial propio dejarán de estar disponibles al confirmar.
+            </div>
+            <p class="text-body-secondary" data-monitores-eliminacion-cargando role="status">Calculando el impacto real…</p>
+            <div class="alert alert-danger d-none" data-monitores-eliminacion-error role="alert"></div>
+
+            <div class="d-none" data-monitores-eliminacion-impacto>
+              <h3 class="h6">Se eliminará</h3>
+              <div class="table-responsive mb-4">
+                <table class="table table-sm mb-0">
+                  <thead><tr><th scope="col">Contenido</th><th scope="col" class="text-end">Cantidad</th></tr></thead>
+                  <tbody>
+                    <tr><td>Monitor</td><td class="text-end">1</td></tr>
+                    <tr><td>Eventos</td><td class="text-end" data-monitores-impacto="eventos"></td></tr>
+                    <tr><td>Tramos del histórico</td><td class="text-end" data-monitores-impacto="tramosHistorico"></td></tr>
+                    <tr><td>Alertas activas</td><td class="text-end" data-monitores-impacto="alertasActivas"></td></tr>
+                    <tr><td>Vínculos con triggers</td><td class="text-end" data-monitores-impacto="vinculosTriggers"></td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <h3 class="h6">Se conservará</h3>
+              <p class="text-body-secondary mb-3" data-monitores-ejecuciones-conservadas></p>
+              <div class="alert alert-warning d-none mb-0" data-monitores-eliminacion-dependientes>
+                <strong data-monitores-impacto="monitoresLogicosDependientes"></strong>
+                <span data-monitores-dependientes-descripcion></span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-danger" data-monitores-eliminacion-confirmar disabled>
+              <i class="bi bi-trash3" aria-hidden="true"></i> Eliminar monitor
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+<% } %>
+
+<script src="/js/monitores.js?v=telemetria-regla-contextual-20260910"></script>
+
+<%- include('../parciales/pie') %>

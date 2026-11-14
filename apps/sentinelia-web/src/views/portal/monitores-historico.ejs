@@ -1,0 +1,299 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<section class="panel-general">
+  <section class="hero-operativo hero-monitores hero-historico card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-clock-history" aria-hidden="true"></i>
+              <span>Histórico operativo</span>
+            </span>
+            <h1>Histórico de monitores</h1>
+            <p>Consulta cómo ha evolucionado el estado de tus monitores durante el período elegido.</p>
+            <div class="hero-monitores__acciones">
+              <a href="<%= retornoListado %>" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
+                <span><%= retornoListado === '/monitores' ? 'Volver a monitores' : 'Volver' %></span>
+              </a>
+              <a
+                href="/monitores/eventos?return_to=<%= encodeURIComponent(retornoHistorico) %>"
+                data-historico-hero-enlace="eventos"
+                class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+              >
+                <i class="bi bi-graph-up" aria-hidden="true"></i>
+                <span>Ver eventos</span>
+              </a>
+              <a
+                href="/monitores/comparar-eventos?return_to=<%= encodeURIComponent(retornoHistorico) %>"
+                data-historico-hero-enlace="comparar"
+                class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+              >
+                <i class="bi bi-intersect" aria-hidden="true"></i>
+                <span>Comparar eventos</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis hero-historico__kpis">
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-calendar-range" aria-hidden="true"></i>
+                <span class="etiqueta">Período consultado</span>
+              </span>
+              <strong data-historico-hero-periodo><%= filtros.desde.split('-').reverse().join('/') %> – <%= filtros.hasta.split('-').reverse().join('/') %></strong>
+            </article>
+            <article class="kpi-resumen kpi-resumen--ok hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-collection" aria-hidden="true"></i>
+                <span class="etiqueta">Tramos encontrados</span>
+              </span>
+              <strong data-historico-hero-total aria-live="polite">—</strong>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section
+    class="seccion-panel"
+    data-historico-monitores-lista
+    data-url-listado="/monitores/historico/api"
+    data-url-opciones-monitores="/monitores/historico/api/opciones/monitores"
+  >
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 pb-0">
+        <div class="seccion-cabecera mb-0">
+          <div>
+            <h2>Tramos visibles</h2>
+            <p class="texto-apoyo mb-0">Se muestran los períodos de estado que se solapan con las fechas elegidas. Un tramo puede haber comenzado antes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-body pt-3">
+        <div class="d-grid gap-4">
+          <section class="bloque-historico">
+            <div class="bloque-historico__cabecera">
+              <div>
+                <h3>Filtros de lectura</h3>
+                <p class="texto-apoyo">Acota el período y los monitores. Los cambios se aplican automáticamente.</p>
+              </div>
+              <div class="bloque-historico__acciones-rapidas">
+                <span class="small text-uppercase fw-semibold text-body-secondary">Períodos rápidos</span>
+                <div class="d-flex flex-wrap gap-2">
+                  <button type="button" class="btn btn-outline-secondary btn-sm" data-historico-preseleccion="hoy">Hoy</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" data-historico-preseleccion="7d">7 días</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" data-historico-preseleccion="30d">30 días</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="rejilla-filtros-listado rejilla-filtros-listado--principal">
+              <div>
+                <label for="historico_desde" class="form-label">Fecha inicio</label>
+                <input id="historico_desde" class="form-control" type="date" value="<%= filtros.desde %>" data-historico-desde>
+              </div>
+              <div>
+                <label for="historico_hasta" class="form-label">Fecha fin</label>
+                <input id="historico_hasta" class="form-control" type="date" value="<%= filtros.hasta %>" data-historico-hasta>
+              </div>
+              <div class="campo-monitor-destacado">
+                <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-2">
+                  <label for="historico_monitor" class="form-label mb-0">Monitor</label>
+                </div>
+                <select id="historico_monitor" class="d-none" data-historico-monitor aria-hidden="true" tabindex="-1">
+                  <option value="">Todos</option>
+                </select>
+                <div class="card border shadow-sm h-100 comparador-slot comparador-slot--filtro comparador-slot--historico" data-historico-monitor-slot data-estado="vacio">
+                  <div class="card-body d-grid gap-3">
+                    <div class="comparador-slot__cabecera">
+                      <div class="small text-uppercase fw-semibold mb-1 comparador-slot__indice">
+                        Filtro
+                      </div>
+                      <div class="comparador-slot__insignias">
+                        <span class="insignia-monitor insignia-monitor--suave comparador-slot__estado" data-historico-monitor-slot-estado>Todos</span>
+                        <span class="insignia-monitor insignia-monitor--suave comparador-slot__tipo" data-historico-monitor-slot-tipo hidden>Tipo</span>
+                      </div>
+                      <strong class="d-block comparador-slot__titulo" data-historico-monitor-slot-titulo>Todos los monitores visibles</strong>
+                      <div class="text-body-secondary small mt-1 comparador-slot__detalle" data-historico-monitor-slot-detalle>
+                        Abre el selector para buscar por nombre, tipo o alcance sin recorrer una lista interminable.
+                      </div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-2"
+                        data-historico-monitor-slot-buscar
+                      >
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                        <span>Buscar monitor</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2"
+                        data-historico-monitor-slot-limpiar
+                        hidden
+                      >
+                        <i class="bi bi-x-circle" aria-hidden="true"></i>
+                        <span>Quitar filtro</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="rejilla-filtros-listado historico-filtros__tipo-estado">
+              <div>
+                <label for="historico_tipo" class="form-label">Tipo</label>
+                <select id="historico_tipo" class="form-select" data-historico-tipo>
+                  <% for (const opcion of opcionesTipo) { %>
+                    <option value="<%= opcion.valor %>" <%= filtros.tipo === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                  <% } %>
+                </select>
+              </div>
+              <div>
+                <label for="historico_estado" class="form-label">Estado</label>
+                <select id="historico_estado" class="form-select" data-historico-estado>
+                  <% for (const opcion of opcionesEstado) { %>
+                    <option value="<%= opcion.valor %>" <%= filtros.estadoTramo === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                  <% } %>
+                </select>
+              </div>
+            </div>
+
+            <details class="historico-filtros-avanzados" <%= filtros.codigoResultado || Number(filtros.tamanoPagina) !== 25 || filtros.ordenarPor !== 'valido_hasta' || filtros.direccionOrden !== 'desc' ? 'open' : '' %>>
+              <summary>Más filtros y visualización <i class="bi bi-chevron-down" aria-hidden="true"></i></summary>
+              <div class="rejilla-filtros-listado rejilla-filtros-listado--secundaria">
+              <div>
+                <label for="historico_codigo" class="form-label">Código resultado</label>
+                <input
+                  id="historico_codigo"
+                  class="form-control"
+                  type="search"
+                  placeholder="Ej. timeout_tcp"
+                  autocomplete="off"
+                  value="<%= filtros.codigoResultado %>"
+                  data-historico-codigo
+                >
+              </div>
+              <div>
+                <label for="historico_page_size" class="form-label">Filas</label>
+                <select id="historico_page_size" class="form-select" data-historico-page-size>
+                  <% for (const opcion of opcionesTamanoPagina) { %>
+                    <option value="<%= opcion %>" <%= Number(filtros.tamanoPagina) === Number(opcion) ? 'selected' : '' %>><%= opcion %></option>
+                  <% } %>
+                </select>
+              </div>
+              <div>
+                <label for="historico_sort_by" class="form-label">Ordenar por</label>
+                <select id="historico_sort_by" class="form-select" data-historico-sort-by>
+                  <% for (const opcion of opcionesOrden) { %>
+                    <option value="<%= opcion.valor %>" <%= filtros.ordenarPor === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                  <% } %>
+                </select>
+              </div>
+              <div>
+                <label for="historico_sort_dir" class="form-label">Dirección</label>
+                <select id="historico_sort_dir" class="form-select" data-historico-sort-dir>
+                  <option value="asc" <%= filtros.direccionOrden === 'asc' ? 'selected' : '' %>>Ascendente</option>
+                  <option value="desc" <%= filtros.direccionOrden === 'desc' ? 'selected' : '' %>>Descendente</option>
+                </select>
+              </div>
+              </div>
+            </details>
+
+            <div class="barra-acciones-filtros">
+              <button type="button" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" data-historico-limpiar>
+                <i class="bi bi-eraser" aria-hidden="true"></i>
+                <span>Restablecer filtros</span>
+              </button>
+            </div>
+
+            <div class="historico-filtros-activos" role="status">
+              <div class="d-flex flex-column gap-2">
+                <div class="small text-uppercase fw-semibold text-body-secondary">Consulta actual</div>
+                <div class="contenedor-chips" data-historico-filtros-activos>
+                  <span class="chip-simple">Preparando contexto...</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="bloque-historico" data-historico-resumen>
+            <div class="bloque-historico__cabecera">
+              <div>
+                <h3>Resumen operativo</h3>
+                <p class="texto-apoyo">Distribución de los tramos encontrados.</p>
+              </div>
+            </div>
+
+            <div class="rejilla-resumen">
+              <article class="kpi-resumen kpi-resumen--suave">
+                <span class="etiqueta">Monitores con historial</span>
+                <strong data-historico-total-monitores>0</strong>
+              </article>
+              <article class="kpi-resumen kpi-resumen--ok">
+                <span class="etiqueta">Tramos disponibles</span>
+                <strong data-historico-total-disponibles>0</strong>
+              </article>
+              <article class="kpi-resumen kpi-resumen--alerta">
+                <span class="etiqueta">Tramos con fallo o degradación</span>
+                <strong data-historico-total-problemas>0</strong>
+              </article>
+            </div>
+          </section>
+
+          <section class="bloque-historico">
+            <div class="fila-encabezado fila-encabezado--compacta">
+              <div>
+                <p class="texto-apoyo fw-semibold" data-historico-resumen-listado>
+                  Cargando histórico...
+                </p>
+              </div>
+              <div class="d-flex flex-column align-items-start align-items-md-end gap-2">
+                <span class="insignia-monitor insignia-monitor--suave" data-historico-pagina-actual></span>
+                <span class="texto-apoyo" data-historico-paginacion-resumen></span>
+              </div>
+            </div>
+
+            <div class="tabla-configuracion tabla-configuracion--compacta">
+              <div data-historico-lista-estado class="historico-lista-estado">Cargando histórico...</div>
+              <div data-historico-filas></div>
+            </div>
+
+            <div class="paginador-listado" data-historico-paginador>
+              <span class="texto-apoyo">Navegación del listado</span>
+              <div class="paginador-listado__acciones">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-page-action="first">Primero</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-page-action="prev">Anterior</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-page-action="next">Siguiente</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-page-action="last">Último</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<%- include('parciales/historico-selector-monitor-modal', {
+  alcanceActual,
+  opcionesTipo,
+  opcionesTenants,
+  opcionesEmpresas,
+  opcionesPertenencia,
+  opcionesEstadoListado,
+  opcionesTamanoPaginaListado,
+  opcionesOrdenListado
+}) %>
+
+<script src="/js/monitores-historico.js?v=contenido-20261002"></script>
+
+<%- include('../parciales/pie') %>

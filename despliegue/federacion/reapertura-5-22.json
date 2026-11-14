@@ -1,0 +1,27 @@
+{
+  "perfil": "sentinelia-federacion-reapertura-v1",
+  "fase": "5.22",
+  "serieOrigen": "5.22.20",
+  "estado": "reabierta",
+  "autoridadCierreAnterior": "suspendida",
+  "bloqueos": [
+    {
+      "codigo": "concesion_bilateral_no_compuesta",
+      "estado": "resuelto",
+      "descripcion": "El dominio calcula concesiones efectivas, pero los entrypoints productivos no consolidan bilateralmente una revision efectiva.",
+      "serieResolucion": "5.22.21c-5.22.21d"
+    },
+    {
+      "codigo": "flujo_inicial_no_reconciliado",
+      "estado": "resuelto",
+      "descripcion": "El corte inicial existe para reconstrucciones manuales, pero no nace productivamente desde una concesion efectiva.",
+      "serieResolucion": "5.22.21e"
+    },
+    {
+      "codigo": "captura_productiva_no_conectada",
+      "estado": "resuelto",
+      "descripcion": "Web y runtime componen captura viva para las familias administrativas, telemetria, monitores y ejecuciones tecnicas.",
+      "serieResolucion": "5.22.21g-5.22.21h"
+    }
+  ]
+}

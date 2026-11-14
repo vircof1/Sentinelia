@@ -1,0 +1,82 @@
+<%
+  const tipoPorSubvista = { tenants: 'tenant', empresas: 'empresa', sitios: 'sitio' };
+  const tipoFiltrado = tipoPorSubvista[navegacion.subvista] || null;
+  const nodosVisibles = tipoFiltrado
+    ? organizacionRemota.actuales.filter((nodo) => nodo.tipo === tipoFiltrado)
+    : organizacionRemota.actuales;
+  const etiquetasTipo = { tenant: 'Tenant', empresa: 'Empresa', sitio: 'Sitio' };
+  const iconosTipo = { tenant: 'bi-boxes', empresa: 'bi-buildings', sitio: 'bi-geo-alt' };
+%>
+
+<span class="insignia-suave">Área remota · solo lectura</span>
+<h2 class="mt-2"><i class="bi <%= seccionActual.icono %>" aria-hidden="true"></i> Organización</h2>
+<p>Jerarquía publicada por la instalación de origen y materializada dentro de tu concesión y scope actuales.</p>
+
+<div class="submenus-remotos mt-4">
+  <% for (const subseccion of subsecciones) { %>
+    <a href="<%= urlSubvista(subseccion.id) %>"
+      class="<%= navegacion.subvista === subseccion.id ? 'activo' : '' %>"><%= subseccion.etiqueta %></a>
+  <% } %>
+</div>
+
+<div class="resumen-organizacion-remota mt-4" aria-label="Resumen de organización remota">
+  <article><span>Tenants</span><strong><%= organizacionRemota.resumen.tenants %></strong></article>
+  <article><span>Empresas</span><strong><%= organizacionRemota.resumen.empresas %></strong></article>
+  <article><span>Sitios</span><strong><%= organizacionRemota.resumen.sitios %></strong></article>
+  <article class="<%= organizacionRemota.resumen.retirados ? 'con-retiradas' : '' %>">
+    <span>Retirados</span><strong><%= organizacionRemota.resumen.retirados %></strong>
+  </article>
+</div>
+
+<% if (nodosVisibles.length === 0) { %>
+  <div class="estado-vacio-remoto mt-4">
+    <i class="bi bi-diagram-3" aria-hidden="true"></i>
+    <div><strong>No hay nodos de este tipo visibles.</strong><br>La vista respeta la concesión, la procedencia y el scope efectivo de tu sesión.</div>
+  </div>
+<% } else { %>
+  <section class="arbol-organizacion-remota mt-4" aria-label="Jerarquía organizativa remota">
+    <% for (const nodo of nodosVisibles) { %>
+      <article class="nodo-organizacion-remota nodo-organizacion-remota--nivel-<%= nodo.profundidad %>">
+        <div class="nodo-organizacion-remota__icono">
+          <i class="bi <%= iconosTipo[nodo.tipo] %>" aria-hidden="true"></i>
+        </div>
+        <div class="nodo-organizacion-remota__contenido">
+          <div class="ruta-organizacion-remota" aria-label="Ruta organizativa">
+            <% for (const tramo of nodo.ruta) { %>
+              <span class="<%= tramo.visibilidad === 'opaca' ? 'opaco' : '' %>"><%= tramo.nombre %></span>
+              <% if (tramo !== nodo.ruta.at(-1)) { %><i class="bi bi-chevron-right" aria-hidden="true"></i><% } %>
+            <% } %>
+          </div>
+          <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start mt-2">
+            <div>
+              <span class="insignia-monitor insignia-monitor--neutro"><%= etiquetasTipo[nodo.tipo] %></span>
+              <h3><%= nodo.nombre %></h3>
+              <% if (nodo.alias && nodo.alias !== nodo.nombre) { %><small>Alias: <%= nodo.alias %></small><% } %>
+            </div>
+            <span class="insignia-monitor <%= nodo.estado === 'activo' ? 'insignia-monitor--ok' : 'insignia-monitor--advertencia' %>"><%= nodo.estado %></span>
+          </div>
+          <% if (nodo.descripcion) { %><p class="mb-2"><%= nodo.descripcion %></p><% } %>
+          <div class="metadatos-organizacion-remota">
+            <code class="text-break"><%= nodo.elementoOrigenId %></code>
+            <% if (nodo.timezone) { %><span><i class="bi bi-clock" aria-hidden="true"></i> <%= nodo.timezone %></span><% } %>
+          </div>
+        </div>
+      </article>
+    <% } %>
+  </section>
+<% } %>
+
+<% if (organizacionRemota.retirados.length > 0 && navegacion.subvista === 'jerarquia') { %>
+  <details class="retiradas-organizacion-remota mt-4">
+    <summary>Nodos retirados de la publicación (<%= organizacionRemota.retirados.length %>)</summary>
+    <div class="d-grid gap-2 mt-3">
+      <% for (const nodo of organizacionRemota.retirados) { %>
+        <article>
+          <span><%= etiquetasTipo[nodo.tipo] %></span>
+          <strong><%= nodo.nombre %></strong>
+          <code class="text-break"><%= nodo.elementoOrigenId %></code>
+        </article>
+      <% } %>
+    </div>
+  </details>
+<% } %>

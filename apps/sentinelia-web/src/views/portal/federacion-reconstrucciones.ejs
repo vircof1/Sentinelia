@@ -1,0 +1,129 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const textoScope = (scope) => scope.sitioId
+    ? `Tenant #${scope.tenantId} · Empresa #${scope.empresaId} · Sitio #${scope.sitioId}`
+    : scope.empresaId
+      ? `Tenant #${scope.tenantId} · Empresa #${scope.empresaId}`
+      : scope.tenantId ? `Tenant #${scope.tenantId}` : 'Portal completo';
+%>
+
+<section class="panel-general">
+  <section class="hero-operativo card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <span class="insignia-suave"><i class="bi bi-layers" aria-hidden="true"></i> Decisiones humanas durables</span>
+      <h1>Reconstrucciones federadas</h1>
+      <p>
+        La generación activa sigue gobernando mientras una candidata se prepara.
+        Esperar, ampliar, sustituir, coexistir, cancelar, revalidar o promover son
+        decisiones explícitas y auditables; esta pantalla no infiere ninguna.
+      </p>
+      <div class="d-flex gap-3">
+        <span class="insignia"><%= reconstrucciones.totalFlujos %> flujos visibles</span>
+        <span class="insignia"><%= reconstrucciones.totalCandidatas %> candidatas</span>
+      </div>
+    </div>
+  </section>
+
+  <% if (flashFederacion) { %>
+    <div class="alert <%= flashFederacion.tipo === 'exito' ? 'alert-success' : 'alert-danger' %> mt-4" role="alert">
+      <%= flashFederacion.mensaje %>
+    </div>
+  <% } %>
+
+  <% if (reconstrucciones.flujos.length === 0) { %>
+    <section class="tarjeta mt-4"><h2>Sin flujos administrables</h2><p class="mb-0">Tu autoridad actual no cubre ningún flujo federado.</p></section>
+  <% } %>
+
+  <% for (const entrada of reconstrucciones.flujos) { const flujo = entrada.flujo; %>
+    <section class="tarjeta mt-4">
+      <div class="d-flex flex-wrap justify-content-between gap-3">
+        <div>
+          <span class="insignia-monitor insignia-monitor--neutro"><%= flujo.direccion %> · <%= flujo.familia %>@<%= flujo.versionFamilia %></span>
+          <h2 class="h4 mt-2"><%= entrada.nombreInstalacionRemota || 'Instancia remota' %></h2>
+          <code class="text-break"><%= flujo.flujoId %></code>
+          <p class="mt-2 mb-0"><%= textoScope(flujo.contexto) %></p>
+        </div>
+        <div>
+          <small class="d-block text-muted">Generación activa</small>
+          <code class="text-break"><%= flujo.generacion.generacionId %></code>
+          <span class="d-block"><%= flujo.generacion.estado %> · ordinal <%= flujo.generacion.ordinal %></span>
+        </div>
+      </div>
+
+      <% if (entrada.puedeDecidir) { %>
+        <form method="post" action="/federacion/reconstrucciones/<%= flujo.flujoId %>/decidir" class="row g-2 mt-3">
+          <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+          <div class="col-12 col-lg-3">
+            <label class="form-label">Decisión</label>
+            <select class="form-select" name="estrategia" required>
+              <option value="esperar">Esperar candidata existente</option>
+              <option value="ampliarCompatible">Ampliar candidata compatible</option>
+              <% if (flujo.direccion === 'emision') { %>
+                <option value="coexistir">Crear candidata coexistente</option>
+                <option value="sustituir">Sustituir candidatas</option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-12 col-lg-4">
+            <label class="form-label">Candidata objetivo para ampliar</label>
+            <select class="form-select" name="generacion_objetivo_id">
+              <option value="">No aplica</option>
+              <% for (const candidata of entrada.candidatas) { %>
+                <option value="<%= candidata.generacionId %>">#<%= candidata.ordinal %> · <%= candidata.estado %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-12 col-lg-4">
+            <label class="form-label">Motivo auditable</label>
+            <input class="form-control" name="motivo" maxlength="500" required>
+          </div>
+          <div class="col-12 col-lg-1 d-grid align-items-end"><button class="btn btn-primary" type="submit">Aplicar</button></div>
+        </form>
+      <% } else { %>
+        <div class="alert alert-warning mt-3 mb-0">Las decisiones están deshabilitadas por la autoridad o el modo de sesión actuales.</div>
+      <% } %>
+
+      <div class="d-grid gap-3 mt-4">
+        <% for (const candidata of entrada.candidatas) { %>
+          <article class="border rounded p-3">
+            <div class="d-flex flex-wrap justify-content-between gap-2">
+              <div><strong>Candidata #<%= candidata.ordinal %></strong><br><code class="text-break"><%= candidata.generacionId %></code></div>
+              <div><%= candidata.estado %> · corte <%= candidata.estadoCorte %><% if (candidata.requiereRevalidacion) { %> · requiere revalidación<% } %></div>
+            </div>
+            <p class="mb-2 mt-2">Operativa: <%= candidata.frontera.operativamenteCompleta ? 'completa' : 'pendiente' %> · Histórica: <%= candidata.frontera.historicamenteCompleta ? 'completa' : 'pendiente' %></p>
+            <% if (entrada.puedeDecidir) { %>
+              <div class="d-flex flex-wrap gap-2">
+                <%
+                  const puedePromover = !candidata.requiereRevalidacion &&
+                    candidata.estadoCorte === 'cerrado' &&
+                    candidata.frontera.operativamenteCompleta &&
+                    ['fronteraOperativaValidada', 'completa'].includes(candidata.estado);
+                  const puedeRevalidar = candidata.requiereRevalidacion &&
+                    candidata.frontera.operativamenteCompleta;
+                  const accionesCandidata = [
+                    'cancelar',
+                    ...(puedePromover ? ['promover'] : []),
+                    ...(puedeRevalidar ? ['revalidar'] : [])
+                  ];
+                %>
+                <% for (const accion of accionesCandidata) { %>
+                  <form method="post" action="/federacion/reconstrucciones/<%= flujo.flujoId %>/candidatas/<%= candidata.generacionId %>/<%= accion %>" class="d-flex gap-2">
+                    <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+                    <input type="text" name="motivo" maxlength="500" placeholder="Motivo auditable" required class="form-control form-control-sm">
+                    <button class="btn btn-outline-secondary btn-sm" type="submit"><%= accion %></button>
+                  </form>
+                <% } %>
+              </div>
+              <% if (!puedePromover) { %>
+                <small class="d-block text-muted mt-2">La promoción permanece deshabilitada hasta cerrar el corte, completar la frontera operativa y revalidar cuando corresponda.</small>
+              <% } %>
+            <% } %>
+          </article>
+        <% } %>
+      </div>
+    </section>
+  <% } %>
+</section>
+
+<%- include('../parciales/pie') %>

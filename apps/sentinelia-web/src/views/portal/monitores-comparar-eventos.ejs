@@ -1,0 +1,264 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<section class="panel-general">
+  <section class="hero-operativo hero-monitores hero-comparador card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-3 p-md-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido align-items-start">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-intersect" aria-hidden="true"></i>
+              <span>Comparativa temporal</span>
+            </span>
+            <h1>Comparar eventos</h1>
+            <p>Compara hasta tres monitores de tu alcance durante el mismo período.</p>
+            <div class="hero-monitores__acciones">
+              <a
+                href="<%= retornoListado %>"
+                class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+              >
+                <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
+                <span><%= retornoListado === '/monitores' ? 'Volver a monitores' : 'Volver' %></span>
+              </a>
+              <a
+                href="/monitores/eventos"
+                data-comparador-hero-individual
+                class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+              >
+                <i class="bi bi-graph-up" aria-hidden="true"></i>
+                <span>Vista individual</span>
+              </a>
+              <a
+                href="/monitores/historico"
+                data-comparador-hero-historico
+                class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+              >
+                <i class="bi bi-clock-history" aria-hidden="true"></i>
+                <span>Histórico</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis hero-comparador__kpis">
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                <span class="etiqueta">Monitores</span>
+              </span>
+              <strong data-comparador-hero-monitores>0 de 3</strong>
+              <small data-comparador-hero-monitores-detalle>Elige los monitores que quieres comparar.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--ok hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-calendar-range" aria-hidden="true"></i>
+                <span class="etiqueta">Período</span>
+              </span>
+              <strong data-comparador-hero-periodo>—</strong>
+              <small data-comparador-hero-periodo-detalle>Horario local.</small>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section
+    class="seccion-panel"
+    data-comparador-eventos-shell
+    data-url-comparacion="/monitores/comparar-eventos/api"
+    data-url-opciones-monitores="/monitores/comparar-eventos/api/opciones/monitores"
+    data-tiene-seleccion="false"
+  >
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 pb-0">
+        <div class="seccion-cabecera mb-0">
+          <div>
+            <h2>Prepara la comparación</h2>
+            <p class="texto-apoyo mb-0">Elige el período y al menos un monitor. Puedes añadir hasta tres.</p>
+          </div>
+          <span class="insignia-monitor insignia-monitor--suave">
+            Monitores a tu alcance
+          </span>
+        </div>
+      </div>
+
+      <div class="card-body pt-3">
+        <!--
+        <div class="alert alert-info d-flex align-items-start gap-3 mb-4" role="alert">
+          <i class="bi bi-info-circle-fill fs-5" aria-hidden="true"></i>
+          <div>
+            <strong>Comparación rápida</strong>
+            <div class="small">La consulta usa los mismos eventos persistidos que la vista individual y evita duplicados si eliges el mismo monitor más de una vez.</div>
+          </div>
+        </div>
+        -->
+
+        <div class="row g-3 align-items-end">
+          <div class="col-12 col-md-6 col-xl-3">
+            <label for="comparador_desde" class="form-label">Inicio</label>
+            <input
+              id="comparador_desde"
+              type="datetime-local"
+              class="form-control"
+              value="<%= filtros.desde %>"
+              data-comparador-desde
+            >
+          </div>
+          <div class="col-12 col-md-6 col-xl-3">
+            <label for="comparador_hasta" class="form-label">Fin</label>
+            <input
+              id="comparador_hasta"
+              type="datetime-local"
+              class="form-control"
+              value="<%= filtros.hasta %>"
+              data-comparador-hasta
+            >
+          </div>
+        </div>
+
+        <div class="row g-3 mt-1 mb-4">
+          <% for (let indice = 0; indice < 3; indice += 1) { %>
+            <div class="col-12 col-xl-4 comparador-slot-columna" data-comparador-slot-columna="<%= indice %>">
+              <label for="comparador_monitor_<%= indice + 1 %>" class="form-label comparador-slot__etiqueta">
+                <span class="comparador-slot__etiqueta-punto" aria-hidden="true"></span>
+                <span>Monitor <%= indice + 1 %></span>
+              </label>
+              <select
+                id="comparador_monitor_<%= indice + 1 %>"
+                class="d-none"
+                data-comparador-monitor="<%= indice %>"
+                aria-hidden="true"
+                tabindex="-1"
+              >
+                <option value="">Selecciona monitor</option>
+              </select>
+              <div class="card border shadow-sm comparador-slot" data-comparador-slot="<%= indice %>" data-estado="vacio">
+                <div class="card-body d-grid gap-2">
+                  <div class="comparador-slot__cabecera">
+                    <div class="comparador-slot__insignias">
+                      <span class="insignia-monitor insignia-monitor--suave comparador-slot__estado" data-comparador-slot-estado>Pendiente</span>
+                      <span class="insignia-monitor insignia-monitor--suave comparador-slot__tipo" data-comparador-slot-tipo hidden>Tipo</span>
+                    </div>
+                    <strong class="d-block comparador-slot__titulo" data-comparador-slot-titulo>Sin monitor seleccionado</strong>
+                    <div class="text-body-secondary small mt-1 comparador-slot__detalle" data-comparador-slot-detalle></div>
+                  </div>
+                  <div class="d-flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-2"
+                      data-comparador-slot-buscar
+                    >
+                      <i class="bi bi-search" aria-hidden="true"></i>
+                      <span>Buscar monitor</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2"
+                      data-comparador-slot-limpiar
+                      hidden
+                    >
+                      <i class="bi bi-x-circle" aria-hidden="true"></i>
+                      <span>Quitar</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% } %>
+        </div>
+
+        <div class="barra-acciones-filtros mt-4 pt-3 border-top mb-0">
+          <!--
+          <button
+            type="button"
+            class="btn btn-success d-inline-flex align-items-center gap-2"
+            data-comparador-aplicar
+          >
+            <i class="bi bi-bar-chart-line" aria-hidden="true"></i>
+            <span>Comparar</span>
+          </button>
+          -->
+          <button
+            type="button"
+            class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
+            data-comparador-limpiar
+          >
+            <i class="bi bi-eraser" aria-hidden="true"></i>
+            <span>Limpiar</span>
+          </button>
+          <% for (const preseleccion of preselecciones) { %>
+            <button
+              type="button"
+              class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2"
+              data-comparador-preseleccion="<%= preseleccion.valor %>"
+            >
+              <i class="bi bi-calendar-range" aria-hidden="true"></i>
+              <span><%= preseleccion.etiqueta %></span>
+            </button>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+    <div class="comparador-resultados" data-comparador-resultados>
+    <div class="rejilla-resumen">
+      <article class="kpi-resumen kpi-resumen--ok">
+        <span class="etiqueta">Eventos encontrados</span>
+        <strong data-comparador-total-puntos>0</strong>
+        <small data-comparador-total-puntos-detalle>Sin consulta todavía.</small>
+      </article>
+      <article class="kpi-resumen kpi-resumen--advertencia">
+        <span class="etiqueta">Tiempo de respuesta</span>
+        <strong data-comparador-rango-metrica>Sin puntos</strong>
+        <small data-comparador-rango-metrica-detalle>Arriba 0 ms, abajo el peor tiempo observado.</small>
+      </article>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 pb-0">
+        <div class="seccion-cabecera mb-0">
+          <div>
+            <h2>Gráfico comparado</h2>
+            <p class="texto-apoyo mb-0">El eje horizontal cubre todo el período. Menos milisegundos indica una respuesta más rápida.</p>
+          </div>
+          <p class="texto-apoyo mb-0" data-comparador-estado-carga>Selecciona monitores para iniciar la comparación.</p>
+        </div>
+      </div>
+
+      <div class="card-body pt-3">
+        <div class="rejilla-resumen mb-4" data-comparador-serie-resumen></div>
+
+        <p class="visor-eventos__leyenda mb-3" data-comparador-leyenda hidden></p>
+
+        <div class="visor-eventos">
+          <div class="visor-eventos__grafico">
+            <canvas data-comparador-canvas aria-label="Gráfico comparado de eventos de monitores"></canvas>
+          </div>
+          <aside class="visor-eventos__detalle" data-comparador-detalle>
+            <h3>Detalle del punto</h3>
+            <p class="texto-apoyo mb-0">No hay una lectura seleccionada todavía.</p>
+          </aside>
+        </div>
+      </div>
+    </div>
+    </div>
+  </section>
+</section>
+
+<%- include('parciales/monitores-selector-modal', {
+  alcanceActual,
+  opcionesTipo,
+  opcionesTenants,
+  opcionesEmpresas,
+  opcionesPertenencia,
+  opcionesEstadoListado,
+  opcionesTamanoPaginaListado,
+  opcionesOrdenListado
+}) %>
+
+<script src="/vendor/chartjs/chart.umd.js"></script>
+<script src="/js/monitores-comparar-eventos.js?v=detalle-20261002-4"></script>
+
+<%- include('../parciales/pie') %>

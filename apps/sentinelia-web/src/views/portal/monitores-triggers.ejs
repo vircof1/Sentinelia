@@ -1,0 +1,218 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<section class="panel-general">
+  <section class="hero-operativo">
+    <div class="hero-operativo__contenido">
+      <div class="hero-operativo__textos">
+        <span class="insignia-suave">Lectura administrativa</span>
+        <h1>Triggers de monitores</h1>
+        <p>Catálogo reutilizable de triggers, bindings por monitor visible y últimas ejecuciones persistidas en SQL.</p>
+        <div class="hero-etiquetas">
+          <span class="insignia">SQL</span>
+          <span class="insignia">Automatización</span>
+          <span class="insignia">Alcance <%= alcanceActual.nivelScope %></span>
+        </div>
+      </div>
+
+      <div class="rejilla-resumen">
+        <article class="kpi-resumen">
+          <span class="etiqueta">Triggers visibles</span>
+          <strong><%= resumen.totalTriggers %></strong>
+          <small><%= resumen.totalTriggersActivos %> activos</small>
+        </article>
+        <article class="kpi-resumen">
+          <span class="etiqueta">Asignaciones</span>
+          <strong><%= resumen.totalAsignaciones %></strong>
+          <small><%= resumen.totalAsignacionesActivas %> activas</small>
+        </article>
+        <article class="kpi-resumen">
+          <span class="etiqueta">Ejecuciones recientes</span>
+          <strong><%= resumen.totalEjecucionesRecientes %></strong>
+          <small><%= resumen.totalErroresRecientes %> con error</small>
+        </article>
+        <article class="kpi-resumen">
+          <span class="etiqueta">Alcance visible</span>
+          <strong><%= resumen.totalMonitoresConTriggers %>/<%= resumen.totalMonitoresVisibles %></strong>
+          <small><%= alcanceActual.descripcion %></small>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h2>Catálogo de triggers</h2>
+        <p class="texto-apoyo">Solo se muestran triggers enlazados a monitores visibles dentro de tu alcance actual.</p>
+      </div>
+    </div>
+
+    <div class="tabla-configuracion tabla-configuracion--compacta">
+      <% if ((triggers || []).length === 0) { %>
+        <div class="texto-apoyo">No hay triggers enlazados a monitores visibles.</div>
+      <% } else { %>
+        <div class="fila-configuracion fila-cabecera-configuracion">
+          <strong>Trigger</strong>
+          <strong>Tipo y estado</strong>
+          <strong>Configuración base</strong>
+        </div>
+        <% for (const trigger of triggers) { %>
+          <div class="fila-configuracion fila-monitor fila-monitor--sin-acciones">
+            <div>
+              <strong><%= trigger.nombre %></strong>
+              <p class="descripcion-configuracion"><%= trigger.descripcion || 'Sin descripción.' %></p>
+            </div>
+            <div class="metadatos-configuracion">
+              <span class="insignia-monitor insignia-monitor--<%= trigger.tipo %>"><%= String(trigger.tipo || '').toUpperCase() %></span>
+              <span class="insignia-monitor <%= trigger.activo ? 'insignia-monitor--ok' : 'insignia-monitor--off' %>"><%= trigger.activo ? 'Activo' : 'Inactivo' %></span>
+              <span>Actualizado: <code><time data-fecha-utc="<%= trigger.fechaActualizacion %>"><%= trigger.fechaActualizacion %></time></code></span>
+            </div>
+            <div class="metadatos-configuracion">
+              <span>URL: <code><%= trigger.configuracion?.url || '-' %></code></span>
+              <span>Método: <code><%= trigger.configuracion?.metodo || '-' %></code></span>
+              <span>Timeout: <code><%= trigger.configuracion?.timeoutMs || 0 %> ms</code></span>
+              <span>Reintentos: <code><%= trigger.configuracion?.reintentos || 0 %></code></span>
+              <span>TLS inseguro: <code><%= trigger.configuracion?.permiteTlsInseguro ? 'Sí' : 'No' %></code></span>
+            </div>
+          </div>
+        <% } %>
+      <% } %>
+    </div>
+  </section>
+
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h2>Asignaciones por monitor</h2>
+        <p class="texto-apoyo">Cada bloque agrupa los bindings monitor-trigger visibles y la última ejecución conocida para cada asignación.</p>
+      </div>
+    </div>
+
+    <% if ((monitoresConAsignaciones || []).length === 0) { %>
+      <div class="tarjeta">
+        <p class="texto-apoyo">No hay monitores visibles con triggers asignados.</p>
+      </div>
+    <% } else { %>
+      <div class="rejilla-tarjetas">
+        <% for (const bloque of monitoresConAsignaciones) { %>
+          <article class="tarjeta">
+            <div class="fila-encabezado">
+              <div>
+                <h3><%= bloque.monitor.nombre %></h3>
+                <p class="texto-apoyo">
+                  <span class="insignia-monitor insignia-monitor--<%= bloque.monitor.tipo %>"><%= String(bloque.monitor.tipo || '').toUpperCase() %></span>
+                  <span class="insignia-monitor insignia-monitor--suave">#<%= bloque.monitor.id %></span>
+                  <span class="insignia-monitor insignia-monitor--suave"><%= bloque.monitor.empresaNombre || '-' %><% if (bloque.monitor.sitioNombre) { %> · <%= bloque.monitor.sitioNombre %><% } %></span>
+                </p>
+              </div>
+              <div class="metadatos-configuracion">
+                <span><%= bloque.asignacionesActivas %>/<%= bloque.totalAsignaciones %> activas</span>
+              </div>
+            </div>
+
+            <div class="tabla-configuracion tabla-configuracion--compacta">
+              <% for (const asignacion of bloque.asignaciones) { %>
+                <div class="fila-configuracion fila-monitor fila-monitor--sin-acciones">
+                  <div>
+                    <strong><%= asignacion.triggerVisible === false ? (asignacion.triggerNombre || `Trigger #${asignacion.triggerId}`) : (asignacion.trigger?.nombre || asignacion.triggerNombre || `Trigger #${asignacion.triggerId}`) %></strong>
+                    <p class="descripcion-configuracion">
+                      Eventos: <code><%= (asignacion.eventosDisparo || []).join(', ') || '-' %></code>
+                    </p>
+                  </div>
+                  <div class="metadatos-configuracion">
+                    <% if (asignacion.triggerVisible !== false) { %>
+                      <span class="insignia-monitor insignia-monitor--<%= asignacion.trigger?.tipo || asignacion.triggerTipo || 'api' %>"><%= String(asignacion.trigger?.tipo || asignacion.triggerTipo || '').toUpperCase() %></span>
+                    <% } else { %>
+                      <span class="insignia-monitor insignia-monitor--suave">Oculto</span>
+                    <% } %>
+                    <span class="insignia-monitor <%= asignacion.activo ? 'insignia-monitor--ok' : 'insignia-monitor--off' %>"><%= asignacion.activo ? 'Activa' : 'Inactiva' %></span>
+                    <span>Orden: <code><%= asignacion.ordenEjecucion %></code></span>
+                    <% if (asignacion.triggerVisible === false) { %>
+                      <span>Trigger: <code>#<%= asignacion.triggerId %></code></span>
+                    <% } %>
+                  </div>
+                  <div class="metadatos-configuracion">
+                    <span>Última ejecución:
+                      <% if (asignacion.ultimaEjecucion) { %>
+                        <code><time data-fecha-utc="<%= asignacion.ultimaEjecucion.iniciadoEnUtc %>"><%= asignacion.ultimaEjecucion.iniciadoEnUtc %></time></code>
+                      <% } else { %>
+                        <code>Sin traza</code>
+                      <% } %>
+                    </span>
+                    <span>Estado:
+                      <% if (asignacion.ultimaEjecucion) { %>
+                        <code><%= asignacion.ultimaEjecucion.estadoEjecucion %></code>
+                      <% } else { %>
+                        <code>-</code>
+                      <% } %>
+                    </span>
+                    <% if (asignacion.ultimaEjecucion?.mensajeResultado) { %>
+                      <span>Resultado: <%= asignacion.ultimaEjecucion.mensajeResultado %></span>
+                    <% } %>
+                  </div>
+                </div>
+              <% } %>
+            </div>
+          </article>
+        <% } %>
+      </div>
+    <% } %>
+  </section>
+
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h2>Últimas ejecuciones</h2>
+        <p class="texto-apoyo">Trazabilidad reciente para depurar errores, respuestas HTTP y reintentos sin entrar todavía en edición avanzada.</p>
+      </div>
+    </div>
+
+    <div class="tabla-configuracion tabla-configuracion--compacta">
+      <% if ((ejecucionesRecientes || []).length === 0) { %>
+        <div class="texto-apoyo">Aún no hay ejecuciones de triggers dentro del alcance visible.</div>
+      <% } else { %>
+        <div class="fila-configuracion fila-cabecera-configuracion">
+          <strong>Ejecución</strong>
+          <strong>Trigger y monitor</strong>
+          <strong>Resultado</strong>
+        </div>
+        <% for (const ejecucion of ejecucionesRecientes) { %>
+          <div class="fila-configuracion fila-monitor fila-monitor--sin-acciones">
+            <div>
+              <strong>#<%= ejecucion.id %> · <%= ejecucion.eventoDisparo %></strong>
+              <p class="descripcion-configuracion">
+                <code><time data-fecha-utc="<%= ejecucion.iniciadoEnUtc %>"><%= ejecucion.iniciadoEnUtc %></time></code>
+                <% if (ejecucion.finalizadoEnUtc) { %>
+                  → <code><time data-fecha-utc="<%= ejecucion.finalizadoEnUtc %>"><%= ejecucion.finalizadoEnUtc %></time></code>
+                <% } %>
+              </p>
+            </div>
+            <div class="metadatos-configuracion">
+              <% if (ejecucion.triggerVisible !== false) { %>
+                <span class="insignia-monitor insignia-monitor--<%= ejecucion.tipoTrigger || 'api' %>"><%= String(ejecucion.tipoTrigger || '').toUpperCase() %></span>
+              <% } else { %>
+                <span class="insignia-monitor insignia-monitor--suave">Oculto</span>
+              <% } %>
+              <span class="insignia-monitor <%= ejecucion.estadoEjecucion === 'ok' ? 'insignia-monitor--ok' : (ejecucion.estadoEjecucion === 'error' ? 'insignia-monitor--alerta' : 'insignia-monitor--suave') %>"><%= ejecucion.estadoEjecucion %></span>
+              <span><%= ejecucion.triggerNombre %></span>
+              <span><%= ejecucion.monitorNombre || ejecucion.monitor?.nombre || `Monitor #${ejecucion.monitorId}` %></span>
+            </div>
+            <div class="metadatos-configuracion">
+              <span>Código: <code><%= ejecucion.codigoResultado || '-' %></code></span>
+              <span>Mensaje: <%= ejecucion.mensajeResultado || 'Sin mensaje.' %></span>
+              <span>Alcance trigger: <code><%= ejecucion.triggerScopeDescripcion || '-' %></code></span>
+              <span>Alcance monitor: <code><%= ejecucion.monitor?.sitioNombre ? `${ejecucion.monitor.sitioNombre} · ${ejecucion.monitor.empresaNombre}` : (ejecucion.monitor?.empresaNombre || '-') %></code></span>
+              <% if (ejecucion.payloadError?.mensaje) { %>
+                <span>Error: <code><%= ejecucion.payloadError.mensaje %></code></span>
+              <% } else if (ejecucion.payloadRespuesta?.statusCode) { %>
+                <span>HTTP: <code><%= ejecucion.payloadRespuesta.statusCode %></code></span>
+              <% } %>
+            </div>
+          </div>
+        <% } %>
+      <% } %>
+    </div>
+  </section>
+</section>
+
+<%- include('../parciales/pie') %>

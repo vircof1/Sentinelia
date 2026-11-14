@@ -1,0 +1,744 @@
+<%
+  const mapaCobertura = {
+    portal: 'Portal completo',
+    tenant: 'Tenant acotado',
+    empresa: 'Empresa acotada',
+    sitio: 'Sitio acotado'
+  };
+  const coberturaVisible =
+    mapaCobertura[contextoUsuarioActual?.nivelScope] || 'Cobertura parcial';
+  const esCreacionOrganizacion =
+    typeof modoCreacion !== 'undefined' && Boolean(modoCreacion);
+  const esAltaEmpresa =
+    typeof altaEmpresa !== 'undefined' && Boolean(altaEmpresa);
+  const rutaRetornoCreacion =
+    typeof hrefRetornoCreacion !== 'undefined' && hrefRetornoCreacion
+      ? hrefRetornoCreacion
+      : '/organizacion/tenants';
+  const textoRetornoCreacion =
+    typeof etiquetaRetornoCreacion !== 'undefined' && etiquetaRetornoCreacion
+      ? etiquetaRetornoCreacion
+      : 'Volver a tenants';
+  const detalleTenant =
+    typeof tenantObjetivo !== 'undefined' && tenantObjetivo
+      ? tenantObjetivo
+      : null;
+  const detalleEmpresa =
+    typeof empresaObjetivo !== 'undefined' && empresaObjetivo
+      ? empresaObjetivo
+      : null;
+  const detalleSitio =
+    typeof sitioObjetivo !== 'undefined' && sitioObjetivo
+      ? sitioObjetivo
+      : null;
+  const esListadoEmpresas =
+    !detalleTenant &&
+    !detalleSitio &&
+    typeof contextoListadoTenant !== 'undefined' &&
+    contextoListadoTenant;
+  const esListadoSitios =
+    !detalleTenant &&
+    !detalleEmpresa &&
+    !detalleSitio &&
+    typeof contextoListadoSitios !== 'undefined' &&
+    contextoListadoSitios;
+  const tenantListado =
+    (esListadoEmpresas || esListadoSitios) &&
+    typeof tenantFiltro !== 'undefined' &&
+    tenantFiltro
+      ? tenantFiltro
+      : null;
+  const tenantPorAlcance =
+    (esListadoEmpresas || esListadoSitios) &&
+    !tenantListado &&
+    contextoUsuarioActual?.nivelScope === 'tenant' &&
+    typeof tenantAlcance !== 'undefined' &&
+    tenantAlcance
+      ? tenantAlcance
+      : null;
+  const tenantContextoEmpresas = tenantListado || tenantPorAlcance;
+  const tenantContextoSitios = esListadoSitios
+    ? tenantListado || tenantPorAlcance
+    : null;
+  const empresaContextoSitios =
+    esListadoSitios && typeof empresaFiltro !== 'undefined' && empresaFiltro
+      ? empresaFiltro
+      : null;
+  const tituloHeroSitios = empresaContextoSitios
+    ? `Sitios de ${empresaContextoSitios.nombre}`
+    : tenantContextoSitios
+      ? `Sitios de ${tenantContextoSitios.nombre}`
+      : 'Sitios';
+  const descripcionHeroSitios = empresaContextoSitios
+    ? `Consulta los sitios de ${empresaContextoSitios.nombre} y gestiona su configuración.`
+    : tenantContextoSitios
+      ? `Consulta los sitios de ${tenantContextoSitios.nombre} y gestiona su configuración.`
+      : 'Consulta los sitios de tu alcance y gestiona su configuración.';
+  const accionSitios =
+    esListadoSitios && typeof accionPrincipalSitios !== 'undefined'
+      ? accionPrincipalSitios
+      : null;
+  const tenantContextoListado = tenantContextoEmpresas || tenantContextoSitios;
+  const tarjetasResumen = tenantListado
+    ? [
+        {
+          icono: 'buildings',
+          etiqueta: esListadoSitios ? 'Empresas visibles' : 'Empresas del tenant',
+          valor: tenantListado.totalEmpresas,
+          ayuda: esListadoSitios
+            ? `Empresas visibles para ${tenantListado.nombre} dentro de tu alcance.`
+            : `Empresas pertenecientes a ${tenantListado.nombre}.`
+        },
+        {
+          icono: 'geo-alt',
+          etiqueta: esListadoSitios ? 'Sitios visibles' : 'Sitios del tenant',
+          valor: tenantListado.totalSitios,
+          ayuda: esListadoSitios
+            ? `Sitios visibles para ${tenantListado.nombre} dentro de tu alcance.`
+            : `Sitios pertenecientes a ${tenantListado.nombre}.`
+        }
+      ]
+    : tenantPorAlcance
+      ? [
+          {
+            icono: 'buildings',
+            etiqueta: 'Empresas visibles',
+            valor: resumen.empresasVisibles,
+            ayuda: `Empresas visibles en ${tenantPorAlcance.nombre} dentro de tu alcance.`
+          },
+          {
+            icono: 'geo-alt',
+            etiqueta: esListadoSitios ? 'Sitios visibles' : 'Sitios asociados',
+            valor: resumen.sitiosVisibles,
+            ayuda: esListadoSitios
+              ? `Sitios visibles en ${tenantPorAlcance.nombre} dentro de tu alcance.`
+              : 'Sitios pertenecientes a las empresas visibles.'
+          }
+        ]
+      : esListadoSitios
+      ? [
+          {
+            icono: 'diagram-3',
+            etiqueta: 'Tenants visibles',
+            valor: resumen.tenantsVisibles,
+            ayuda: 'Nodos raíz visibles para esta sesión.'
+          },
+          {
+            icono: 'buildings',
+            etiqueta: 'Empresas visibles',
+            valor: resumen.empresasVisibles,
+            ayuda: 'Empresas disponibles dentro del alcance actual.'
+          },
+          {
+            icono: 'geo-alt',
+            etiqueta: 'Sitios visibles',
+            valor: resumen.sitiosVisibles,
+            ayuda: tenantPorAlcance
+              ? `Sitios visibles de ${tenantPorAlcance.nombre}.`
+              : 'Sitios operativos alcanzables desde esta vista.'
+          }
+        ]
+      : esListadoEmpresas
+      ? [
+          {
+            icono: 'buildings',
+            etiqueta: 'Empresas visibles',
+            valor: resumen.empresasVisibles,
+            ayuda: 'Empresas disponibles dentro del alcance actual.'
+          },
+          {
+            icono: 'diagram-3',
+            etiqueta: 'Tenants representados',
+            valor: resumen.tenantsRepresentados,
+            ayuda: 'Tenants que contienen las empresas mostradas.'
+          },
+          {
+            icono: 'geo-alt',
+            etiqueta: 'Sitios asociados',
+            valor: resumen.sitiosVisibles,
+            ayuda: 'Sitios pertenecientes a las empresas visibles.'
+          }
+        ]
+      : [
+          {
+            icono: 'diagram-3',
+            etiqueta: 'Tenants visibles',
+            valor: resumen.tenantsVisibles,
+            ayuda: 'Nodos raíz visibles para esta sesión.'
+          },
+          {
+            icono: 'buildings',
+            etiqueta: 'Empresas visibles',
+            valor: resumen.empresasVisibles,
+            ayuda: 'Empresas disponibles dentro del alcance actual.'
+          },
+          {
+            icono: 'geo-alt',
+            etiqueta: 'Sitios visibles',
+            valor: resumen.sitiosVisibles,
+            ayuda: 'Sitios operativos alcanzables desde esta vista.'
+          }
+        ];
+  const tarjetasHeroSitios = esListadoSitios && typeof metricasSitiosHero !== 'undefined'
+    ? metricasSitiosHero
+    : tarjetasResumen;
+  const subnavegacionItems = [
+    {
+      clave: 'tenants',
+      texto: tenantListado ? 'Tenant' : 'Tenants',
+      icono: 'diagram-3',
+      visible: Boolean(subnavegacionOrganizacion.tenants.visible),
+      activa: Boolean(subnavegacionOrganizacion.tenants.activa),
+      href: tenantListado
+        ? `/organizacion/tenants/${encodeURIComponent(tenantListado.id)}/editar`
+        : subnavegacionOrganizacion.tenants.href
+    },
+    {
+      clave: 'empresas',
+      texto: 'Empresas',
+      icono: 'buildings',
+      visible: Boolean(subnavegacionOrganizacion.empresas.visible),
+      activa: Boolean(subnavegacionOrganizacion.empresas.activa),
+      href: tenantListado
+        ? `/organizacion/empresas?tenant_id=${encodeURIComponent(tenantListado.id)}`
+        : subnavegacionOrganizacion.empresas.href
+    },
+    {
+      clave: 'sitios',
+      texto: 'Sitios',
+      icono: 'geo-alt',
+      visible: Boolean(subnavegacionOrganizacion.sitios.visible),
+      activa: Boolean(subnavegacionOrganizacion.sitios.activa),
+      href: tenantListado
+        ? `/organizacion/sitios?tenant_id=${encodeURIComponent(tenantListado.id)}`
+        : subnavegacionOrganizacion.sitios.href
+    }
+  ];
+  const relacionesTenant = detalleTenant
+    ? [
+        {
+          icono: 'buildings',
+          etiqueta: 'Empresas',
+          valor: detalleTenant.totalEmpresas,
+          ayuda: 'Ver empresas del tenant',
+          href: `/organizacion/empresas?tenant_id=${encodeURIComponent(detalleTenant.id)}`,
+          visible: Boolean(subnavegacionOrganizacion.empresas.visible)
+        },
+        {
+          icono: 'geo-alt',
+          etiqueta: 'Sitios',
+          valor: detalleTenant.totalSitios,
+          ayuda: 'Ver sitios del tenant',
+          href: `/organizacion/sitios?tenant_id=${encodeURIComponent(detalleTenant.id)}`,
+          visible: Boolean(subnavegacionOrganizacion.sitios.visible)
+        },
+        {
+          icono: 'people',
+          etiqueta: 'Usuarios',
+          valor: detalleTenant.totalUsuarios,
+          ayuda: 'Ver usuarios del tenant',
+          href: `/usuarios?tenant_id=${encodeURIComponent(detalleTenant.id)}`,
+          visible: Boolean(contextoUsuarioActual?.permisos?.administrarUsuarios)
+        },
+        {
+          icono: 'hdd-network',
+          etiqueta: 'Monitores',
+          valor: detalleTenant.totalMonitores,
+          ayuda: 'Ver monitores del tenant',
+          href: `/monitores?tenant_id=${encodeURIComponent(detalleTenant.id)}`,
+          visible: Boolean(contextoUsuarioActual?.permisos?.verMonitores)
+        },
+        {
+          icono: 'pc-display-horizontal',
+          etiqueta: 'Agentes',
+          valor: detalleTenant.totalAgentes,
+          ayuda: 'Ver agentes del tenant',
+          href: `/agentes?tenant_id=${encodeURIComponent(detalleTenant.id)}`,
+          visible: Boolean(contextoUsuarioActual?.permisos?.verAgentes)
+        },
+        {
+          icono: 'lightning-charge',
+          etiqueta: 'Automatizaciones',
+          valor: detalleTenant.totalAutomatizaciones,
+          ayuda: 'Ver automatizaciones del tenant',
+          href: `/automatizacion/acciones?tenant_id=${encodeURIComponent(detalleTenant.id)}`,
+          visible: Boolean(contextoUsuarioActual?.permisos?.verTriggers)
+        }
+      ].filter((relacion) => relacion.visible)
+    : [];
+  const relacionesEmpresa = detalleEmpresa
+    ? [
+        {
+          icono: 'geo-alt',
+          etiqueta: 'Sitios',
+          valor: detalleEmpresa.totalSitios,
+          ayuda: 'Ver sitios de la empresa',
+          href: `/organizacion/sitios?tenant_id=${encodeURIComponent(detalleEmpresa.tenantId)}&empresa_id=${encodeURIComponent(detalleEmpresa.id)}`,
+          visible: Boolean(subnavegacionOrganizacion.sitios.visible)
+        },
+        {
+          icono: 'people',
+          etiqueta: 'Usuarios',
+          valor: detalleEmpresa.totalUsuarios,
+          ayuda: 'Ver usuarios de la empresa',
+          href: `/usuarios?tenant_id=${encodeURIComponent(detalleEmpresa.tenantId)}&empresa_id=${encodeURIComponent(detalleEmpresa.id)}`,
+          visible: Boolean(contextoUsuarioActual?.permisos?.administrarUsuarios)
+        },
+        {
+          icono: 'hdd-network',
+          etiqueta: 'Monitores',
+          valor: detalleEmpresa.totalMonitores,
+          ayuda: 'Ver monitores de la empresa',
+          href: `/monitores?tenant_id=${encodeURIComponent(detalleEmpresa.tenantId)}&empresa_id=${encodeURIComponent(detalleEmpresa.id)}`,
+          visible: Boolean(contextoUsuarioActual?.permisos?.verMonitores)
+        },
+        {
+          icono: 'pc-display-horizontal',
+          etiqueta: 'Agentes',
+          valor: detalleEmpresa.totalAgentes,
+          ayuda: 'Ver agentes de la empresa',
+          href: `/agentes?tenant_id=${encodeURIComponent(detalleEmpresa.tenantId)}&empresa_id=${encodeURIComponent(detalleEmpresa.id)}`,
+          visible: Boolean(contextoUsuarioActual?.permisos?.verAgentes)
+        },
+        {
+          icono: 'lightning-charge',
+          etiqueta: 'Automatizaciones',
+          valor: detalleEmpresa.totalAutomatizaciones,
+          ayuda: 'Ver automatizaciones de la empresa',
+          href: `/automatizacion/acciones?tenant_id=${encodeURIComponent(detalleEmpresa.tenantId)}&empresa_id=${encodeURIComponent(detalleEmpresa.id)}`,
+          visible: Boolean(contextoUsuarioActual?.permisos?.verTriggers)
+        }
+      ].filter((relacion) => relacion.visible)
+    : [];
+  const relacionesSitio = detalleSitio
+    ? [
+        {
+          icono: 'sliders',
+          etiqueta: 'Monitores',
+          valor: detalleSitio.totalMonitores,
+          ayuda: 'Ver monitores del sitio',
+          href: `/monitores?tenant_id=${encodeURIComponent(detalleSitio.tenantId)}&empresa_id=${encodeURIComponent(detalleSitio.empresaId)}&sitio_id=${encodeURIComponent(detalleSitio.id)}`,
+          visible: Boolean(contextoUsuarioActual?.permisos?.verMonitores)
+        },
+        {
+          icono: 'pc-display-horizontal',
+          etiqueta: 'Agentes',
+          valor: detalleSitio.totalAgentes,
+          ayuda: 'Ver agentes del sitio',
+          href: `/agentes?tenant_id=${encodeURIComponent(detalleSitio.tenantId)}&empresa_id=${encodeURIComponent(detalleSitio.empresaId)}&sitio_id=${encodeURIComponent(detalleSitio.id)}`,
+          visible: Boolean(contextoUsuarioActual?.permisos?.verAgentes)
+        },
+        {
+          icono: 'people',
+          etiqueta: 'Usuarios',
+          valor: detalleSitio.totalUsuarios,
+          ayuda: 'Ver usuarios del sitio',
+          href: `/usuarios?tenant_id=${encodeURIComponent(detalleSitio.tenantId)}&empresa_id=${encodeURIComponent(detalleSitio.empresaId)}&sitio_id=${encodeURIComponent(detalleSitio.id)}`,
+          visible: Boolean(contextoUsuarioActual?.permisos?.administrarUsuarios)
+        },
+        {
+          icono: 'lightning-charge',
+          etiqueta: 'Automatizaciones',
+          valor: detalleSitio.totalAutomatizaciones,
+          ayuda: 'Ver automatizaciones del sitio',
+          href: `/automatizacion/acciones?tenant_id=${encodeURIComponent(detalleSitio.tenantId)}&empresa_id=${encodeURIComponent(detalleSitio.empresaId)}&sitio_id=${encodeURIComponent(detalleSitio.id)}`,
+          visible: Boolean(contextoUsuarioActual?.permisos?.verTriggers)
+        },
+        {
+          icono: 'globe2',
+          etiqueta: 'Zonas DNS',
+          valor: detalleSitio.totalZonasDns,
+          ayuda: 'Ver zonas DNS del sitio',
+          href: `/dns?sitio_id=${encodeURIComponent(detalleSitio.id)}`,
+          visible: Boolean(contextoUsuarioActual?.permisos?.verDns)
+        }
+      ].filter((relacion) => relacion.visible)
+    : [];
+%>
+
+<section class="hero-operativo card border-0 shadow-lg overflow-hidden <%= esCreacionOrganizacion ? 'organizacion-hero--creacion' : '' %> <%= esAltaEmpresa ? 'organizacion-hero--alta-empresa' : '' %> <%= esListadoSitios ? 'organizacion-hero--listado-sitios' : '' %>">
+  <div class="card-body hero-operativo__cuerpo p-4 <%= esCreacionOrganizacion ? '' : 'p-lg-5' %>">
+    <div class="hero-operativo__contenido">
+      <div class="hero-operativo__textos">
+        <% if (detalleSitio) { %>
+          <div class="organizacion-hero__jerarquia">
+            <% if (subnavegacionOrganizacion.tenants.visible) { %>
+              <a href="/organizacion/tenants/<%= encodeURIComponent(detalleSitio.tenantId) %>/editar" class="insignia-suave organizacion-hero__insignia organizacion-hero__insignia--enlace" aria-label="Ver tenant <%= detalleSitio.tenantNombre %>">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                <span>Tenant · <%= detalleSitio.tenantNombre %></span>
+                <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+              </a>
+            <% } else { %>
+              <span class="insignia-suave organizacion-hero__insignia"><i class="bi bi-diagram-3" aria-hidden="true"></i><span>Tenant · <%= detalleSitio.tenantNombre %></span></span>
+            <% } %>
+            <% if (subnavegacionOrganizacion.empresas.visible) { %>
+              <a href="/organizacion/empresas/<%= encodeURIComponent(detalleSitio.empresaId) %>/editar" class="insignia-suave organizacion-hero__insignia organizacion-hero__insignia--enlace" aria-label="Ver empresa <%= detalleSitio.empresaNombre %>">
+                <i class="bi bi-buildings" aria-hidden="true"></i>
+                <span>Empresa · <%= detalleSitio.empresaNombre %></span>
+                <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+              </a>
+            <% } else { %>
+              <span class="insignia-suave organizacion-hero__insignia"><i class="bi bi-buildings" aria-hidden="true"></i><span>Empresa · <%= detalleSitio.empresaNombre %></span></span>
+            <% } %>
+          </div>
+        <% } else if (detalleEmpresa) { %>
+          <% if (subnavegacionOrganizacion.tenants.visible) { %>
+            <a
+              href="/organizacion/tenants/<%= encodeURIComponent(detalleEmpresa.tenantId) %>/editar"
+              class="insignia-suave organizacion-hero__insignia organizacion-hero__insignia--enlace"
+              aria-label="Ver tenant <%= detalleEmpresa.tenantNombre %>"
+            >
+              <i class="bi bi-diagram-3" aria-hidden="true"></i>
+              <span>Tenant · <%= detalleEmpresa.tenantNombre %></span>
+              <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+            </a>
+          <% } else { %>
+            <span class="insignia-suave organizacion-hero__insignia">
+              <i class="bi bi-diagram-3" aria-hidden="true"></i>
+              <span>Tenant · <%= detalleEmpresa.tenantNombre %></span>
+            </span>
+          <% } %>
+        <% } else if (esListadoSitios) { %>
+          <% if (empresaContextoSitios) { %>
+            <% if (subnavegacionOrganizacion.empresas.visible) { %>
+              <a href="/organizacion/empresas/<%= encodeURIComponent(empresaContextoSitios.id) %>/editar" class="insignia-suave organizacion-hero__insignia organizacion-hero__insignia--enlace" aria-label="Ver empresa <%= empresaContextoSitios.nombre %>">
+                <i class="bi bi-buildings" aria-hidden="true"></i><span>Empresa · <%= empresaContextoSitios.nombre %></span><i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+              </a>
+            <% } else { %>
+              <span class="insignia-suave organizacion-hero__insignia"><i class="bi bi-buildings" aria-hidden="true"></i><span>Empresa · <%= empresaContextoSitios.nombre %></span></span>
+            <% } %>
+          <% } else if (tenantContextoSitios) { %>
+            <% if (subnavegacionOrganizacion.tenants.visible) { %>
+              <a href="/organizacion/tenants/<%= encodeURIComponent(tenantContextoSitios.id) %>/editar" class="insignia-suave organizacion-hero__insignia organizacion-hero__insignia--enlace" aria-label="Ver tenant <%= tenantContextoSitios.nombre %>">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i><span>Tenant · <%= tenantContextoSitios.nombre %></span><i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+              </a>
+            <% } else { %>
+              <span class="insignia-suave organizacion-hero__insignia"><i class="bi bi-diagram-3" aria-hidden="true"></i><span>Tenant · <%= tenantContextoSitios.nombre %></span></span>
+            <% } %>
+          <% } else { %>
+            <span class="insignia-suave organizacion-hero__insignia"><i class="bi bi-diagram-3" aria-hidden="true"></i><span>Todos los tenants</span></span>
+          <% } %>
+        <% } else if (esCreacionOrganizacion && tenantFiltro) { %>
+          <% if (subnavegacionOrganizacion.tenants.visible) { %>
+            <a
+              href="/organizacion/tenants/<%= encodeURIComponent(tenantFiltro.id) %>/editar"
+              class="insignia-suave organizacion-hero__insignia organizacion-hero__insignia--enlace"
+              aria-label="Ver tenant <%= tenantFiltro.nombre %>"
+            >
+              <i class="bi bi-diagram-3" aria-hidden="true"></i>
+              <span>Tenant · <%= tenantFiltro.nombre %></span>
+              <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+            </a>
+          <% } else { %>
+            <span class="insignia-suave organizacion-hero__insignia">
+              <i class="bi bi-diagram-3" aria-hidden="true"></i>
+              <span>Tenant · <%= tenantFiltro.nombre %></span>
+            </span>
+          <% } %>
+        <% } else if (tenantContextoListado) { %>
+          <% if (subnavegacionOrganizacion.tenants.visible) { %>
+            <a
+              href="/organizacion/tenants/<%= encodeURIComponent(tenantContextoListado.id) %>/editar"
+              class="insignia-suave organizacion-hero__insignia organizacion-hero__insignia--enlace"
+              aria-label="Ver tenant <%= tenantContextoListado.nombre %>"
+            >
+              <i class="bi bi-diagram-3" aria-hidden="true"></i>
+              <span>Tenant · <%= tenantContextoListado.nombre %></span>
+              <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+            </a>
+          <% } else { %>
+            <span
+              class="insignia-suave organizacion-hero__insignia"
+              <% if (tenantPorAlcance) { %>
+                tabindex="0"
+                data-bs-toggle="tooltip"
+                data-bs-placement="top"
+                title="Tenant determinado por tu sesión."
+              <% } %>
+            >
+              <i class="bi bi-diagram-3" aria-hidden="true"></i>
+              <span>Tenant · <%= tenantContextoListado.nombre %></span>
+            </span>
+          <% } %>
+        <% } else { %>
+          <span class="insignia-suave organizacion-hero__insignia">
+            <i class="bi bi-diagram-3" aria-hidden="true"></i>
+            <span><%= esAltaEmpresa ? 'Nueva empresa' : (detalleTenant || esCreacionOrganizacion ? 'Tenant' : 'Jerarquía organizativa') %></span>
+          </span>
+        <% } %>
+        <h1><%= detalleSitio ? detalleSitio.nombre : (detalleEmpresa ? detalleEmpresa.nombre : (detalleTenant ? detalleTenant.nombre : (esListadoSitios ? tituloHeroSitios : (tenantContextoEmpresas ? `Empresas de ${tenantContextoEmpresas.nombre}` : tituloSeccion)))) %></h1>
+        <p><%= detalleSitio ? 'Consulta y modifica sus datos dentro de la empresa a la que pertenece.' : (detalleEmpresa ? 'Consulta y modifica sus datos dentro del tenant al que pertenece.' : (detalleTenant ? 'Consulta y modifica sus datos, y accede al contenido asociado.' : (esListadoSitios ? descripcionHeroSitios : (tenantListado ? 'Consulta y gestiona las empresas que pertenecen a este tenant.' : (tenantPorAlcance ? 'Consulta las empresas visibles de este tenant y accede a sus sitios y contenido asociado.' : (esListadoEmpresas ? 'Consulta las empresas visibles de todos los tenants y accede a sus sitios y contenido asociado.' : descripcionSeccion)))))) %></p>
+        <% if (esCreacionOrganizacion) { %>
+          <% if (!esAltaEmpresa) { %>
+            <div class="hero-etiquetas hero-etiquetas--organizacion">
+              <span
+                class="insignia"
+                tabindex="0"
+                data-bs-toggle="tooltip"
+                data-bs-placement="top"
+                title="Limita las entidades que puedes consultar o gestionar en esta sesión."
+              >
+                <i class="bi bi-shield-check" aria-hidden="true"></i>
+                <span>Alcance: <%= coberturaVisible %></span>
+              </span>
+            </div>
+          <% } %>
+          <div class="hero-organizacion__acciones">
+            <a href="<%= rutaRetornoCreacion %>" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2">
+              <i class="bi bi-arrow-left" aria-hidden="true"></i>
+              <span><%= textoRetornoCreacion %></span>
+            </a>
+          </div>
+        <% } else if (detalleSitio) { %>
+          <div class="hero-etiquetas hero-etiquetas--organizacion">
+            <span class="insignia"><i class="bi bi-hash" aria-hidden="true"></i><span><%= detalleSitio.id %></span></span>
+            <span class="insignia organizacion-estado organizacion-estado--<%= detalleSitio.estado %>"><i class="bi bi-circle-fill" aria-hidden="true"></i><span><%= detalleSitio.estado === 'activo' ? 'Activo' : 'Inactivo' %></span></span>
+            <% if (detalleSitio.alias) { %><span class="insignia"><i class="bi bi-tag" aria-hidden="true"></i><span><%= detalleSitio.alias %></span></span><% } %>
+            <% if (detalleSitio.timezone) { %><span class="insignia"><i class="bi bi-globe2" aria-hidden="true"></i><span><%= detalleSitio.timezone %></span></span><% } %>
+          </div>
+          <div class="hero-organizacion__acciones">
+            <a href="/organizacion/sitios" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Volver a sitios</span></a>
+          </div>
+        <% } else if (detalleEmpresa) { %>
+          <div class="hero-etiquetas hero-etiquetas--organizacion">
+            <span class="insignia">
+              <i class="bi bi-hash" aria-hidden="true"></i>
+              <span><%= detalleEmpresa.id %></span>
+            </span>
+            <span class="insignia organizacion-estado organizacion-estado--<%= detalleEmpresa.estado %>">
+              <i class="bi bi-circle-fill" aria-hidden="true"></i>
+              <span><%= detalleEmpresa.estado === 'activo' ? 'Activo' : 'Inactivo' %></span>
+            </span>
+            <% if (detalleEmpresa.alias) { %>
+              <span class="insignia">
+                <i class="bi bi-tag" aria-hidden="true"></i>
+                <span><%= detalleEmpresa.alias %></span>
+              </span>
+            <% } %>
+            <% if (detalleEmpresa.cif) { %>
+              <span class="insignia">
+                <i class="bi bi-card-text" aria-hidden="true"></i>
+                <span>CIF · <%= detalleEmpresa.cif %></span>
+              </span>
+            <% } %>
+          </div>
+          <div class="hero-organizacion__acciones">
+            <a href="<%= rutaRetornoCreacion %>" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2">
+              <i class="bi bi-arrow-left" aria-hidden="true"></i>
+              <span>Volver a empresas</span>
+            </a>
+          </div>
+        <% } else if (detalleTenant) { %>
+          <div class="hero-etiquetas hero-etiquetas--organizacion">
+            <span class="insignia">
+              <i class="bi bi-hash" aria-hidden="true"></i>
+              <span><%= detalleTenant.id %></span>
+            </span>
+            <span class="insignia organizacion-estado organizacion-estado--<%= detalleTenant.estado %>">
+              <i class="bi bi-circle-fill" aria-hidden="true"></i>
+              <span><%= detalleTenant.estado === 'activo' ? 'Activo' : 'Inactivo' %></span>
+            </span>
+            <% if (detalleTenant.alias) { %>
+              <span class="insignia">
+                <i class="bi bi-tag" aria-hidden="true"></i>
+                <span><%= detalleTenant.alias %></span>
+              </span>
+            <% } %>
+          </div>
+          <div class="hero-organizacion__acciones">
+            <a href="/organizacion/tenants" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2">
+              <i class="bi bi-arrow-left" aria-hidden="true"></i>
+              <span>Volver a tenants</span>
+            </a>
+          </div>
+        <% } else if (esListadoSitios) { %>
+          <div class="hero-organizacion__acciones hero-organizacion__acciones--sitios">
+            <% subnavegacionItems.forEach(function (item) { %>
+              <% if (item.visible && !item.activa) { %>
+                <a href="<%= item.href %>" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2">
+                  <i class="bi bi-<%= item.icono %>" aria-hidden="true"></i><span><%= item.texto %></span>
+                </a>
+              <% } %>
+            <% }); %>
+            <% if (accionSitios?.href) { %>
+              <a href="<%= accionSitios.href %>" class="btn btn-light btn-sm d-inline-flex align-items-center gap-2 organizacion-hero__accion-principal">
+                <i class="bi bi-<%= accionSitios.icono %>" aria-hidden="true"></i><span><%= accionSitios.texto %></span>
+              </a>
+            <% } else if (accionSitios) { %>
+              <span class="btn btn-outline-light btn-sm disabled d-inline-flex align-items-center gap-2 organizacion-hero__accion-principal" aria-disabled="true" tabindex="0" data-bs-toggle="tooltip" title="<%= accionSitios.ayuda %>">
+                <i class="bi bi-<%= accionSitios.icono %>" aria-hidden="true"></i><span><%= accionSitios.texto %></span>
+              </span>
+            <% } %>
+          </div>
+        <% } else if (tenantListado) { %>
+          <div class="hero-etiquetas hero-etiquetas--organizacion">
+            <span class="insignia">
+              <i class="bi bi-hash" aria-hidden="true"></i>
+              <span><%= tenantListado.id %></span>
+            </span>
+            <span class="insignia organizacion-estado organizacion-estado--<%= tenantListado.estado %>">
+              <i class="bi bi-circle-fill" aria-hidden="true"></i>
+              <span><%= tenantListado.estado === 'activo' ? 'Activo' : 'Inactivo' %></span>
+            </span>
+            <% if (tenantListado.alias) { %>
+              <span class="insignia">
+                <i class="bi bi-tag" aria-hidden="true"></i>
+                <span><%= tenantListado.alias %></span>
+              </span>
+            <% } %>
+            <span
+              class="insignia"
+              tabindex="0"
+              data-bs-toggle="tooltip"
+              data-bs-placement="top"
+              title="El alcance limita lo que puedes consultar; el tenant seleccionado filtra esta pantalla."
+            >
+              <i class="bi bi-shield-check" aria-hidden="true"></i>
+              <span>Alcance: <%= coberturaVisible %></span>
+            </span>
+          </div>
+          <div class="hero-organizacion__acciones">
+            <% subnavegacionItems.forEach(function (item) { %>
+              <% if (item.visible) { %>
+                <a
+                  href="<%= item.href %>"
+                  class="btn <%= item.activa ? 'btn-light' : 'btn-outline-light' %> btn-sm d-inline-flex align-items-center gap-2"
+                >
+                  <i class="bi bi-<%= item.icono %>" aria-hidden="true"></i>
+                  <span><%= item.texto %></span>
+                </a>
+              <% } %>
+            <% }); %>
+          </div>
+        <% } else { %>
+          <div class="hero-etiquetas hero-etiquetas--organizacion">
+            <% if ((esListadoEmpresas || esListadoSitios) && !tenantPorAlcance) { %>
+              <span class="insignia">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                <span>Todos los tenants</span>
+              </span>
+            <% } %>
+            <span
+              class="insignia"
+              tabindex="0"
+              data-bs-toggle="tooltip"
+              data-bs-placement="top"
+              title="Limita las entidades que puedes consultar o gestionar en esta sesión."
+            >
+              <i class="bi bi-shield-check" aria-hidden="true"></i>
+              <span>Alcance: <%= coberturaVisible %></span>
+            </span>
+          </div>
+          <div class="hero-organizacion__acciones">
+            <% subnavegacionItems.forEach(function (item) { %>
+              <% if (item.visible) { %>
+                <a
+                  href="<%= item.href %>"
+                  class="btn <%= item.activa ? 'btn-light' : 'btn-outline-light' %> btn-sm d-inline-flex align-items-center gap-2"
+                >
+                  <i class="bi bi-<%= item.icono %>" aria-hidden="true"></i>
+                  <span><%= item.texto %></span>
+                </a>
+              <% } %>
+            <% }); %>
+          </div>
+        <% } %>
+      </div>
+
+      <% if (detalleSitio && relacionesSitio.length > 0) { %>
+        <nav class="organizacion-relaciones" aria-label="Contenido del sitio">
+          <% relacionesSitio.forEach(function (relacion, indice) { %>
+            <a
+              href="<%= relacion.href %>"
+              class="organizacion-relacion<%= relacionesSitio.length % 2 !== 0 && indice === relacionesSitio.length - 1 ? ' organizacion-relacion--ultima-impar' : '' %>"
+            >
+              <span class="organizacion-kpi__icono" aria-hidden="true"><i class="bi bi-<%= relacion.icono %>"></i></span>
+              <span class="organizacion-relacion__texto"><span class="organizacion-relacion__titulo"><strong><%= relacion.etiqueta %></strong><span class="organizacion-relacion__contador"><%= relacion.valor %></span></span><small><%= relacion.ayuda %></small></span>
+              <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </a>
+          <% }); %>
+        </nav>
+      <% } else if (detalleEmpresa) { %>
+        <nav class="organizacion-relaciones" aria-label="Contenido de la empresa">
+          <% relacionesEmpresa.forEach(function (relacion, indice) { %>
+            <a
+              href="<%= relacion.href %>"
+              class="organizacion-relacion<%= relacionesEmpresa.length % 2 !== 0 && indice === relacionesEmpresa.length - 1 ? ' organizacion-relacion--ultima-impar' : '' %>"
+            >
+              <span class="organizacion-kpi__icono" aria-hidden="true">
+                <i class="bi bi-<%= relacion.icono %>"></i>
+              </span>
+              <span class="organizacion-relacion__texto">
+                <span class="organizacion-relacion__titulo">
+                  <strong><%= relacion.etiqueta %></strong>
+                  <span class="organizacion-relacion__contador"><%= relacion.valor %></span>
+                </span>
+                <small><%= relacion.ayuda %></small>
+              </span>
+              <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </a>
+          <% }); %>
+        </nav>
+      <% } else if (detalleTenant) { %>
+        <nav class="organizacion-relaciones" aria-label="Contenido del tenant">
+          <% relacionesTenant.forEach(function (relacion, indice) { %>
+            <a
+              href="<%= relacion.href %>"
+              class="organizacion-relacion<%= relacionesTenant.length % 2 !== 0 && indice === relacionesTenant.length - 1 ? ' organizacion-relacion--ultima-impar' : '' %>"
+            >
+              <span class="organizacion-kpi__icono" aria-hidden="true">
+                <i class="bi bi-<%= relacion.icono %>"></i>
+              </span>
+              <span class="organizacion-relacion__texto">
+                <span class="organizacion-relacion__titulo">
+                  <strong><%= relacion.etiqueta %></strong>
+                  <% if (relacion.valor !== undefined) { %>
+                    <span class="organizacion-relacion__contador"><%= relacion.valor %></span>
+                  <% } %>
+                </span>
+                <small><%= relacion.ayuda %></small>
+              </span>
+              <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </a>
+          <% }); %>
+        </nav>
+      <% } else if (!esCreacionOrganizacion && !detalleEmpresa && !detalleSitio) { %>
+        <div class="rejilla-resumen organizacion-kpis <%= esListadoSitios ? 'organizacion-kpis--sitios' : '' %>">
+          <% tarjetasHeroSitios.forEach(function (tarjeta) { %>
+            <article class="kpi-resumen organizacion-kpi">
+              <div class="organizacion-kpi__cabecera">
+                <span class="organizacion-kpi__icono" aria-hidden="true">
+                  <i class="bi bi-<%= tarjeta.icono %>"></i>
+                </span>
+                <span class="etiqueta"><%= tarjeta.etiqueta %></span>
+              </div>
+              <strong><%= tarjeta.valor %></strong>
+              <small class="<%= esListadoSitios ? 'visually-hidden' : '' %>"><%= tarjeta.ayuda %></small>
+            </article>
+          <% }); %>
+        </div>
+      <% } %>
+
+    </div>
+  </div>
+</section>
+
+<% if (flashOrganizacion) { %>
+  <% if (flashOrganizacion.canal === 'toast') { %>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        if (window.portalToast?.show) {
+          window.portalToast.show({
+            tipo: '<%= flashOrganizacion.tipo === 'error' ? 'error' : 'satisfactorio' %>',
+            titulo: 'Organización',
+            cuerpo: <%- JSON.stringify(String(flashOrganizacion.mensaje || '')) %>
+          });
+        }
+      });
+    </script>
+  <% } else { %>
+    <div class="<%= flashOrganizacion.tipo === 'error' ? 'mensaje-error' : 'mensaje-exito' %>">
+      <%= flashOrganizacion.mensaje %>
+    </div>
+  <% } %>
+<% } %>

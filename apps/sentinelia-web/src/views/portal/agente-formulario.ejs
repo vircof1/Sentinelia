@@ -1,0 +1,473 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+<%
+  const rutaGestionAgente = modo === 'editar'
+    ? `/agentes/${agente.id}/editar${retornoAgente === '/agentes' ? '' : `?return_to=${encodeURIComponent(retornoAgente)}`}`
+    : null;
+  const contextoGestionAgente = rutaGestionAgente
+    ? `?return_to=${encodeURIComponent(rutaGestionAgente)}`
+    : '';
+%>
+
+<section class="panel-general">
+  <section class="hero-operativo hero-monitores <%= modo === 'editar' ? 'hero-agente-formulario' : 'hero-agente-alta' %> card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 <%= modo === 'editar' ? 'col-xl-7' : '' %>">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-hdd-network" aria-hidden="true"></i>
+              <span><%= modo === 'editar' ? 'Gestionar agente' : 'Alta de agente' %></span>
+            </span>
+            <h1><%= modo === 'editar' ? agente.nombre : 'Nuevo agente' %></h1>
+            <% if (modo === 'editar') { %>
+              <p><%= agente.descripcion || 'Consulta su estado y administra sus datos y acceso.' %></p>
+              <div class="hero-etiquetas hero-agente-formulario__etiquetas">
+                <span class="insignia"><i class="bi bi-diagram-3" aria-hidden="true"></i><%= agente.tenantNombre || `Tenant #${agente.tenantId}` %></span>
+                <span class="insignia"><i class="bi bi-building" aria-hidden="true"></i><%= agente.empresaNombre || `Empresa #${agente.empresaId}` %></span>
+                <span class="insignia"><i class="bi bi-geo-alt" aria-hidden="true"></i><%= agente.sitioNombre || `Sitio #${agente.sitioId}` %></span>
+              </div>
+            <% } else { %>
+              <p>Elige el sitio y ponle un nombre que te ayude a reconocerlo.</p>
+              <p class="hero-agente-alta__aviso">
+                <i class="bi bi-shield-lock" aria-hidden="true"></i>
+                <span>Al crearlo, guarda el GUID y el secreto. El secreto solo se mostrará una vez.</span>
+              </p>
+            <% } %>
+            <div class="hero-monitores__acciones">
+              <a href="<%= retornoAgente %>" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                <span>Volver<% if (retornoAgente === '/agentes') { %><span class="d-none d-sm-inline"> a agentes</span><% } %></span>
+              </a>
+              <% if (modo === 'editar') { %>
+                <a href="/agentes/<%= agente.id %>/telemetria<%= contextoGestionAgente %>" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2">
+                  <i class="bi bi-activity" aria-hidden="true"></i>
+                  <span>Ver telemetría</span>
+                </a>
+                <a href="/agentes/<%= agente.id %>/reglas<%= contextoGestionAgente %>" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2">
+                  <i class="bi bi-bezier2" aria-hidden="true"></i>
+                  <span>Reglas de interpretación</span>
+                </a>
+              <% } %>
+            </div>
+          </div>
+        </div>
+        <% if (modo === 'editar') { %>
+          <div class="col-12 col-xl-5">
+            <div class="rejilla-resumen hero-monitores__kpis hero-agente-formulario__kpis">
+              <article class="kpi-resumen <%= agente.estadoAcceso === 'cuarentena' ? 'kpi-resumen--advertencia' : 'kpi-resumen--suave' %> hero-monitores__kpi">
+                <span class="hero-monitores__kpi-cabecera"><i class="bi bi-shield-check" aria-hidden="true"></i><span class="etiqueta">Acceso</span></span>
+                <strong><%= agente.estadoAcceso === 'cuarentena' ? 'En cuarentena' : agente.estadoAdministrativo === 'activo' ? 'Habilitado' : 'Deshabilitado' %></strong>
+                <small>Estado administrativo y restricciones de acceso.</small>
+              </article>
+              <article class="kpi-resumen kpi-resumen--ok hero-monitores__kpi">
+                <span class="hero-monitores__kpi-cabecera"><i class="bi bi-broadcast-pin" aria-hidden="true"></i><span class="etiqueta">Conexión</span></span>
+                <strong><%= ({ vivo: 'En línea', silencioso: 'Sin señal reciente', nunca_conectado: 'Nunca conectado', inconsistente_relogin_requerido: 'Reinicio necesario' })[agente.estadoVidaPol] || 'Sin dato' %></strong>
+                <small>Según la última señal de vida registrada.</small>
+              </article>
+            </div>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </section>
+
+  <% if (flashAgentes) { %>
+    <section class="seccion-panel">
+      <div class="alert <%= flashAgentes.tipo === 'exito' ? 'alert-success' : 'alert-warning' %> shadow-sm mb-0">
+        <strong><%= flashAgentes.mensaje %></strong>
+      </div>
+    </section>
+  <% } %>
+
+  <section class="seccion-panel <%= modo === 'editar' ? 'agente-datos-formulario' : '' %>">
+    <div class="seccion-cabecera">
+      <div>
+        <h2><%= modo === 'editar' ? 'Datos del agente' : 'Alta de agente' %></h2>
+        <p class="texto-apoyo">
+          <%= modo === 'editar' ? 'Actualiza el nombre y la descripción. El sitio no se puede cambiar aquí.' : 'Selecciona el sitio y define un nombre operativo.' %>
+        </p>
+      </div>
+    </div>
+
+    <% if (errorFormulario) { %>
+      <div class="alert alert-danger"><%= errorFormulario %></div>
+    <% } %>
+
+    <div class="tarjeta">
+      <form
+        method="post"
+        action="<%= modo === 'editar' ? `/agentes/${agente.id}/actualizar` : '/agentes/crear' %>"
+        class="formulario-organizacion"
+      >
+        <% if (tokenCSRFPortal) { %>
+          <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+        <% } %>
+        <% if (modo === 'editar' && retornoAgente !== '/agentes') { %>
+          <input type="hidden" name="return_to" value="<%= retornoAgente %>">
+        <% } %>
+        <div class="rejilla-formulario">
+          <div>
+            <label for="agente_nombre">Nombre</label>
+            <input
+              id="agente_nombre"
+              name="nombre"
+              type="text"
+              value="<%= formulario.nombre %>"
+              maxlength="160"
+              required
+            >
+          </div>
+          <div>
+            <label for="agente_sitio">Sitio</label>
+            <% if (sitioFijadoPorScope && formulario.sitioId) { %>
+              <input type="hidden" name="sitio_id" value="<%= formulario.sitioId %>">
+            <% } %>
+            <select
+              id="agente_sitio"
+              name="sitio_id"
+              <%= modo === 'editar' || sitioFijadoPorScope ? 'disabled' : 'required' %>
+            >
+              <option value="">Selecciona sitio</option>
+              <% for (const opcion of opcionesSitios) { %>
+                <option
+                  value="<%= opcion.valor %>"
+                  <%= String(formulario.sitioId) === String(opcion.valor) ? 'selected' : '' %>
+                >
+                  <%= opcion.etiqueta %> · <%= opcion.detalle %>
+                </option>
+              <% } %>
+            </select>
+            <% if (modo === 'editar') { %>
+              <p class="texto-apoyo mt-2">
+                Este agente pertenece a este sitio. No se puede cambiar desde esta pantalla.
+              </p>
+            <% } else if (sitioFijadoPorScope) { %>
+              <p class="texto-apoyo mt-2">
+                Sitio fijado por tu sesión actual.
+              </p>
+            <% } %>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <label for="agente_descripcion">Descripción</label>
+          <textarea
+            id="agente_descripcion"
+            name="descripcion"
+            rows="4"
+            maxlength="512"
+          ><%= formulario.descripcion %></textarea>
+          <p class="texto-apoyo">Máximo 512 caracteres. Solo sirve para identificar el agente en el portal.</p>
+        </div>
+
+        <div class="barra-acciones-filtros mt-4">
+          <button type="submit" class="boton-primario">
+            <%= modo === 'editar' ? 'Guardar datos del agente' : 'Provisionar agente' %>
+          </button>
+          <a href="<%= retornoAgente %>" class="boton-secundario enlace-boton">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <% if (modo === 'editar' && agente && capacidadesPortal?.ddnsAgentes) { %>
+    <%- include('./parciales/ddns-concesiones-administrativas', {
+      extremoDdns: 'agente', agente, concesionesDdns, candidatosDdns,
+      puedeAdministrarDdns, tokenCSRFPortal
+    }) %>
+  <% } %>
+
+  <% if (modo === 'editar' && agente && perfilServidor) { %>
+    <%
+      const etiquetasEstadoPerfilServidor = {
+        pendiente_primera_evidencia: 'pendiente de primera evidencia',
+        activo: 'operativo',
+        retirado: 'retirado',
+        desactivado_incompatible: 'desactivado por incompatibilidad'
+      };
+      const estadoPerfilServidorPresentado = perfilServidor.perfil
+        ? etiquetasEstadoPerfilServidor[perfilServidor.perfil.estado] || perfilServidor.perfil.estado
+        : null;
+    %>
+    <details class="seccion-panel agente-perfil-servidor">
+      <summary class="seccion-cabecera">
+        <div>
+          <h2>Perfil servidor</h2>
+          <p class="texto-apoyo">
+            Actívalo si este agente representa un servidor y quieres detectar
+            pérdidas de señal o reinicios recientes.
+          </p>
+          <div class="agente-perfil-servidor__configuracion">
+            <% if (perfilServidor.perfil) { %>
+              <span>Sin señal: <strong><%= perfilServidor.perfil.histeresisSinPolSegundos %> s</strong></span>
+              <span>Reinicio reciente: <strong><%= perfilServidor.perfil.duracionReinicioRecienteSegundos %> s</strong></span>
+            <% } else { %>
+              <span>Sin perfil servidor configurado</span>
+            <% } %>
+          </div>
+        </div>
+        <div class="agente-perfil-servidor__acciones">
+          <span class="badge text-bg-<%= perfilServidor.perfilEfectivo === 'servidor' ? 'primary' : 'secondary' %>">
+            <%= perfilServidor.perfilEfectivo === 'servidor' ? 'Servidor' : 'Agente normal' %>
+          </span>
+          <% if (perfilServidor.perfil) { %>
+            <span class="badge text-bg-light"><%= estadoPerfilServidorPresentado %></span>
+          <% } %>
+          <span class="agente-perfil-servidor__alternar">
+            <span class="agente-perfil-servidor__mostrar">Ver configuración y diagnóstico</span>
+            <span class="agente-perfil-servidor__ocultar">Ocultar configuración y diagnóstico</span>
+            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+          </span>
+        </div>
+      </summary>
+
+      <div class="tarjeta">
+        <% if (!perfilServidor.perfil) { %>
+          <p class="mb-3">
+            <% if (perfilServidor.elegibilidad.elegible) { %>
+              El agente ya ha enviado las señales necesarias para solicitar el perfil.
+            <% } else { %>
+              Para solicitar este perfil, el agente debe iniciar sesión e informar de su actividad.
+            <% } %>
+          </p>
+        <% } %>
+        <details class="agente-perfil-detalles mb-4"<%= perfilServidor.perfil?.codigoCierre ? ' open' : '' %>>
+          <summary>Ver diagnóstico y datos técnicos</summary>
+        <div class="row g-4">
+          <div class="col-12 col-lg-6">
+            <h3 class="h5">Señales necesarias</h3>
+            <ul class="mb-0">
+              <li>
+                Login válido con <code>bootId</code>:
+                <strong><%= perfilServidor.elegibilidad.evidencia.loginValidoConBootId ? 'demostrado' : 'pendiente' %></strong>
+                <% if (perfilServidor.elegibilidad.evidencia.login?.observadoEnUtc) { %>
+                  · <time data-fecha-utc="<%= perfilServidor.elegibilidad.evidencia.login.observadoEnUtc %>"><%= perfilServidor.elegibilidad.evidencia.login.observadoEnUtc %></time>
+                <% } %>
+              </li>
+              <li>
+                Heartbeat explícito aceptado:
+                <strong><%= perfilServidor.elegibilidad.evidencia.heartbeatExplicitoAceptado ? 'demostrado' : 'pendiente' %></strong>
+                <% if (perfilServidor.elegibilidad.evidencia.heartbeat?.observadoEnUtc) { %>
+                  · <time data-fecha-utc="<%= perfilServidor.elegibilidad.evidencia.heartbeat.observadoEnUtc %>"><%= perfilServidor.elegibilidad.evidencia.heartbeat.observadoEnUtc %></time>
+                <% } %>
+              </li>
+            </ul>
+            <p class="texto-apoyo mt-3 mb-0">
+              Una vez comprobadas estas señales, no es necesario repetir la verificación.
+              Al solicitar de nuevo el perfil, se esperará una señal posterior del agente.
+            </p>
+          </div>
+
+          <div class="col-12 col-lg-6">
+            <% if (perfilServidor.perfil) { %>
+              <h3 class="h5">Generación #<%= perfilServidor.perfil.generacion %></h3>
+              <dl class="row mb-0">
+                <dt class="col-7">Estado</dt>
+                <dd class="col-5"><%= estadoPerfilServidorPresentado %></dd>
+                <dt class="col-7">Histéresis sin POL</dt>
+                <dd class="col-5"><%= perfilServidor.perfil.histeresisSinPolSegundos %> s</dd>
+                <dt class="col-7">Ventana de reinicio</dt>
+                <dd class="col-5"><%= perfilServidor.perfil.duracionReinicioRecienteSegundos %> s</dd>
+                <dt class="col-7">Solicitada</dt>
+                <dd class="col-5"><time data-fecha-utc="<%= perfilServidor.perfil.generadaEnUtc %>"><%= perfilServidor.perfil.generadaEnUtc %></time></dd>
+                <% if (perfilServidor.perfil.armadaEnUtc) { %>
+                  <dt class="col-7">Activada</dt>
+                  <dd class="col-5"><time data-fecha-utc="<%= perfilServidor.perfil.armadaEnUtc %>"><%= perfilServidor.perfil.armadaEnUtc %></time></dd>
+                <% } %>
+                <% if (perfilServidor.perfil.cerradaEnUtc) { %>
+                  <dt class="col-7">Cerrada</dt>
+                  <dd class="col-5"><time data-fecha-utc="<%= perfilServidor.perfil.cerradaEnUtc %>"><%= perfilServidor.perfil.cerradaEnUtc %></time></dd>
+                <% } %>
+              </dl>
+            <% } else { %>
+              <h3 class="h5">Sin perfil solicitado</h3>
+              <p class="mb-0">
+                El agente continúa siendo genérico y no genera señales de
+                presencia de servidor.
+              </p>
+            <% } %>
+          </div>
+        </div>
+
+        <% if (perfilServidor.perfil) { %>
+          <div class="border rounded p-3 mt-4">
+            <h3 class="h5">Fotografía operativa</h3>
+            <% if (perfilServidor.fotografia.disponible) { %>
+              <div class="d-flex flex-wrap gap-2 mb-3">
+                <span class="badge text-bg-<%= perfilServidor.fotografia.sinPol ? 'warning' : 'success' %>">
+                  Sin POL: <%= perfilServidor.fotografia.sinPol ? 'sí' : 'no' %>
+                </span>
+                <span class="badge text-bg-<%= perfilServidor.fotografia.reinicioReciente ? 'warning' : 'success' %>">
+                  Reinicio reciente: <%= perfilServidor.fotografia.reinicioReciente ? 'sí' : 'no' %>
+                </span>
+              </div>
+              <dl class="row mb-0">
+                <dt class="col-7">Último POL</dt>
+                <dd class="col-5">
+                  <% if (perfilServidor.estadoRuntime?.ultimoPolUtc) { %>
+                    <time data-fecha-utc="<%= perfilServidor.estadoRuntime.ultimoPolUtc %>"><%= perfilServidor.estadoRuntime.ultimoPolUtc %></time>
+                  <% } else { %>sin dato<% } %>
+                </dd>
+                <dt class="col-7">Vence sin POL</dt>
+                <dd class="col-5">
+                  <% if (perfilServidor.estadoRuntime?.venceSinPolUtc) { %>
+                    <time data-fecha-utc="<%= perfilServidor.estadoRuntime.venceSinPolUtc %>"><%= perfilServidor.estadoRuntime.venceSinPolUtc %></time>
+                  <% } else { %>sin plazo abierto<% } %>
+                </dd>
+                <dt class="col-7">Vence reinicio reciente</dt>
+                <dd class="col-5">
+                  <% if (perfilServidor.estadoRuntime?.venceReinicioRecienteUtc) { %>
+                    <time data-fecha-utc="<%= perfilServidor.estadoRuntime.venceReinicioRecienteUtc %>"><%= perfilServidor.estadoRuntime.venceReinicioRecienteUtc %></time>
+                  <% } else { %>sin ventana abierta<% } %>
+                </dd>
+                <dt class="col-7">Histéresis capturada</dt>
+                <dd class="col-5"><%= perfilServidor.estadoRuntime?.histeresisSinPolCapturadaSegundos || 'sin ciclo' %><%= perfilServidor.estadoRuntime?.histeresisSinPolCapturadaSegundos ? ' s' : '' %></dd>
+                <dt class="col-7">Ventana capturada</dt>
+                <dd class="col-5"><%= perfilServidor.estadoRuntime?.duracionReinicioCapturadaSegundos || 'sin ciclo' %><%= perfilServidor.estadoRuntime?.duracionReinicioCapturadaSegundos ? ' s' : '' %></dd>
+              </dl>
+            <% } else if (perfilServidor.perfil.estado === 'pendiente_primera_evidencia') { %>
+              <div class="alert alert-info mb-0">
+                La generación espera una prueba de vida posterior a su
+                solicitud. Todavía no existe fotografía: no se interpreta
+                como <code>false</code> ni como estado saludable.
+              </div>
+            <% } else { %>
+              <div class="alert alert-light border mb-0">
+                La fotografía fue retirada. El catálogo, el histórico, las
+                reglas y sus vínculos se conservan.
+              </div>
+            <% } %>
+
+            <% if (!perfilServidor.fotografia.disponible && perfilServidor.estadoRuntime?.ultimoPolUtc) { %>
+              <dl class="row mt-3 mb-0">
+                <dt class="col-7">Último POL registrado</dt>
+                <dd class="col-5"><time data-fecha-utc="<%= perfilServidor.estadoRuntime.ultimoPolUtc %>"><%= perfilServidor.estadoRuntime.ultimoPolUtc %></time></dd>
+                <dt class="col-7">Histéresis del último ciclo</dt>
+                <dd class="col-5"><%= perfilServidor.estadoRuntime.histeresisSinPolCapturadaSegundos || 'sin dato' %><%= perfilServidor.estadoRuntime.histeresisSinPolCapturadaSegundos ? ' s' : '' %></dd>
+                <dt class="col-7">Ventana del último reinicio</dt>
+                <dd class="col-5"><%= perfilServidor.estadoRuntime.duracionReinicioCapturadaSegundos || 'sin dato' %><%= perfilServidor.estadoRuntime.duracionReinicioCapturadaSegundos ? ' s' : '' %></dd>
+              </dl>
+            <% } %>
+
+            <% if (perfilServidor.perfil.codigoCierre) { %>
+              <div class="alert alert-warning mt-3 mb-0">
+                <strong><%= perfilServidor.perfil.codigoCierre %></strong>
+                <% if (perfilServidor.perfil.detalleCierre) { %>
+                  <span class="d-block"><%= perfilServidor.perfil.detalleCierre %></span>
+                <% } %>
+              </div>
+            <% } %>
+          </div>
+        <% } %>
+        </details>
+
+        <% if (!perfilServidor.funcionalidadHabilitada) { %>
+          <div class="alert alert-warning mt-4 mb-0">
+            <strong>Gestión cerrada por despliegue.</strong>
+            <%= perfilServidor.motivoNoDisponible %>
+            La lectura continúa disponible, pero no se permiten mutaciones.
+          </div>
+        <% } else if (perfilServidor.puedePromover) { %>
+          <form
+            method="post"
+            action="/agentes/<%= agente.id %>/perfil-servidor/solicitar"
+            class="mt-4"
+          >
+            <% if (tokenCSRFPortal) { %>
+              <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+            <% } %>
+            <div class="rejilla-formulario">
+              <div>
+                <label for="perfil_histeresis_sin_pol">Espera sin señal de vida (segundos)</label>
+                <input
+                  id="perfil_histeresis_sin_pol"
+                  name="histeresis_sin_pol_segundos"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value="<%= perfilServidorFormulario.histeresisSinPolSegundos || '' %>"
+                  required
+                >
+                <p class="texto-apoyo mt-2">Espera antes de marcar que el servidor ha dejado de enviar señales.</p>
+              </div>
+              <div>
+                <label for="perfil_duracion_reinicio">Duración del estado «reinicio reciente» (segundos)</label>
+                <input
+                  id="perfil_duracion_reinicio"
+                  name="duracion_reinicio_reciente_segundos"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value="<%= perfilServidorFormulario.duracionReinicioRecienteSegundos || '' %>"
+                  placeholder="Indica los segundos"
+                  required
+                >
+                <p class="texto-apoyo mt-2">Tiempo durante el que un reinicio se considera reciente.</p>
+              </div>
+            </div>
+            <button type="submit" class="boton-primario mt-4">
+              Solicitar perfil servidor
+            </button>
+          </form>
+        <% } %>
+
+        <% if (perfilServidor.puedeEditarConfiguracion) { %>
+          <form
+            method="post"
+            action="/agentes/<%= agente.id %>/perfil-servidor/configuracion"
+            class="mt-4 border rounded p-3"
+          >
+            <% if (tokenCSRFPortal) { %>
+              <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+            <% } %>
+            <input type="hidden" name="generacion" value="<%= perfilServidor.perfil.generacion %>">
+            <input type="hidden" name="version_estado" value="<%= perfilServidor.perfil.versionEstado %>">
+            <h3 class="h5">Configuración para ciclos futuros</h3>
+            <p class="texto-apoyo">
+              Los cambios se aplicarán a los próximos ciclos; no modifican los plazos que ya están en curso.
+            </p>
+            <div class="rejilla-formulario">
+              <div>
+                <label for="perfil_editar_histeresis">Espera sin señal de vida (segundos)</label>
+                <input id="perfil_editar_histeresis" name="histeresis_sin_pol_segundos" type="number" min="1" step="1" value="<%= perfilServidorFormulario.histeresisSinPolSegundos %>" required>
+                <p class="texto-apoyo mt-2">Espera antes de marcar que el servidor ha dejado de enviar señales.</p>
+              </div>
+              <div>
+                <label for="perfil_editar_reinicio">Duración del estado «reinicio reciente» (segundos)</label>
+                <input id="perfil_editar_reinicio" name="duracion_reinicio_reciente_segundos" type="number" min="1" step="1" value="<%= perfilServidorFormulario.duracionReinicioRecienteSegundos %>" required>
+                <p class="texto-apoyo mt-2">Tiempo durante el que un reinicio se considera reciente.</p>
+              </div>
+            </div>
+            <button type="submit" class="boton-secundario mt-3">
+              Guardar configuración del perfil
+            </button>
+          </form>
+        <% } %>
+
+        <% if (perfilServidor.puedeRetirar) { %>
+          <div class="alert alert-danger mt-4">
+            <strong>Retirar no deshabilita ni elimina el agente.</strong>
+            El agente continuará provisionado como genérico. Se retirarán sus
+            fotografías runtime actuales, conservando configuración e histórico.
+          </div>
+          <form method="post" action="/agentes/<%= agente.id %>/perfil-servidor/retirar">
+            <% if (tokenCSRFPortal) { %>
+              <input type="hidden" name="_csrf" value="<%= tokenCSRFPortal %>">
+            <% } %>
+            <input type="hidden" name="generacion" value="<%= perfilServidor.perfil.generacion %>">
+            <input type="hidden" name="version_estado" value="<%= perfilServidor.perfil.versionEstado %>">
+            <button type="submit" class="btn btn-outline-danger">
+              Retirar perfil servidor
+            </button>
+          </form>
+        <% } else if (perfilServidor.motivoNoDisponible && !perfilServidor.puedePromover && !perfilServidor.perfil) { %>
+          <div class="alert alert-light border mt-4 mb-0">
+            <%= perfilServidor.motivoNoDisponible %>
+          </div>
+        <% } %>
+      </div>
+    </details>
+  <% } %>
+</section>
+
+<%- include('../parciales/pie') %>

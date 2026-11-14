@@ -1,0 +1,66 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<section class="panel-general py-4 py-lg-5">
+  <div class="container-xl">
+    <div class="row justify-content-center">
+      <div class="col-12 col-xl-10">
+        <div class="card border-0 shadow-lg overflow-hidden">
+          <div class="card-body p-4 p-lg-5">
+            <div class="row g-4 align-items-start">
+              <div class="col-12 col-lg-8">
+                <span class="badge text-bg-danger-subtle text-danger-emphasis rounded-pill mb-3">
+                  <%= typeof motivoAlcance !== 'undefined' ? 'Alcance' : 'Autorización' %>
+                </span>
+                <h1 class="display-6 fw-semibold mb-3">Acceso denegado</h1>
+                <p class="lead text-body-secondary mb-4">
+                  <%= typeof motivoAlcance !== 'undefined'
+                    ? 'El alcance de tu sesión no permite realizar esta operación.'
+                    : 'La identidad actual no tiene permisos suficientes para abrir esta pantalla o ejecutar esta acción.' %>
+                </p>
+
+                <div class="alert alert-danger d-flex flex-column gap-2 mb-0" role="alert">
+                  <% if (typeof motivoAlcance !== 'undefined') { %>
+                    <div class="fw-semibold">Alcance requerido</div>
+                    <span><%= motivoAlcance %></span>
+                  <% } else { %>
+                    <div class="fw-semibold">Permiso requerido</div>
+                    <code class="fs-6"><%= permisoSolicitado %></code>
+                  <% } %>
+                </div>
+              </div>
+
+              <div class="col-12 col-lg-4">
+                <div class="card border-danger-subtle bg-danger-subtle h-100">
+                  <div class="card-body">
+                    <h2 class="h6 text-danger-emphasis mb-3">Qué puedes hacer ahora</h2>
+                    <ul class="list-group list-group-flush small mb-4">
+                      <li class="list-group-item bg-transparent px-0">
+                        Volver al panel principal.
+                      </li>
+                      <li class="list-group-item bg-transparent px-0">
+                        <%= typeof motivoAlcance !== 'undefined'
+                          ? 'Solicitar acceso con el alcance adecuado si lo necesitas.'
+                          : 'Pedir a un administrador que te asigne este permiso si procede.' %>
+                      </li>
+                    </ul>
+
+                    <div class="d-grid gap-2">
+                      <a href="/panel" class="btn btn-primary">
+                        Volver al panel
+                      </a>
+                      <a href="javascript:history.back()" class="btn btn-outline-secondary">
+                        Volver atrás
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<%- include('../parciales/pie') %>

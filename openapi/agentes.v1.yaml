@@ -1,0 +1,2740 @@
+openapi: 3.1.0
+info:
+  title: API de agentes Sentinelia
+  version: 1.0.0
+  summary: Contrato para agentes técnicos Sentinelia.
+  description: >
+    API máquina a máquina para agentes Sentinelia provisionados. Esta porción
+    del contrato cubre login técnico, inspección de sesión viva, renovación de
+    sesión efímera, pruebas de vida heartbeat/POL, configuración efectiva
+    mínima, estado e intenciones DDNS e ingesta de catálogos y observaciones
+    de telemetría. El secreto
+    persistente solo se acepta en POST /api/agentes/v1/login. Todas las llamadas
+    posteriores usan un token Bearer opaco de sesión, almacenado en servidor
+    dentro de Redis con TTL. SQL conserva identidad persistente, scope, estado
+    administrativo, estado de acceso, telemetría y fotografías diagnósticas,
+    pero Redis es la única fuente de verdad para una sesión viva. El agente
+    declara conectividad y hechos observados; las reglas de interpretación, los
+    monitores, las alertas y las automatizaciones son responsabilidades internas
+    de Sentinelia y no forman parte de este contrato técnico.
+servers:
+  - url: /
+    description: Mismo origen que sirve este contrato OpenAPI.
+tags:
+  - name: Agentes
+    description: >
+      Endpoints de autenticación, coordinación, prueba de vida, configuración e
+      ingesta de telemetría para agentes Sentinelia provisionados.
+paths:
+  /api/agentes/v1/login:
+    post:
+      tags:
+        - Agentes
+      operationId: loginAgenteSentineliaV1
+      summary: Abre una sesión viva para un agente provisionado.
+      description: >
+        Autentica un agente ya provisionado usando su GUID estable y su secreto
+        persistente. El secreto persistente solo debe viajar en este endpoint y
+        nunca debe devolverse. Un login correcto reemplaza cualquier sesión viva
+        anterior del mismo agente y abre el periodo de vida POL en SQL.
+        loginRequestId es obligatorio e idempotente: la respuesta correcta lo
+        devuelve en requestId para que el agente pueda reintentar la misma
+        operación sin registrar ni persistir tokens en claro.
+        sessionIdAnterior es opcional y diagnóstico: ayuda a trazar un relogin
+        tras pausa, pérdida de Redis o reinicio del agente, pero nunca es una
+        credencial.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentLoginRequest"
+            examples:
+              ordinaryLogin:
+                summary: Login de un agente recién arrancado.
+                value:
+                  guid: "123e4567-e89b-42d3-a456-426614174000"
+                  secreto: "sa_EXAMPLE_DO_NOT_USE_Fc8K2jS1xq9mYb7rPz4wTn"
+                  loginRequestId: "01980000-0000-7000-8000-000000000101"
+                  bootId: "7df18f4b-df99-4f6d-9d61-64a0c8f8b6e2"
+                  hostname: "edge-node-01"
+                  versionAgente: "1.0.0"
+                  timestampClienteUtc: "2026-07-06T10:15:30Z"
+              reloginAfterRedisLoss:
+                summary: Relogin declarando el id de sesión anterior.
+                value:
+                  guid: "123e4567-e89b-42d3-a456-426614174000"
+                  secreto: "sa_EXAMPLE_DO_NOT_USE_Fc8K2jS1xq9mYb7rPz4wTn"
+                  loginRequestId: "01980000-0000-7000-8000-000000000102"
+                  sessionIdAnterior: "ags_01K02WVK6KZ3M6HJH3VGM4R6WF"
+                  bootId: "7df18f4b-df99-4f6d-9d61-64a0c8f8b6e2"
+                  hostname: "edge-node-01"
+                  versionAgente: "1.0.0"
+      responses:
+        "200":
+          description: Agente autenticado y sesión viva abierta.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentLoginResponse"
+              examples:
+                accepted:
+                  summary: Login aceptado.
+                  value:
+                    ok: true
+                    requestId: "01980000-0000-7000-8000-000000000101"
+                    serverTimeUtc: "2026-07-06T10:15:31Z"
+                    agente:
+                      id: 126
+                      guid: "123e4567-e89b-42d3-a456-426614174000"
+                      nombre: "Agente edge-node-01"
+                      tenantId: 55
+                      empresaId: 20
+                      sitioId: 11
+                      estadoAdministrativo: "activo"
+                      estadoAcceso: "normal"
+                    sesion:
+                      sessionId: "ags_01K02X1A6W8P4J9TXB2B7W1H91"
+                      sessionToken: "sat_EXAMPLE_OPAQUE_SESSION_TOKEN"
+                      expiresInSeconds: 900
+                      renewBeforeSeconds: 120
+                    pol:
+                      estadoVidaPol: "vivo"
+                      periodoId: 7801
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LoginAuthenticationFailed"
+        "403":
+          $ref: "#/components/responses/LoginRefused"
+        "409":
+          $ref: "#/components/responses/LoginSuspiciousButAcceptedConflict"
+        "410":
+          $ref: "#/components/responses/SessionResponseGone"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+  /api/agentes/v1/me:
+    get:
+      tags:
+        - Agentes
+      operationId: getAgenteSentineliaMeV1
+      summary: Devuelve la identidad y el estado de sesión viva del agente actual.
+      description: >
+        Valida el token Bearer de sesión contra Redis y devuelve la identidad,
+        sesión y estado mínimos conocidos del agente actual. Este endpoint no
+        devuelve configuración efectiva; eso corresponde a
+        GET /api/agentes/v1/configuracion. Si Redis ya no conserva la sesión, o
+        si la sesión fue reemplazada, la respuesta es 403 y el agente debe
+        iniciar un nuevo login usando GUID y secreto persistente.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Sesión viva encontrada y válida.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentMeResponse"
+              examples:
+                liveSession:
+                  summary: Sesión viva actual.
+                  value:
+                    ok: true
+                    requestId: "req_01K02X1B6W8P4J9TXB2B7W1H92"
+                    serverTimeUtc: "2026-07-06T10:16:10Z"
+                    agente:
+                      id: 126
+                      guid: "123e4567-e89b-42d3-a456-426614174000"
+                      nombre: "Agente edge-node-01"
+                      tenantId: 55
+                      empresaId: 20
+                      sitioId: 11
+                      estadoAdministrativo: "activo"
+                      estadoAcceso: "normal"
+                    sesion:
+                      sessionId: "ags_01K02X1A6W8P4J9TXB2B7W1H91"
+                      expiresInSeconds: 861
+                      renewBeforeSeconds: 120
+                    pol:
+                      estadoVidaPol: "vivo"
+                      ultimoHeartbeatUtc: null
+                      ultimoBootId: "7df18f4b-df99-4f6d-9d61-64a0c8f8b6e2"
+                      ultimoSeq: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/SessionNotLive"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/agentes/v1/session/refresh:
+    post:
+      tags:
+        - Agentes
+      operationId: refreshSesionAgenteSentineliaV1
+      summary: Renueva la sesión efímera actual del agente.
+      description: >
+        Renueva una sesión viva respaldada por Redis sin reenviar el secreto
+        persistente del agente. El token Bearer es la credencial; sessionIdActual
+        y bootId son guardas de coherencia para que instancias web concurrentes
+        y agentes puedan detectar de forma explícita sesiones antiguas,
+        reemplazadas o inconsistentes. Una renovación correcta invalida de forma
+        atómica la sesión Redis anterior, emite un nuevo token Bearer opaco con
+        TTL renovado y mantiene abierto el periodo de vida POL actual cuando la
+        identidad de arranque es coherente. Si Redis ya no conserva la sesión,
+        el agente debe hacer login de nuevo con GUID y secreto persistente.
+        refreshRequestId es obligatorio e idempotente: la respuesta correcta lo
+        devuelve en requestId y permite recuperar únicamente la repetición
+        exacta autorizada por la misma operación.
+        sessionIdActual debe coincidir con la sesión Redis representada por el
+        token Bearer; bootId debe coincidir con el proceso vivo actual del agente
+        salvo que el servidor fuerce deliberadamente un relogin.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentSessionRefreshRequest"
+            examples:
+              normalRefresh:
+                summary: Renovación antes de agotar el TTL.
+                value:
+                  refreshRequestId: "01980000-0000-7000-8000-000000000201"
+                  sessionIdActual: "ags_01K02X1A6W8P4J9TXB2B7W1H91"
+                  bootId: "7df18f4b-df99-4f6d-9d61-64a0c8f8b6e2"
+                  revisionConfiguracionConocida: "cfg_01K02X1C0Z"
+                  revisionPoliticaConocida: "pol_01K02X1C0Z"
+                  timestampClienteUtc: "2026-07-06T10:27:30Z"
+      responses:
+        "200":
+          description: Sesión renovada y sesión efímera anterior reemplazada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentSessionRefreshResponse"
+              examples:
+                refreshed:
+                  summary: Nueva sesión efímera emitida.
+                  value:
+                    ok: true
+                    requestId: "01980000-0000-7000-8000-000000000201"
+                    serverTimeUtc: "2026-07-06T10:27:31Z"
+                    agente:
+                      id: 126
+                      guid: "123e4567-e89b-42d3-a456-426614174000"
+                      nombre: "Agente edge-node-01"
+                      tenantId: 55
+                      empresaId: 20
+                      sitioId: 11
+                      estadoAdministrativo: "activo"
+                      estadoAcceso: "normal"
+                    sesion:
+                      sessionId: "ags_01K02X1D6W8P4J9TXB2B7W1H94"
+                      sessionToken: "sat_EXAMPLE_REFRESHED_OPAQUE_SESSION_TOKEN"
+                      previousSessionId: "ags_01K02X1A6W8P4J9TXB2B7W1H91"
+                      expiresInSeconds: 900
+                      renewBeforeSeconds: 120
+                    coordinacion:
+                      requiereConfiguracion: false
+                      revisionConfiguracionActual: "cfg_01K02X1C0Z"
+                      requierePolitica: false
+                      revisionPoliticaActual: "pol_01K02X1C0Z"
+                    pol:
+                      estadoVidaPol: "vivo"
+                      periodoId: 7801
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/SessionNotLive"
+        "409":
+          $ref: "#/components/responses/RefreshConflict"
+        "410":
+          $ref: "#/components/responses/SessionResponseGone"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+  /api/agentes/v1/heartbeat:
+    post:
+      tags:
+        - Agentes
+      operationId: heartbeatAgenteSentineliaV1
+      summary: Confirma que el agente sigue vivo para la sesión actual.
+      description: >
+        Registra un heartbeat de prueba de vida para la sesión actual respaldada
+        por Redis. El token Bearer sigue siendo la credencial viva. seq y bootId
+        son guardas de coherencia: seq permite al servidor detectar heartbeats
+        repetidos o antiguos, mientras que bootId debe coincidir con el proceso
+        vivo actual representado por la sesión. timestampClienteUtc y
+        uptimeSeconds son informativos; la hora del servidor es la autoridad para
+        POL y estado operativo. Este endpoint no es, deliberadamente, un punto de
+        ingesta de telemetría rica.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentHeartbeatRequest"
+            examples:
+              ordinaryHeartbeat:
+                summary: Prueba de vida periódica desde un agente vivo.
+                value:
+                  seq: 42
+                  bootId: "7df18f4b-df99-4f6d-9d61-64a0c8f8b6e2"
+                  timestampClienteUtc: "2026-07-06T10:28:30Z"
+                  uptimeSeconds: 780
+      responses:
+        "200":
+          description: Heartbeat aceptado y estado POL actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentHeartbeatResponse"
+              examples:
+                accepted:
+                  summary: Heartbeat aceptado.
+                  value:
+                    ok: true
+                    requestId: "req_01K02X1H6W8P4J9TXB2B7W1H95"
+                    serverTimeUtc: "2026-07-06T10:28:31Z"
+                    agente:
+                      id: 126
+                      guid: "123e4567-e89b-42d3-a456-426614174000"
+                      nombre: "Agente edge-node-01"
+                      tenantId: 55
+                      empresaId: 20
+                      sitioId: 11
+                      estadoAdministrativo: "activo"
+                      estadoAcceso: "normal"
+                    sesion:
+                      sessionId: "ags_01K02X1D6W8P4J9TXB2B7W1H94"
+                      expiresInSeconds: 842
+                      renewBeforeSeconds: 120
+                    heartbeat:
+                      seqAceptado: 42
+                      recibidoEnUtc: "2026-07-06T10:28:31Z"
+                      desfaseClienteMs: -1000
+                    pol:
+                      estadoVidaPol: "vivo"
+                      periodoId: 7801
+                      heartbeatsRecibidos: 12
+                      ultimoSeq: 42
+                    coordinacion:
+                      accion: "continue"
+                      requiereRefreshSesion: false
+                      requiereConfiguracion: false
+                      revisionConfiguracionActual: "cfg_01K02X1C0Z"
+                      requierePolitica: false
+                      revisionPoliticaActual: "pol_01K02X1C0Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/SessionNotLive"
+        "409":
+          $ref: "#/components/responses/HeartbeatConflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+  /api/agentes/v1/configuracion:
+    get:
+      tags:
+        - Agentes
+      operationId: getConfiguracionEfectivaAgenteSentineliaV1
+      summary: Devuelve la configuración efectiva mínima del agente actual.
+      description: >
+        Devuelve la fotografía estable de configuración que necesita un agente
+        vivo para mantener su sesión, heartbeat y bucle de coordinación alineados
+        con el servidor. El token Bearer sigue siendo la credencial viva y se
+        valida contra Redis. Este endpoint expone deliberadamente solo política
+        mínima y capacidades declaradas; no asigna trabajos, comandos, ingesta de
+        telemetría rica ni tareas de runtime.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Fotografía de configuración efectiva devuelta para la sesión viva.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentEffectiveConfigurationResponse"
+              examples:
+                minimalConfiguration:
+                  summary: Configuración efectiva mínima sin capacidades extra.
+                  value:
+                    ok: true
+                    requestId: "req_01K02X1K6W8P4J9TXB2B7W1H96"
+                    serverTimeUtc: "2026-07-06T10:29:00Z"
+                    agente:
+                      id: 126
+                      guid: "123e4567-e89b-42d3-a456-426614174000"
+                      nombre: "Agente edge-node-01"
+                      tenantId: 55
+                      empresaId: 20
+                      sitioId: 11
+                      estadoAdministrativo: "activo"
+                      estadoAcceso: "normal"
+                    sesion:
+                      sessionId: "ags_01K02X1D6W8P4J9TXB2B7W1H94"
+                      expiresInSeconds: 812
+                      renewBeforeSeconds: 120
+                    configuracion:
+                      revisionConfiguracion: "cfg_01K02X1C0Z"
+                      revisionPolitica: null
+                      generadaEnUtc: "2026-07-06T10:29:00Z"
+                      politicaVida:
+                        heartbeatIntervalSeconds: 30
+                        heartbeatGraceSeconds: 90
+                        sessionTtlSeconds: 900
+                        refreshBeforeSeconds: 120
+                      capacidades:
+                        - codigo: "heartbeat"
+                          habilitada: true
+                          descripcion: "Prueba de vida POL mínima."
+                        - codigo: "session_refresh"
+                          habilitada: true
+                          descripcion: "Renovación de sesión efímera."
+                        - codigo: "effective_configuration"
+                          habilitada: true
+                          descripcion: "Lectura de configuración efectiva mínima."
+                        - codigo: "telemetry"
+                          habilitada: false
+                          descripcion: "Reservada para fases futuras."
+                        - codigo: "commands"
+                          habilitada: false
+                          descripcion: "Reservada para fases futuras."
+                        - codigo: "dynamic_dns"
+                          habilitada: false
+                          descripcion: "Reservada para fases futuras."
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/SessionNotLive"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/agentes/v1/ddns:
+    get:
+      tags:
+        - Agentes
+      operationId: listarDdnsAgenteSentineliaV1
+      summary: Devuelve la fotografía DDNS vigente del agente actual.
+      description: >
+        Consulta privada, paginada y sin caché de las concesiones DDNS vigentes
+        que pertenecen al agente identificado exclusivamente por su sesión
+        Bearer. No expone scopes humanos, identificadores SQL, histórico ni
+        diagnósticos internos. El cursor es opaco y queda ligado al agente y al
+        límite de la consulta que lo originó.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Tamaño de página; el servidor aplica 100 por defecto y 500 como máximo.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+        - name: cursor
+          in: query
+          required: false
+          description: Continuación opaca devuelta por la página anterior.
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: Fotografía DDNS privada del agente autenticado.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdnsListResponse"
+              examples:
+                concesionObservada:
+                  summary: Registro A esperando una observación POL posterior.
+                  value:
+                    ok: true
+                    requestId: "req_01K5288C000000000000000001"
+                    serverTimeUtc: "2026-09-09T08:00:00.000Z"
+                    concesiones:
+                      - concesionId: "01990000-0000-7000-8000-000000000801"
+                        registro:
+                          nombre: "router.example.net."
+                          tipo: "A"
+                        capacidades:
+                          modos: ["observada", "declarada"]
+                        version: "7"
+                        decision: "operativa"
+                        modo: "observada"
+                        condicion: "esperando_observacion"
+                        estadoDeseado: null
+                        estadoPublicado:
+                          tipo: "A"
+                          modo: "declarada"
+                          valor:
+                            direccionIpv4: "192.0.2.20"
+                        progreso:
+                          hito: "intencion_aceptada"
+                          terminal: null
+                        intentos:
+                          consumidos: 0
+                          restantes: 3
+                        diagnostico: "esperando_observacion"
+                        timestamps:
+                          concesionCreadaEnUtc: "2026-09-09T07:40:00.000Z"
+                          actualizadaEnUtc: "2026-09-09T07:59:00.000Z"
+                          intencionAceptadaEnUtc: "2026-09-09T07:59:00.000Z"
+                          contenidoPersistidoEnUtc: null
+                          contenidoPublicadoEnUtc: null
+                          terminadaEnUtc: null
+                    paginacion:
+                      limite: 100
+                      siguienteCursor: null
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/SessionNotLive"
+  /api/agentes/v1/ddns/{concesionId}/intenciones:
+    post:
+      tags:
+        - Agentes
+      operationId: crearIntencionDdnsAgenteSentineliaV1
+      summary: Declara el estado deseado de una concesión DDNS propia.
+      description: >
+        Acepta una decisión para un único registro. El agente se deriva solo de
+        la sesión Bearer y el tipo se deriva del registro bloqueado por el
+        servidor; ninguno de ambos puede elegirse en la ruta o el cuerpo.
+        solicitudId aporta idempotencia durable y versionEsperada protege frente
+        a decisiones concurrentes. Una aceptación 202 confirma intención
+        durable, no publicación DNS ni propagación.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: concesionId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/DdnsUuidV7"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DdnsIntentionRequest"
+            examples:
+              ipv4Declarada:
+                summary: Dirección IPv4 declarada por el agente.
+                value:
+                  solicitudId: "01990000-0000-7000-8000-000000000802"
+                  versionEsperada: "7"
+                  estadoDeseado:
+                    modo: "declarada"
+                    valor:
+                      direccionIpv4: "203.0.113.8"
+              ipv6Observada:
+                summary: El siguiente POL IPv6 posterior aportará el contenido.
+                value:
+                  solicitudId: "01990000-0000-7000-8000-000000000803"
+                  versionEsperada: "3"
+                  estadoDeseado:
+                    modo: "observada"
+              cnameDeclarado:
+                summary: Destino CNAME absoluto.
+                value:
+                  solicitudId: "01990000-0000-7000-8000-000000000804"
+                  versionEsperada: "1"
+                  estadoDeseado:
+                    modo: "declarada"
+                    valor:
+                      destino: "origin.example.net."
+              mxDeclarado:
+                summary: Destino MX y prioridad.
+                value:
+                  solicitudId: "01990000-0000-7000-8000-000000000805"
+                  versionEsperada: "2"
+                  estadoDeseado:
+                    modo: "declarada"
+                    valor:
+                      prioridad: 10
+                      destino: "mail.example.net."
+      responses:
+        "202":
+          description: Intención nueva aceptada durablemente; la publicación es posterior.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdnsIntentionResponse"
+              examples:
+                accepted:
+                  value:
+                    ok: true
+                    requestId: "req_01K5288C000000000000000002"
+                    serverTimeUtc: "2026-09-09T08:01:00.000Z"
+                    perfil: "ddns_agentes@1/resultado"
+                    versionContrato: 1
+                    resultado: "aceptada"
+                    version: "8"
+                    hito: "contenido_deseado_persistido"
+                    condicion: "operativa"
+                    terminal: null
+                    error: null
+                    estadoDeseado:
+                      tipo: "A"
+                      modo: "declarada"
+                      valor:
+                        direccionIpv4: "203.0.113.8"
+        "200":
+          description: Repetición exacta, convergencia o ausencia de cambios.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdnsIntentionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/SessionNotLive"
+        "404":
+          description: Concesión inexistente, ajena, no concedida o revocada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                noAuthority:
+                  value:
+                    ok: false
+                    requestId: "req_01K5288CERR404"
+                    code: "sin_autoridad"
+                    message: "La concesión DDNS no está disponible."
+        "409":
+          description: Versión obsoleta, idempotencia conflictiva o registro no operable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                staleVersion:
+                  value:
+                    ok: false
+                    requestId: "req_01K5288CERR409"
+                    code: "version_obsoleta"
+                    message: "La versión DDNS esperada ya no gobierna."
+                    currentVersion: "8"
+        "422":
+          description: El estado declarado no es interpretable para el tipo real del registro.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidValue:
+                  value:
+                    ok: false
+                    requestId: "req_01K5288CERR422"
+                    code: "valor_no_interpretable"
+                    message: "El estado DDNS deseado no es interpretable."
+  /api/agentes/v1/telemetria:
+    post:
+      tags:
+        - Agentes
+      operationId: ingerirTelemetriaAgenteSentineliaV1
+      summary: Recibe observaciones de telemetría del agente actual.
+      description: >
+        Recibe un lote de observaciones emitidas por un agente con sesión viva.
+        La credencial válida es exclusivamente el token Bearer efímero respaldado
+        por Redis; este endpoint no acepta el secreto persistente del agente ni
+        debe usarse como login técnico. La hora de recepción es generada por
+        Sentinelia en UTC. `telemetriaRequestId` identifica de forma durable el
+        contenido lógico del lote: repetir la misma identidad y contenido
+        recupera el resultado estable original sin duplicar efectos; reutilizar
+        la identidad con otro contenido devuelve 409. Una forma, tipo o valor
+        inválido rechaza globalmente la petición con 400. El resultado parcial
+        queda reservado a conflictos de catálogo ya consolidado, que se devuelven
+        con el índice y motivo de la observación afectada. Una respuesta 200
+        confirma exclusivamente el resultado de la ingesta; no confirma que una
+        regla de interpretación haya coincidido, que un monitor haya cambiado de
+        estado ni que se haya generado una alerta o ejecutado una automatización.
+        Tras confirmar la persistencia, las observaciones actuales aptas pueden
+        programar evaluaciones asíncronas de las reglas configuradas en el
+        servidor. Este procesamiento posterior no amplía ni retrasa la respuesta
+        contractual de la ingesta. Las observaciones diferidas se conservan como
+        evidencia histórica y no reescriben retroactivamente el estado operativo
+        vigente de reglas o monitores.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelemetryBatchRequest"
+            examples:
+              metricaNumerica:
+                summary: Métrica numérica viva.
+                description: Lectura actual de uso de CPU expresada como observación numérica.
+                value:
+                  telemetriaRequestId: "01a03b1e-32c8-7268-a531-84d68648b99b"
+                  observaciones:
+                    - categoria: "sistema"
+                      clave: "cpu.uso"
+                      tag: "socket0"
+                      tipoDato: "numero"
+                      unidad: "%"
+                      observadoEnUtc: "2026-07-07T10:15:30Z"
+                      valorNumero: 72.4
+                      calidad: "valida"
+                      severidadDeclarada: "info"
+                      origen: "directa"
+              estadoDiscreto:
+                summary: Estado discreto vivo.
+                description: Estado operativo de una puerta informado como observación discreta.
+                value:
+                  telemetriaRequestId: "01a03b1e-32c9-713b-ae60-6cd4a503eda8"
+                  observaciones:
+                    - categoria: "seguridad"
+                      clave: "puerta.estado"
+                      tag: "camara-01"
+                      tipoDato: "estado"
+                      observadoEnUtc: "2026-07-07T10:16:00Z"
+                      valorEstado: "cerrada"
+                      calidad: "valida"
+                      severidadDeclarada: "info"
+                      origen: "directa"
+                      vigenteHastaUtc: "2026-07-07T10:21:00Z"
+              observacionesDiferidas:
+                summary: Observaciones pasadas recuperadas tras desconexión.
+                description: Lote diferido con hora de emisión explícita del agente.
+                value:
+                  telemetriaRequestId: "01a03b1e-32c9-713b-ae60-72d709edc4cd"
+                  emitidoEnUtc: "2026-07-07T10:30:00Z"
+                  observaciones:
+                    - categoria: "energia"
+                      clave: "voltaje"
+                      tag: "linea-a"
+                      tipoDato: "numero"
+                      unidad: "V"
+                      observadoEnUtc: "2026-07-07T10:10:00Z"
+                      valorNumero: 229.8
+                      calidad: "valida"
+                      severidadDeclarada: "info"
+                      origen: "reenviada"
+                    - categoria: "energia"
+                      clave: "voltaje"
+                      tag: "linea-a"
+                      tipoDato: "numero"
+                      unidad: "V"
+                      observadoEnUtc: "2026-07-07T10:20:00Z"
+                      valorNumero: 231.1
+                      calidad: "valida"
+                      severidadDeclarada: "info"
+                      origen: "reenviada"
+              detalleHumano:
+                summary: Observación con detalle humano.
+                description: Métrica legible por máquina acompañada de contexto útil para el operador.
+                value:
+                  telemetriaRequestId: "01a03b1e-32c9-713b-ae60-75401ca306ae"
+                  observaciones:
+                    - categoria: "sistema"
+                      clave: "ram.uso"
+                      tipoDato: "numero"
+                      unidad: "%"
+                      observadoEnUtc: "2026-07-07T10:17:15Z"
+                      valorNumero: 44
+                      calidad: "valida"
+                      severidadDeclarada: "info"
+                      origen: "directa"
+                      detalleHumano: "4,4 GB usados de 10 GB visibles por el agente."
+                      metadatos:
+                        usadoGb: 4.4
+                        totalGb: 10
+                        origenLectura: "sistema_operativo"
+              catalogoDeclarado:
+                summary: Catálogo declarado junto a observaciones.
+                description: El agente anticipa señales conocidas y envía lecturas en el mismo lote.
+                value:
+                  telemetriaRequestId: "01a03b1e-32c9-713b-ae60-78e5286ec47c"
+                  catalogo:
+                    revision: "cat_20260707_001"
+                    senales:
+                      - categoria: "sistema"
+                        clave: "cpu.uso"
+                        tag: "socket0"
+                        tipoDato: "numero"
+                        unidad: "%"
+                        nombreHumano: "Uso de CPU socket 0"
+                        descripcion: "Porcentaje de uso del primer socket de CPU visible por el agente."
+                      - categoria: "ambiente"
+                        clave: "temperatura"
+                        tag: "camara-frigorifica"
+                        tipoDato: "numero"
+                        unidad: "ºC"
+                        nombreHumano: "Temperatura de cámara frigorífica"
+                        descripcion: "Lectura principal del sensor de cámara."
+                  observaciones:
+                    - categoria: "ambiente"
+                      clave: "temperatura"
+                      tag: "camara-frigorifica"
+                      tipoDato: "numero"
+                      unidad: "ºC"
+                      observadoEnUtc: "2026-07-07T10:18:00Z"
+                      valorNumero: 3.6
+                      calidad: "valida"
+                      severidadDeclarada: "info"
+                      origen: "directa"
+              datosTemporales:
+                summary: Duración y momento UTC estrictos.
+                description: Una duración en segundos y el instante UTC de la siguiente tarea.
+                value:
+                  telemetriaRequestId: "01a03b1e-32c9-713b-ae60-7c85a0deca05"
+                  observaciones:
+                    - categoria: "copias"
+                      clave: "ultima_duracion"
+                      tag: "principal"
+                      tipoDato: "duracion"
+                      unidad: "s"
+                      observadoEnUtc: "2026-07-07T10:18:00Z"
+                      valorDuracion: 1683.8219
+                      calidad: "valida"
+                      severidadDeclarada: "info"
+                      origen: "directa"
+                    - categoria: "copias"
+                      clave: "proxima_ejecucion"
+                      tag: "principal"
+                      tipoDato: "momento_utc"
+                      observadoEnUtc: "2026-07-07T10:18:00Z"
+                      valorMomentoUtc: "2026-07-08T02:30:00Z"
+                      calidad: "valida"
+                      severidadDeclarada: "info"
+                      origen: "directa"
+      responses:
+        "200":
+          description: >
+            Ingesta finalizada; solo los conflictos con un catálogo consolidado
+            pueden producir observaciones aceptadas y rechazadas en el mismo lote.
+            La aceptación no representa el resultado posterior de
+            reglas de interpretación, monitores, alertas o automatizaciones.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelemetryIngestionResponse"
+              examples:
+                aceptacionTotal:
+                  summary: Lote aceptado completo.
+                  value:
+                    ok: true
+                    resultado: "aceptado"
+                    requestId: "req_01K02XTLMOK"
+                    telemetriaRequestId: "01a03b1e-32c9-713b-ae60-78e5286ec47c"
+                    serverTimeUtc: "2026-07-07T10:18:01Z"
+                    recibidoEnUtc: "2026-07-07T10:18:01Z"
+                    aceptadas: 1
+                    rechazadas: 0
+                    errores: []
+                    coordinacion:
+                      accion: "continue"
+                      requiereRefreshSesion: false
+                      requiereConfiguracion: false
+                      revisionConfiguracionActual: "cfg_01K02X1C0Z"
+                      requierePolitica: false
+                      revisionPoliticaActual: "pol_01K02X1C0Z"
+                aceptacionParcial:
+                  summary: Lote aceptado parcialmente.
+                  description: Una observación se acepta y otra se rechaza por conflicto semántico de unidad.
+                  value:
+                    ok: false
+                    resultado: "parcial"
+                    requestId: "req_01K02XTLMPART"
+                    telemetriaRequestId: "01a03b1e-32c9-713b-ae60-828d13c29e84"
+                    serverTimeUtc: "2026-07-07T10:19:00Z"
+                    recibidoEnUtc: "2026-07-07T10:19:00Z"
+                    aceptadas: 1
+                    rechazadas: 1
+                    errores:
+                      - indice: 1
+                        code: "senal_catalogo_incompatible"
+                        message: "La señal de telemetría ya existe con tipo de dato o unidad distinta."
+                        campo: "observaciones.1.definicionSenal"
+                    coordinacion:
+                      accion: "continue"
+                      requiereRefreshSesion: false
+                      requiereConfiguracion: false
+                      revisionConfiguracionActual: "cfg_01K02X1C0Z"
+                      requierePolitica: false
+                      revisionPoliticaActual: "pol_01K02X1C0Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/SessionNotLive"
+        "409":
+          $ref: "#/components/responses/TelemetryIdempotencyConflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/TelemetryInfrastructureFailure"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: >
+        Token de sesión opaco y revocable emitido por
+        POST /api/agentes/v1/login y almacenado en servidor dentro de Redis con
+        TTL. No es un contrato JWT y no debe confundirse con el secreto
+        persistente del agente.
+  responses:
+    BadRequest:
+      description: JSON mal formado, petición sintácticamente inválida o request id técnico ausente.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            malformed:
+              value:
+                ok: false
+                requestId: "req_01K02XERR400"
+                code: "peticion_invalida"
+                message: "El cuerpo de la petición no es JSON válido."
+            requestIdSesionRequerido:
+              value:
+                ok: false
+                requestId: "req_01K02XERR400R"
+                code: "REQUEST_ID_SESION_REQUERIDO"
+                message: "loginRequestId o refreshRequestId es obligatorio para esta operación."
+    LoginAuthenticationFailed:
+      description: GUID o secreto persistente inválido.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            invalidCredentials:
+              value:
+                ok: false
+                requestId: "req_01K02XERR401"
+                code: "credenciales_invalidas"
+                message: "Las credenciales del agente no son válidas."
+    LoginRefused:
+      description: El agente existe, pero su estado actual no permite login.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            disabled:
+              value:
+                ok: false
+                requestId: "req_01K02XERR403"
+                code: "agente_deshabilitado"
+                message: "El agente está deshabilitado."
+            quarantine:
+              value:
+                ok: false
+                requestId: "req_01K02XERR403Q"
+                code: "agente_en_cuarentena"
+                message: "El agente está temporalmente en cuarentena."
+                cuarentenaHastaUtc: "2026-07-06T10:30:31Z"
+    LoginSuspiciousButAcceptedConflict:
+      description: >
+        El login no puede consolidarse porque otra operación está cambiando en
+        este momento la sesión viva del mismo agente, o porque la implementación
+        detecta una condición de reemplazo conflictiva.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            loginInProgress:
+              value:
+                ok: false
+                requestId: "req_01K02XERR409L"
+                code: "login_en_progreso"
+                message: "Ya hay otro login técnico en curso para este agente."
+                action: "login_again"
+            replaced:
+              value:
+                ok: false
+                requestId: "req_01K02XERR409"
+                code: "sesion_reemplazada_concurrentemente"
+                message: "Otro login reemplazó la sesión de forma concurrente."
+                action: "login_again"
+    Unauthorized:
+      description: Token Bearer ausente, mal formado o no verificable.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            missingBearer:
+              value:
+                ok: false
+                requestId: "req_01K02XERR401B"
+                code: "bearer_requerido"
+                message: "Se requiere token Bearer de autorización."
+                action: "login_required"
+    SessionNotLive:
+      description: El token de sesión está bien formado, pero ya no representa una sesión Redis viva.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            expiredInRedis:
+              value:
+                ok: false
+                requestId: "req_01K02XERR403S"
+                code: "sesion_no_vigente"
+                message: "La sesión viva ya no está disponible."
+                action: "login_required"
+            replaced:
+              value:
+                ok: false
+                requestId: "req_01K02XERR403R"
+                code: "sesion_no_vigente"
+                message: "La sesión viva fue reemplazada por otro login."
+                action: "login_required"
+    Conflict:
+      description: La sesión y el estado del agente son inconsistentes.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            inconsistentState:
+              value:
+                ok: false
+                requestId: "req_01K02XERR409C"
+                code: "estado_inconsistente_relogin_requerido"
+                message: "El estado del agente es inconsistente con la sesión actual."
+                action: "login_required"
+    TelemetryIdempotencyConflict:
+      description: La identidad durable ya está asociada a otro contenido lógico.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            divergentContent:
+              value:
+                ok: false
+                requestId: "req_01K02XERR409T"
+                code: "telemetria_request_id_divergente"
+                message: "telemetriaRequestId ya fue utilizado para un lote lógico diferente."
+    TelemetryInfrastructureFailure:
+      description: >
+        La transacción durable no pudo completarse. La respuesta permanece
+        estable y redactada; el agente puede reintentar conservando la misma
+        identidad y el mismo contenido lógico.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            transactionFailed:
+              value:
+                ok: false
+                requestId: "req_01K02XERR500T"
+                code: "error_interno_telemetria"
+                message: "No se pudo completar la ingesta de telemetría."
+    RefreshConflict:
+      description: La petición de renovación entra en conflicto con la sesión viva actual.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            staleSessionId:
+              value:
+                ok: false
+                requestId: "req_01K02XERR409R"
+                code: "session_id_actual_no_coincide"
+                message: "El id de sesión actual no coincide con la sesión Bearer."
+                action: "login_required"
+            incoherentBoot:
+              value:
+                ok: false
+                requestId: "req_01K02XERR409B"
+                code: "boot_id_incoherente"
+                message: "El bootId del agente es inconsistente con la sesión viva."
+                action: "login_required"
+            concurrentRefresh:
+              value:
+                ok: false
+                requestId: "req_01K02XERR409F"
+                code: "refresh_concurrente"
+                message: "Otra renovación reemplazó esta sesión de forma concurrente."
+                action: "login_required"
+    SessionResponseGone:
+      description: >
+        La operación autenticada llegó a un estado donde la respuesta técnica ya
+        no puede recuperarse de forma segura. El agente debe abrir una sesión
+        nueva con otro request id estable según corresponda.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            responseGone:
+              value:
+                ok: false
+                requestId: "01980000-0000-7000-8000-000000000201"
+                code: "RESPUESTA_SESION_NO_RECUPERABLE"
+                message: "La respuesta de sesión técnica ya no es recuperable."
+                action: "login_required"
+    HeartbeatConflict:
+      description: La petición de heartbeat entra en conflicto con la sesión viva actual o el estado POL.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            incoherentBoot:
+              value:
+                ok: false
+                requestId: "req_01K02XERR409H"
+                code: "boot_id_incoherente"
+                message: "El bootId del agente es inconsistente con la sesión viva."
+                action: "login_required"
+            oldSequence:
+              value:
+                ok: false
+                requestId: "req_01K02XERR409Q"
+                code: "heartbeat_seq_antiguo"
+                message: "La secuencia de heartbeat es anterior al último heartbeat aceptado."
+                action: "continue"
+            inconsistentPol:
+              value:
+                ok: false
+                requestId: "req_01K02XERR409P"
+                code: "estado_inconsistente_relogin_requerido"
+                message: "El estado POL del agente es inconsistente con la sesión actual."
+                action: "login_required"
+    UnprocessableEntity:
+      description: La petición es sintácticamente válida, pero incumple validación de dominio.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationErrorResponse"
+  schemas:
+    DdnsUuidV7:
+      type: string
+      format: uuid
+      pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    DdnsDecimalUint64:
+      type: string
+      pattern: "^(0|[1-9][0-9]*)$"
+      description: Decimal canónico de BIGINT UNSIGNED; nunca se transporta como número JSON.
+    DdnsIntentionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - solicitudId
+        - versionEsperada
+        - estadoDeseado
+      properties:
+        solicitudId:
+          $ref: "#/components/schemas/DdnsUuidV7"
+        versionEsperada:
+          $ref: "#/components/schemas/DdnsDecimalUint64"
+        estadoDeseado:
+          oneOf:
+            - $ref: "#/components/schemas/DdnsObservedRequestState"
+            - $ref: "#/components/schemas/DdnsDeclaredARequestState"
+            - $ref: "#/components/schemas/DdnsDeclaredAaaaRequestState"
+            - $ref: "#/components/schemas/DdnsDeclaredCnameRequestState"
+            - $ref: "#/components/schemas/DdnsDeclaredMxRequestState"
+    DdnsObservedRequestState:
+      type: object
+      additionalProperties: false
+      required:
+        - modo
+      properties:
+        modo:
+          const: observada
+    DdnsDeclaredARequestState:
+      type: object
+      additionalProperties: false
+      required:
+        - modo
+        - valor
+      properties:
+        modo:
+          const: declarada
+        valor:
+          $ref: "#/components/schemas/DdnsAValue"
+    DdnsDeclaredAaaaRequestState:
+      type: object
+      additionalProperties: false
+      required:
+        - modo
+        - valor
+      properties:
+        modo:
+          const: declarada
+        valor:
+          $ref: "#/components/schemas/DdnsAaaaValue"
+    DdnsDeclaredCnameRequestState:
+      type: object
+      additionalProperties: false
+      required:
+        - modo
+        - valor
+      properties:
+        modo:
+          const: declarada
+        valor:
+          $ref: "#/components/schemas/DdnsCnameValue"
+    DdnsDeclaredMxRequestState:
+      type: object
+      additionalProperties: false
+      required:
+        - modo
+        - valor
+      properties:
+        modo:
+          const: declarada
+        valor:
+          $ref: "#/components/schemas/DdnsMxValue"
+    DdnsAValue:
+      type: object
+      additionalProperties: false
+      required:
+        - direccionIpv4
+      properties:
+        direccionIpv4:
+          type: string
+          format: ipv4
+    DdnsAaaaValue:
+      type: object
+      additionalProperties: false
+      required:
+        - direccionIpv6
+      properties:
+        direccionIpv6:
+          type: string
+          format: ipv6
+    DdnsCnameValue:
+      type: object
+      additionalProperties: false
+      required:
+        - destino
+      properties:
+        destino:
+          type: string
+          minLength: 2
+          maxLength: 254
+          description: Nombre DNS absoluto ASCII o punycode, canonicalizado en minúsculas y con punto final.
+    DdnsMxValue:
+      type: object
+      additionalProperties: false
+      required:
+        - prioridad
+        - destino
+      properties:
+        prioridad:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        destino:
+          type: string
+          minLength: 1
+          maxLength: 254
+          description: Nombre DNS absoluto; prioridad 0 y raíz representan exclusivamente Null MX.
+    DdnsDesiredState:
+      oneOf:
+        - $ref: "#/components/schemas/DdnsAState"
+        - $ref: "#/components/schemas/DdnsAaaaState"
+        - $ref: "#/components/schemas/DdnsCnameState"
+        - $ref: "#/components/schemas/DdnsMxState"
+      discriminator:
+        propertyName: tipo
+        mapping:
+          A: "#/components/schemas/DdnsAState"
+          AAAA: "#/components/schemas/DdnsAaaaState"
+          CNAME: "#/components/schemas/DdnsCnameState"
+          MX: "#/components/schemas/DdnsMxState"
+    DdnsAState:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [tipo, modo, valor]
+          properties:
+            tipo: { const: A }
+            modo: { const: observada }
+            valor:
+              oneOf:
+                - $ref: "#/components/schemas/DdnsAValue"
+                - type: "null"
+        - type: object
+          additionalProperties: false
+          required: [tipo, modo, valor]
+          properties:
+            tipo: { const: A }
+            modo: { const: declarada }
+            valor: { $ref: "#/components/schemas/DdnsAValue" }
+    DdnsAaaaState:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [tipo, modo, valor]
+          properties:
+            tipo: { const: AAAA }
+            modo: { const: observada }
+            valor:
+              oneOf:
+                - $ref: "#/components/schemas/DdnsAaaaValue"
+                - type: "null"
+        - type: object
+          additionalProperties: false
+          required: [tipo, modo, valor]
+          properties:
+            tipo: { const: AAAA }
+            modo: { const: declarada }
+            valor: { $ref: "#/components/schemas/DdnsAaaaValue" }
+    DdnsCnameState:
+      type: object
+      additionalProperties: false
+      required: [tipo, modo, valor]
+      properties:
+        tipo: { const: CNAME }
+        modo: { const: declarada }
+        valor: { $ref: "#/components/schemas/DdnsCnameValue" }
+    DdnsMxState:
+      type: object
+      additionalProperties: false
+      required: [tipo, modo, valor]
+      properties:
+        tipo: { const: MX }
+        modo: { const: declarada }
+        valor: { $ref: "#/components/schemas/DdnsMxValue" }
+    DdnsNullableDesiredState:
+      oneOf:
+        - $ref: "#/components/schemas/DdnsDesiredState"
+        - type: "null"
+    DdnsIntentionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - ok
+        - requestId
+        - serverTimeUtc
+        - perfil
+        - versionContrato
+        - resultado
+        - version
+        - hito
+        - condicion
+        - terminal
+        - error
+        - estadoDeseado
+      properties:
+        ok: { const: true }
+        requestId: { type: string }
+        serverTimeUtc: { type: string, format: date-time }
+        perfil: { const: "ddns_agentes@1/resultado" }
+        versionContrato: { const: 1 }
+        resultado:
+          type: string
+          enum: [aceptada, repetida, convergente, sin_cambios]
+        version:
+          $ref: "#/components/schemas/DdnsDecimalUint64"
+        hito:
+          type: [string, "null"]
+          enum: [intencion_aceptada, contenido_deseado_persistido, contenido_publicado, null]
+        condicion:
+          type: [string, "null"]
+          enum: [pendiente_decision_agente, operativa, esperando_observacion, publicacion_previa_desconocida, registro_no_operable, publicacion_bloqueada, publicacion_fallida, null]
+        terminal:
+          type: [string, "null"]
+          enum: [publicada, sustituida, publicacion_fallida, objetivo_incompatible, objetivo_eliminado, null]
+        error: { type: "null" }
+        estadoDeseado:
+          $ref: "#/components/schemas/DdnsDesiredState"
+    DdnsListResponse:
+      type: object
+      additionalProperties: false
+      required: [ok, requestId, serverTimeUtc, concesiones, paginacion]
+      properties:
+        ok: { const: true }
+        requestId: { type: string }
+        serverTimeUtc: { type: string, format: date-time }
+        concesiones:
+          type: array
+          items: { $ref: "#/components/schemas/DdnsConcessionState" }
+        paginacion:
+          $ref: "#/components/schemas/DdnsPagination"
+    DdnsConcessionState:
+      type: object
+      additionalProperties: false
+      required: [concesionId, registro, capacidades, version, decision, modo, condicion, estadoDeseado, estadoPublicado, progreso, intentos, diagnostico, timestamps]
+      properties:
+        concesionId: { $ref: "#/components/schemas/DdnsUuidV7" }
+        registro: { $ref: "#/components/schemas/DdnsRecordIdentity" }
+        capacidades: { $ref: "#/components/schemas/DdnsCapabilities" }
+        version: { $ref: "#/components/schemas/DdnsDecimalUint64" }
+        decision:
+          type: string
+          enum: [pendiente_decision_agente, operativa]
+        modo:
+          type: [string, "null"]
+          enum: [observada, declarada, null]
+        condicion:
+          type: string
+          enum: [pendiente_decision_agente, operativa, esperando_observacion, publicacion_previa_desconocida, registro_no_operable, publicacion_bloqueada, publicacion_fallida]
+        estadoDeseado: { $ref: "#/components/schemas/DdnsNullableDesiredState" }
+        estadoPublicado: { $ref: "#/components/schemas/DdnsNullableDesiredState" }
+        progreso: { $ref: "#/components/schemas/DdnsProgress" }
+        intentos: { $ref: "#/components/schemas/DdnsAttemptBudget" }
+        diagnostico:
+          type: [string, "null"]
+          enum: [esperando_observacion, publicacion_pendiente, publicacion_previa_desconocida, publicacion_bloqueada, publicacion_fallida, registro_no_operable, null]
+        timestamps: { $ref: "#/components/schemas/DdnsTimestamps" }
+    DdnsRecordIdentity:
+      type: object
+      additionalProperties: false
+      required: [nombre, tipo]
+      properties:
+        nombre: { type: string }
+        tipo: { type: string, enum: [A, AAAA, CNAME, MX] }
+    DdnsCapabilities:
+      type: object
+      additionalProperties: false
+      required: [modos]
+      properties:
+        modos:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, enum: [observada, declarada] }
+    DdnsProgress:
+      type: object
+      additionalProperties: false
+      required: [hito, terminal]
+      properties:
+        hito:
+          type: [string, "null"]
+          enum: [intencion_aceptada, contenido_deseado_persistido, contenido_publicado, null]
+        terminal:
+          type: [string, "null"]
+          enum: [publicada, sustituida, publicacion_fallida, objetivo_incompatible, objetivo_eliminado, null]
+    DdnsAttemptBudget:
+      type: object
+      additionalProperties: false
+      required: [consumidos, restantes]
+      properties:
+        consumidos: { type: integer, minimum: 0, maximum: 3 }
+        restantes: { type: integer, minimum: 0, maximum: 3 }
+    DdnsTimestamps:
+      type: object
+      additionalProperties: false
+      required: [concesionCreadaEnUtc, actualizadaEnUtc, intencionAceptadaEnUtc, contenidoPersistidoEnUtc, contenidoPublicadoEnUtc, terminadaEnUtc]
+      properties:
+        concesionCreadaEnUtc: { type: string, format: date-time }
+        actualizadaEnUtc: { type: string, format: date-time }
+        intencionAceptadaEnUtc: { type: [string, "null"], format: date-time }
+        contenidoPersistidoEnUtc: { type: [string, "null"], format: date-time }
+        contenidoPublicadoEnUtc: { type: [string, "null"], format: date-time }
+        terminadaEnUtc: { type: [string, "null"], format: date-time }
+    DdnsPagination:
+      type: object
+      additionalProperties: false
+      required: [limite, siguienteCursor]
+      properties:
+        limite: { type: integer, minimum: 1, maximum: 500 }
+        siguienteCursor: { type: [string, "null"] }
+    AgentLoginRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - guid
+        - secreto
+        - loginRequestId
+        - bootId
+      properties:
+        guid:
+          $ref: "#/components/schemas/Guid"
+        secreto:
+          type: string
+          minLength: 32
+          maxLength: 256
+          description: Secreto persistente del agente. Solo es válido en este endpoint.
+        loginRequestId:
+          $ref: "#/components/schemas/SessionRequestId"
+        sessionIdAnterior:
+          type:
+            - string
+            - "null"
+          minLength: 1
+          maxLength: 96
+          description: Id de sesión anterior conocido por el agente con finalidad diagnóstica.
+        bootId:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Id estable del proceso o arranque actual del agente.
+        hostname:
+          type:
+            - string
+            - "null"
+          maxLength: 255
+        versionAgente:
+          type:
+            - string
+            - "null"
+          maxLength: 80
+        timestampClienteUtc:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: Marca temporal informativa del cliente; la hora del servidor es la autoridad.
+    AgentLoginResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - ok
+        - requestId
+        - serverTimeUtc
+        - agente
+        - sesion
+        - pol
+      properties:
+        ok:
+          const: true
+        requestId:
+          type: string
+        serverTimeUtc:
+          type: string
+          format: date-time
+        agente:
+          $ref: "#/components/schemas/AgentIdentity"
+        sesion:
+          $ref: "#/components/schemas/LoginSession"
+        pol:
+          $ref: "#/components/schemas/PolLoginState"
+    AgentMeResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - ok
+        - requestId
+        - serverTimeUtc
+        - agente
+        - sesion
+        - pol
+      properties:
+        ok:
+          const: true
+        requestId:
+          type: string
+        serverTimeUtc:
+          type: string
+          format: date-time
+        agente:
+          $ref: "#/components/schemas/AgentIdentity"
+        sesion:
+          $ref: "#/components/schemas/LiveSession"
+        pol:
+          $ref: "#/components/schemas/PolMeState"
+    AgentSessionRefreshRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - refreshRequestId
+        - sessionIdActual
+        - bootId
+      properties:
+        refreshRequestId:
+          $ref: "#/components/schemas/SessionRequestId"
+        sessionIdActual:
+          type: string
+          minLength: 1
+          maxLength: 96
+          description: Id de sesión conocido actualmente por el agente para este token Bearer.
+        bootId:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Id estable del proceso o arranque actual del agente.
+        revisionConfiguracionConocida:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+          description: Revisión de configuración conocida actualmente por el agente, si existe.
+        revisionPoliticaConocida:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+          description: Revisión de política conocida actualmente por el agente, si existe.
+        timestampClienteUtc:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: Marca temporal informativa del cliente; la hora del servidor es la autoridad.
+    AgentSessionRefreshResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - ok
+        - requestId
+        - serverTimeUtc
+        - agente
+        - sesion
+        - coordinacion
+        - pol
+      properties:
+        ok:
+          const: true
+        requestId:
+          type: string
+        serverTimeUtc:
+          type: string
+          format: date-time
+        agente:
+          $ref: "#/components/schemas/AgentIdentity"
+        sesion:
+          $ref: "#/components/schemas/RefreshedSession"
+        coordinacion:
+          $ref: "#/components/schemas/AgentSessionCoordination"
+        pol:
+          $ref: "#/components/schemas/PolLoginState"
+    AgentHeartbeatRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - seq
+        - bootId
+      properties:
+        seq:
+          type: integer
+          minimum: 0
+          description: Secuencia monotónica de heartbeat dentro del arranque actual.
+        bootId:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Id estable del proceso o arranque actual del agente.
+        revisionConfiguracionConocida:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+          description: Revisión de configuración conocida actualmente por el agente, si existe.
+        revisionPoliticaConocida:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+          description: Revisión de política conocida actualmente por el agente, si existe.
+        timestampClienteUtc:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: Marca temporal informativa del cliente; la hora del servidor es la autoridad.
+        uptimeSeconds:
+          type:
+            - integer
+            - "null"
+          minimum: 0
+          description: Uptime del proceso del agente, informativo y no autoritativo.
+    AgentHeartbeatResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - ok
+        - requestId
+        - serverTimeUtc
+        - agente
+        - sesion
+        - heartbeat
+        - pol
+        - coordinacion
+      properties:
+        ok:
+          const: true
+        requestId:
+          type: string
+        serverTimeUtc:
+          type: string
+          format: date-time
+        agente:
+          $ref: "#/components/schemas/AgentIdentity"
+        sesion:
+          $ref: "#/components/schemas/LiveSession"
+        heartbeat:
+          $ref: "#/components/schemas/HeartbeatAcceptedState"
+        pol:
+          $ref: "#/components/schemas/PolHeartbeatState"
+        coordinacion:
+          $ref: "#/components/schemas/AgentHeartbeatCoordination"
+    AgentEffectiveConfigurationResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - ok
+        - requestId
+        - serverTimeUtc
+        - agente
+        - sesion
+        - configuracion
+      properties:
+        ok:
+          const: true
+        requestId:
+          type: string
+        serverTimeUtc:
+          type: string
+          format: date-time
+        agente:
+          $ref: "#/components/schemas/AgentIdentity"
+        sesion:
+          $ref: "#/components/schemas/LiveSession"
+        configuracion:
+          $ref: "#/components/schemas/AgentEffectiveConfiguration"
+    AgentEffectiveConfiguration:
+      type: object
+      additionalProperties: false
+      required:
+        - revisionConfiguracion
+        - revisionPolitica
+        - generadaEnUtc
+        - politicaVida
+        - capacidades
+      properties:
+        revisionConfiguracion:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+          description: Revisión de configuración efectiva actual conocida por el servidor.
+        revisionPolitica:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+          description: Revisión de política efectiva actual conocida por el servidor.
+        generadaEnUtc:
+          type: string
+          format: date-time
+          description: Hora del servidor en la que se generó esta configuración efectiva.
+        politicaVida:
+          $ref: "#/components/schemas/AgentLifePolicy"
+        capacidades:
+          type: array
+          description: >
+            Capacidades declaradas para esta porción del contrato. Las
+            capacidades deshabilitadas se exponen de forma explícita para que un
+            agente pueda razonar de forma segura sin adivinar funcionalidades
+            futuras.
+          items:
+            $ref: "#/components/schemas/AgentDeclaredCapability"
+    AgentLifePolicy:
+      type: object
+      additionalProperties: false
+      required:
+        - heartbeatIntervalSeconds
+        - heartbeatGraceSeconds
+        - sessionTtlSeconds
+        - refreshBeforeSeconds
+      properties:
+        heartbeatIntervalSeconds:
+          type: integer
+          minimum: 1
+          description: Intervalo recomendado entre heartbeats POL.
+        heartbeatGraceSeconds:
+          type: integer
+          minimum: 1
+          description: Margen de gracia antes de considerar silencioso al agente.
+        sessionTtlSeconds:
+          type: integer
+          minimum: 1
+          description: TTL de la sesión viva respaldada por Redis.
+        refreshBeforeSeconds:
+          type: integer
+          minimum: 1
+          description: Margen recomendado para renovar la sesión antes de agotar el TTL.
+    AgentDeclaredCapability:
+      type: object
+      additionalProperties: false
+      required:
+        - codigo
+        - habilitada
+        - descripcion
+      properties:
+        codigo:
+          type: string
+          enum:
+            - heartbeat
+            - session_refresh
+            - effective_configuration
+            - telemetry
+            - logs
+            - commands
+            - dynamic_dns
+        habilitada:
+          type: boolean
+        descripcion:
+          type:
+            - string
+            - "null"
+          maxLength: 255
+    AgentIdentity:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - guid
+        - nombre
+        - tenantId
+        - empresaId
+        - sitioId
+        - estadoAdministrativo
+        - estadoAcceso
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        guid:
+          $ref: "#/components/schemas/Guid"
+        nombre:
+          type: string
+        tenantId:
+          type: integer
+          minimum: 1
+        empresaId:
+          type: integer
+          minimum: 1
+        sitioId:
+          type: integer
+          minimum: 1
+        estadoAdministrativo:
+          $ref: "#/components/schemas/EstadoAdministrativoAgente"
+        estadoAcceso:
+          $ref: "#/components/schemas/EstadoAccesoAgente"
+    LoginSession:
+      type: object
+      additionalProperties: false
+      required:
+        - sessionId
+        - sessionToken
+        - expiresInSeconds
+        - renewBeforeSeconds
+      properties:
+        sessionId:
+          type: string
+          minLength: 1
+          maxLength: 96
+        sessionToken:
+          type: string
+          minLength: 32
+          description: Token Bearer opaco. No es un contrato JWT.
+        expiresInSeconds:
+          type: integer
+          minimum: 1
+        renewBeforeSeconds:
+          type: integer
+          minimum: 1
+    RefreshedSession:
+      type: object
+      additionalProperties: false
+      required:
+        - sessionId
+        - sessionToken
+        - previousSessionId
+        - expiresInSeconds
+        - renewBeforeSeconds
+      properties:
+        sessionId:
+          type: string
+          minLength: 1
+          maxLength: 96
+        sessionToken:
+          type: string
+          minLength: 32
+          description: Nuevo token Bearer opaco. No es un contrato JWT.
+        previousSessionId:
+          type: string
+          minLength: 1
+          maxLength: 96
+          description: Id de sesión invalidado por esta renovación.
+        expiresInSeconds:
+          type: integer
+          minimum: 1
+        renewBeforeSeconds:
+          type: integer
+          minimum: 1
+    LiveSession:
+      type: object
+      additionalProperties: false
+      required:
+        - sessionId
+        - expiresInSeconds
+        - renewBeforeSeconds
+      properties:
+        sessionId:
+          type: string
+          minLength: 1
+          maxLength: 96
+        expiresInSeconds:
+          type: integer
+          minimum: 0
+        renewBeforeSeconds:
+          type: integer
+          minimum: 1
+    AgentSessionCoordination:
+      type: object
+      additionalProperties: false
+      required:
+        - requiereConfiguracion
+        - revisionConfiguracionActual
+        - requierePolitica
+        - revisionPoliticaActual
+      properties:
+        requiereConfiguracion:
+          type: boolean
+          description: El servidor indica que el agente debe solicitar configuración.
+        revisionConfiguracionActual:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+          description: Revisión de configuración actual conocida por el servidor, si está disponible.
+        requierePolitica:
+          type: boolean
+          description: El servidor indica que el agente debe solicitar política.
+        revisionPoliticaActual:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+          description: Revisión de política actual conocida por el servidor, si está disponible.
+    HeartbeatAcceptedState:
+      type: object
+      additionalProperties: false
+      required:
+        - seqAceptado
+        - recibidoEnUtc
+        - desfaseClienteMs
+      properties:
+        seqAceptado:
+          type: integer
+          minimum: 0
+        recibidoEnUtc:
+          type: string
+          format: date-time
+        desfaseClienteMs:
+          type:
+            - integer
+            - "null"
+          description: Diferencia entre la marca temporal del cliente y la recepción del servidor.
+    PolHeartbeatState:
+      type: object
+      additionalProperties: false
+      required:
+        - estadoVidaPol
+        - periodoId
+        - heartbeatsRecibidos
+        - ultimoSeq
+      properties:
+        estadoVidaPol:
+          $ref: "#/components/schemas/EstadoVidaPolAgente"
+        periodoId:
+          type:
+            - integer
+            - "null"
+          minimum: 1
+        heartbeatsRecibidos:
+          type: integer
+          minimum: 0
+        ultimoSeq:
+          type:
+            - integer
+            - "null"
+          minimum: 0
+    AgentHeartbeatCoordination:
+      type: object
+      additionalProperties: false
+      required:
+        - accion
+        - requiereRefreshSesion
+        - requiereConfiguracion
+        - revisionConfiguracionActual
+        - requierePolitica
+        - revisionPoliticaActual
+      properties:
+        accion:
+          type: string
+          enum:
+            - continue
+            - refresh_session
+            - refresh_config
+            - login_required
+        requiereRefreshSesion:
+          type: boolean
+          description: El servidor indica que la sesión debería renovarse pronto.
+        requiereConfiguracion:
+          type: boolean
+          description: El servidor indica que el agente debe solicitar configuración.
+        revisionConfiguracionActual:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+        requierePolitica:
+          type: boolean
+          description: El servidor indica que el agente debe solicitar política.
+        revisionPoliticaActual:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+    PolLoginState:
+      type: object
+      additionalProperties: false
+      required:
+        - estadoVidaPol
+      properties:
+        estadoVidaPol:
+          $ref: "#/components/schemas/EstadoVidaPolAgente"
+        periodoId:
+          type:
+            - integer
+            - "null"
+          minimum: 1
+    PolMeState:
+      type: object
+      additionalProperties: false
+      required:
+        - estadoVidaPol
+      properties:
+        estadoVidaPol:
+          $ref: "#/components/schemas/EstadoVidaPolAgente"
+        ultimoHeartbeatUtc:
+          type:
+            - string
+            - "null"
+          format: date-time
+        ultimoBootId:
+          type:
+            - string
+            - "null"
+        ultimoSeq:
+          type:
+            - integer
+            - "null"
+          minimum: 0
+    TelemetryBatchRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - telemetriaRequestId
+        - observaciones
+      description: >
+        Lote de telemetría emitido por un agente con sesión técnica viva. La
+        hora de recepción la genera Sentinelia en UTC y no se acepta desde el
+        cliente. `emitidoEnUtc` es obligatorio cuando el lote contiene
+        observaciones diferidas o recuperadas tras una desconexión, y opcional
+        para observaciones vivas actuales. Cuando no se declara `emitidoEnUtc`,
+        una observación se considera diferida si `observadoEnUtc` queda más de
+        300 segundos por detrás de la recepción del servidor. La clasificación
+        como diferida permite conservar la lectura en el histórico, pero impide
+        que modifique retroactivamente el resultado operativo vigente.
+      properties:
+        telemetriaRequestId:
+          type: string
+          format: uuid
+          pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          description: >
+            UUIDv7 generado por el agente para identificar durablemente este
+            contenido lógico. Debe conservarse al reintentar una petición cuya
+            respuesta no llegó y no puede reutilizarse para otro contenido.
+        emitidoEnUtc:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: Hora UTC en la que el agente emite el lote completo.
+        revisionConfiguracionConocida:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+          description: Revisión de configuración efectiva que el agente cree tener aplicada.
+        revisionPoliticaConocida:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+          description: Revisión de política que el agente cree tener aplicada.
+        catalogo:
+          $ref: "#/components/schemas/TelemetrySignalCatalog"
+        observaciones:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/TelemetryObservation"
+    TelemetrySignalCatalog:
+      type: object
+      additionalProperties: false
+      description: >
+        Catálogo declarado por el agente para anticipar señales conocidas. No
+        sustituye a las observaciones: ayuda a consolidar identidad, tipo y
+        metadatos antes o durante la ingesta. Declarar una señal no crea reglas
+        de interpretación, monitores, alertas ni automatizaciones; esas
+        relaciones se administran exclusivamente en Sentinelia.
+      required:
+        - senales
+      properties:
+        revision:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+          description: Revisión opaca del catálogo conocida por el agente.
+        senales:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/TelemetrySignalDefinition"
+    TelemetrySignalDefinition:
+      type: object
+      additionalProperties: false
+      required:
+        - categoria
+        - clave
+        - tipoDato
+      description: >
+        Definición explícita de una señal. La identidad de dominio es
+        `categoria` + `clave` + `tag` opcional. Una vez consolidada con
+        `tipoDato` o `unidad`, un cambio incompatible debe rechazarse en vez de
+        reinterpretar la serie histórica.
+      allOf:
+        - if:
+            properties:
+              tipoDato:
+                const: duracion
+            required:
+              - tipoDato
+          then:
+            properties:
+              unidad:
+                enum:
+                  - null
+                  - ""
+                  - s
+        - if:
+            properties:
+              tipoDato:
+                const: momento_utc
+            required:
+              - tipoDato
+          then:
+            properties:
+              unidad:
+                enum:
+                  - null
+                  - ""
+      properties:
+        categoria:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Familia funcional de la señal, por ejemplo sistema, clima o proceso.
+        clave:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Magnitud o hecho observado dentro de la categoría.
+        tag:
+          type:
+            - string
+            - "null"
+          minLength: 1
+          maxLength: 128
+          description: Diferenciador opcional dentro de la misma clave, por ejemplo socket0.
+        tipoDato:
+          $ref: "#/components/schemas/TelemetryDataType"
+        unidad:
+          type:
+            - string
+            - "null"
+          maxLength: 32
+          description: >
+            Identificador declarado de unidad. No implica conversión automática
+            ni equivalencia semántica entre unidades.
+        nombreHumano:
+          type:
+            - string
+            - "null"
+          maxLength: 128
+          description: Nombre legible para operadores.
+        descripcion:
+          type:
+            - string
+            - "null"
+          maxLength: 512
+          description: Contexto humano de la señal.
+        metadatos:
+          type:
+            - object
+            - "null"
+          description: JSON auxiliar. Su representación estable serializada queda limitada a 2048 caracteres.
+    TelemetrySignal:
+      type: object
+      additionalProperties: false
+      required:
+        - categoria
+        - clave
+        - tipoDato
+      description: Señal ya conocida por Sentinelia con identidad semántica consolidada o en preparación.
+      properties:
+        categoria:
+          type: string
+          minLength: 1
+          maxLength: 64
+        clave:
+          type: string
+          minLength: 1
+          maxLength: 128
+        tag:
+          type:
+            - string
+            - "null"
+          minLength: 1
+          maxLength: 128
+        tipoDato:
+          $ref: "#/components/schemas/TelemetryDataType"
+        unidad:
+          type:
+            - string
+            - "null"
+          maxLength: 32
+        nombreHumano:
+          type:
+            - string
+            - "null"
+          maxLength: 128
+        descripcion:
+          type:
+            - string
+            - "null"
+          maxLength: 512
+        metadatos:
+          type:
+            - object
+            - "null"
+          description: JSON auxiliar. Su representación estable serializada queda limitada a 2048 caracteres.
+        codigoSenal:
+          type: string
+          readOnly: true
+          description: Código visual derivado de categoria, clave y tag; no es la identidad persistente.
+        consolidadaEnUtc:
+          type:
+            - string
+            - "null"
+          format: date-time
+          readOnly: true
+          description: Momento UTC en el que Sentinelia consolidó la definición de la señal.
+    TelemetryObservation:
+      type: object
+      additionalProperties: false
+      required:
+        - categoria
+        - clave
+        - tipoDato
+        - observadoEnUtc
+      description: >
+        Unidad base de telemetría. Una métrica, un estado discreto o una lectura
+        textual se expresan como observaciones con distinto `tipoDato`; no son
+        entidades paralelas obligatorias. Debe enviarse un único campo de valor
+        coherente con `tipoDato`. El agente describe el hecho observado y su
+        contexto; no declara en esta petición si el sistema debe considerarlo
+        normal, anómalo o merecedor de una alerta.
+      oneOf:
+        - title: Valor numérico
+          required:
+            - tipoDato
+            - valorNumero
+          properties:
+            tipoDato:
+              const: numero
+            valorNumero:
+              type: number
+            valorBooleano:
+              type: "null"
+            valorTexto:
+              type: "null"
+            valorEstado:
+              type: "null"
+            valorJson:
+              type: "null"
+            valorDuracion:
+              type: "null"
+            valorMomentoUtc:
+              type: "null"
+        - title: Valor booleano
+          required:
+            - tipoDato
+            - valorBooleano
+          properties:
+            tipoDato:
+              const: booleano
+            valorNumero:
+              type: "null"
+            valorBooleano:
+              type: boolean
+            valorTexto:
+              type: "null"
+            valorEstado:
+              type: "null"
+            valorJson:
+              type: "null"
+            valorDuracion:
+              type: "null"
+            valorMomentoUtc:
+              type: "null"
+        - title: Valor textual
+          required:
+            - tipoDato
+            - valorTexto
+          properties:
+            tipoDato:
+              const: texto
+            valorNumero:
+              type: "null"
+            valorBooleano:
+              type: "null"
+            valorTexto:
+              type: string
+              minLength: 1
+              maxLength: 2048
+            valorEstado:
+              type: "null"
+            valorJson:
+              type: "null"
+            valorDuracion:
+              type: "null"
+            valorMomentoUtc:
+              type: "null"
+        - title: Valor de estado
+          required:
+            - tipoDato
+            - valorEstado
+          properties:
+            tipoDato:
+              const: estado
+            valorNumero:
+              type: "null"
+            valorBooleano:
+              type: "null"
+            valorTexto:
+              type: "null"
+            valorEstado:
+              type: string
+              minLength: 1
+              maxLength: 128
+            valorJson:
+              type: "null"
+            valorDuracion:
+              type: "null"
+            valorMomentoUtc:
+              type: "null"
+        - title: Valor JSON
+          required:
+            - tipoDato
+            - valorJson
+          properties:
+            tipoDato:
+              const: json
+            valorNumero:
+              type: "null"
+            valorBooleano:
+              type: "null"
+            valorTexto:
+              type: "null"
+            valorEstado:
+              type: "null"
+            valorJson:
+              type: object
+            valorDuracion:
+              type: "null"
+            valorMomentoUtc:
+              type: "null"
+        - title: Valor de duración
+          required:
+            - tipoDato
+            - valorDuracion
+          properties:
+            tipoDato:
+              const: duracion
+            unidad:
+              enum:
+                - null
+                - ""
+                - s
+            valorNumero:
+              type: "null"
+            valorBooleano:
+              type: "null"
+            valorTexto:
+              type: "null"
+            valorEstado:
+              type: "null"
+            valorJson:
+              type: "null"
+            valorDuracion:
+              type: number
+              minimum: 0
+              maximum: 1.7976931348623157e+308
+              multipleOf: 0.0001
+            valorMomentoUtc:
+              type: "null"
+        - title: Valor de momento UTC
+          required:
+            - tipoDato
+            - valorMomentoUtc
+          properties:
+            tipoDato:
+              const: momento_utc
+            unidad:
+              enum:
+                - null
+                - ""
+            valorNumero:
+              type: "null"
+            valorBooleano:
+              type: "null"
+            valorTexto:
+              type: "null"
+            valorEstado:
+              type: "null"
+            valorJson:
+              type: "null"
+            valorDuracion:
+              type: "null"
+            valorMomentoUtc:
+              type: string
+              format: date-time
+              pattern: "^[1-9][0-9]{3}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+      properties:
+        categoria:
+          type: string
+          minLength: 1
+          maxLength: 64
+        clave:
+          type: string
+          minLength: 1
+          maxLength: 128
+        tag:
+          type:
+            - string
+            - "null"
+          minLength: 1
+          maxLength: 128
+        tipoDato:
+          $ref: "#/components/schemas/TelemetryDataType"
+        unidad:
+          type:
+            - string
+            - "null"
+          maxLength: 32
+          description: >
+            Identificador declarado de unidad. No existe conversión automática
+            entre unidades. Una unidad incompatible con la identidad ya
+            consolidada de la señal provoca el rechazo de esa observación.
+        observadoEnUtc:
+          type: string
+          format: date-time
+          description: Momento UTC al que pertenece la observación.
+        valorNumero:
+          type:
+            - number
+            - "null"
+          description: Valor para observaciones numéricas.
+        valorBooleano:
+          type:
+            - boolean
+            - "null"
+          description: Valor para observaciones booleanas.
+        valorTexto:
+          type:
+            - string
+            - "null"
+          maxLength: 2048
+          description: Valor para observaciones textuales.
+        valorEstado:
+          type:
+            - string
+            - "null"
+          maxLength: 128
+          description: Estado discreto declarado por el agente.
+        valorJson:
+          type:
+            - object
+            - "null"
+          description: Valor estructurado. Su representación estable serializada queda limitada a 2048 caracteres.
+        valorDuracion:
+          type:
+            - number
+            - "null"
+          minimum: 0
+          maximum: 1.7976931348623157e+308
+          description: >
+            Duración no negativa expresada en segundos, con un máximo de cuatro
+            cifras decimales. El servidor valida la precisión sobre el valor JSON.
+        valorMomentoUtc:
+          type:
+            - string
+            - "null"
+          format: date-time
+          pattern: "^[1-9][0-9]{3}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+          description: Instante UTC estricto, sin fracciones y con precisión de segundo.
+        calidad:
+          $ref: "#/components/schemas/TelemetryQuality"
+        severidadDeclarada:
+          $ref: "#/components/schemas/TelemetryDeclaredSeverity"
+        origen:
+          $ref: "#/components/schemas/TelemetryOrigin"
+        vigenteHastaUtc:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: Caducidad opcional de la observación cuando el agente declara vigencia temporal.
+        detalleHumano:
+          type:
+            - string
+            - "null"
+          maxLength: 512
+          description: Nota operativa para ayudar a interpretar la observación.
+        metadatos:
+          type:
+            - object
+            - "null"
+          description: JSON auxiliar. Su representación estable serializada queda limitada a 2048 caracteres.
+        definicionSenal:
+          $ref: "#/components/schemas/TelemetrySignalDefinition"
+    TelemetryIngestionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - ok
+        - resultado
+        - requestId
+        - telemetriaRequestId
+        - serverTimeUtc
+        - recibidoEnUtc
+        - aceptadas
+        - rechazadas
+        - errores
+      description: >
+        Resultado contractual e inmediato de una ingesta de telemetría. Describe
+        qué observaciones se han aceptado o rechazado, pero no expone el
+        procesamiento asíncrono posterior ni el estado de reglas de
+        interpretación, monitores, alertas o automatizaciones.
+      properties:
+        ok:
+          type: boolean
+          description: Indica si el lote completo quedó aceptado sin rechazos.
+        resultado:
+          $ref: "#/components/schemas/TelemetryIngestionStatus"
+        requestId:
+          type: string
+          description: Correlación nueva generada por Sentinelia para este intento HTTP.
+        telemetriaRequestId:
+          type: string
+          format: uuid
+          pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          description: Identidad durable del lote que el servidor confirma o reproduce.
+        serverTimeUtc:
+          type: string
+          format: date-time
+        recibidoEnUtc:
+          type: string
+          format: date-time
+          description: Hora UTC generada por Sentinelia al recibir el lote.
+        aceptadas:
+          type: integer
+          minimum: 0
+          description: >
+            Número de observaciones admitidas por la ingesta. No equivale al
+            número de evaluaciones, coincidencias, cambios de estado o alertas.
+        rechazadas:
+          type: integer
+          minimum: 0
+          description: Número de observaciones rechazadas durante la validación o persistencia.
+        errores:
+          type: array
+          items:
+            $ref: "#/components/schemas/TelemetryObservationError"
+        coordinacion:
+          $ref: "#/components/schemas/AgentHeartbeatCoordination"
+    TelemetryObservationError:
+      type: object
+      additionalProperties: false
+      required:
+        - indice
+        - code
+        - message
+      properties:
+        indice:
+          type: integer
+          minimum: 0
+          description: Posición de la observación rechazada dentro del lote.
+        code:
+          type: string
+          maxLength: 80
+        message:
+          type: string
+          maxLength: 255
+        campo:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+    TelemetryDataType:
+      type: string
+      enum:
+        - numero
+        - booleano
+        - texto
+        - estado
+        - json
+        - duracion
+        - momento_utc
+    TelemetryQuality:
+      type: string
+      default: valida
+      enum:
+        - valida
+        - parcial
+        - estimada
+        - obsoleta
+        - error_lectura
+        - desconocida
+    TelemetryDeclaredSeverity:
+      type: string
+      default: info
+      enum:
+        - info
+        - aviso
+        - critica
+        - desconocida
+    TelemetryOrigin:
+      type: string
+      default: directa
+      enum:
+        - directa
+        - calculada
+        - reenviada
+        - manual
+        - desconocida
+    TelemetryIngestionStatus:
+      type: string
+      enum:
+        - aceptado
+        - parcial
+        - rechazado
+    EstadoAdministrativoAgente:
+      type: string
+      enum:
+        - activo
+        - deshabilitado
+    EstadoAccesoAgente:
+      type: string
+      enum:
+        - normal
+        - cuarentena
+    EstadoVidaPolAgente:
+      type: string
+      enum:
+        - nunca_conectado
+        - vivo
+        - silencioso
+        - inconsistente_relogin_requerido
+    Guid:
+      type: string
+      format: uuid
+    SessionRequestId:
+      type: string
+      format: uuid
+      pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      description: >
+        UUIDv7 estable generado por el agente para una operación concreta de
+        login o refresh. No es un token, no autoriza por sí mismo y solo sirve
+        para idempotencia, replay de respuesta y trazabilidad técnica.
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - ok
+        - requestId
+        - code
+        - message
+      properties:
+        ok:
+          const: false
+        requestId:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+        action:
+          type:
+            - string
+            - "null"
+          enum:
+            - continue
+            - login_required
+            - login_again
+            - null
+        cuarentenaHastaUtc:
+          type:
+            - string
+            - "null"
+          format: date-time
+        validation:
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidationErrorDetail"
+        currentVersion:
+          $ref: "#/components/schemas/DdnsDecimalUint64"
+    ValidationErrorResponse:
+      allOf:
+        - $ref: "#/components/schemas/ErrorResponse"
+        - type: object
+          required:
+            - validation
+    ValidationErrorDetail:
+      type: object
+      additionalProperties: false
+      required:
+        - field
+        - message
+      properties:
+        field:
+          type: string
+        message:
+          type: string

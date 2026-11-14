@@ -1,0 +1,38 @@
+{
+  "perfil": "sentinelia-federacion-reapertura-direccional-v1",
+  "fase": "5.22",
+  "serieOrigen": "5.22.21",
+  "unidadReapertura": "5.22.22a",
+  "estado": "cerrada",
+  "autoridadCierreAnterior": "sustituida_por_recierre_5_22_22g",
+  "unidadesBaseVerificadas": 129,
+  "unidadesSerieProyectadas": 7,
+  "unidadesTotalesProyectadas": 136,
+  "bloqueos": [
+    {
+      "codigo": "activacion_global_acoplada_a_recepcion_publica",
+      "estado": "resuelto",
+      "descripcion": "La configuracion federada activa exige origen HTTPS y proxies locales incluso cuando la instalacion solo inicia emisiones salientes.",
+      "serieResolucion": "5.22.22b-5.22.22d"
+    },
+    {
+      "codigo": "valores_ficticios_simulan_preparacion_receptora",
+      "estado": "resuelto",
+      "descripcion": "Valores sintacticamente validos pero no desplegados eliminan el bloqueo global sin demostrar que exista una frontera receptora alcanzable y confiable.",
+      "serieResolucion": "5.22.22b-5.22.22f"
+    },
+    {
+      "codigo": "topologia_emisora_lan_no_demostrada",
+      "estado": "resuelto",
+      "descripcion": "El E2E de cierre anterior publica HTTPS y proxy en todos los extremos y no demuestra una emisora HTTP local sin capacidad receptora.",
+      "serieResolucion": "5.22.22f"
+    }
+  ],
+  "evidenciaCierre": {
+    "unidadFinal": "5.22.22g",
+    "unidadesVerificadas": 136,
+    "topologiaDireccional": "A_HTTP_LAN->B_HTTPS",
+    "transicionRecepcionEmisor": "ausente->preparada->ausente",
+    "emisionDuranteTransiciones": "1->2->3_flujos"
+  }
+}

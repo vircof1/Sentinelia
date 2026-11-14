@@ -1,0 +1,578 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+<%
+  const autoedicionBloqueada = Boolean(usuarioObjetivo && usuarioObjetivo.esUsuarioActual);
+  const agruparPermiso = function (permiso) {
+    const clave = String(permiso?.claveFormulario || '').toLowerCase();
+    const etiqueta = String(permiso?.etiqueta || '').toLowerCase();
+    const texto = `${clave} ${etiqueta}`;
+
+    if (texto.includes('monitor')) return 'Monitores';
+    if (texto.includes('trigger')) return 'Acciones';
+    if (texto.includes('dns')) return 'DNS';
+    if (texto.includes('auditor')) return 'Auditoría';
+    if (['ver', 'editar'].includes(clave) || ['ver', 'editar'].includes(etiqueta)) return 'Panel';
+    if (
+      texto.includes('usuario') ||
+      texto.includes('tenant') ||
+      texto.includes('empresa') ||
+      texto.includes('sitio') ||
+      texto.includes('organiz') ||
+      texto.includes('configur') ||
+      texto.includes('imperson')
+    ) {
+      return 'Administración';
+    }
+
+    return 'Otros';
+  };
+  const ordenGruposPermisos = ['Panel', 'Monitores', 'Acciones', 'DNS', 'Auditoría', 'Administración', 'Otros'];
+  const descripcionGrupo = {
+    Panel: 'Acceso básico al portal.',
+    Monitores: 'Consulta y gestión de monitores y vínculos.',
+    Acciones: 'Consulta y gestión de acciones automáticas.',
+    DNS: 'Consulta, edición y publicación de DNS.',
+    Auditoría: 'Consulta de actividad auditable.',
+    Administración: 'Gestión de identidades y organización.',
+    Otros: 'Capacidades adicionales del portal.'
+  };
+  const textoPermiso = (texto) => String(texto || '')
+    .replace(/triggers/gi, 'acciones')
+    .replace(/trigger/gi, 'acción')
+    .replace(/bindings/gi, 'vínculos')
+    .replace(/scope/gi, 'alcance');
+  const etiquetaPermiso = (permiso) => permiso.claveFormulario === 'permiso_gestionar_vinculos_triggers'
+    ? 'Gestionar vínculos monitor-acción'
+    : textoPermiso(permiso.etiqueta);
+  const descripcionPermiso = (permiso) => permiso.claveFormulario === 'permiso_gestionar_vinculos_triggers'
+    ? 'Alta y mantenimiento de vínculos entre monitores y acciones.'
+    : textoPermiso(permiso.descripcion);
+  const gruposPermisos = ordenGruposPermisos
+    .map((grupo) => ({
+      nombre: grupo,
+      permisos: permisosFormulario.filter((permiso) => agruparPermiso(permiso) === grupo)
+    }))
+    .filter((grupo) => grupo.permisos.length > 0);
+%>
+
+<section
+  class="panel-general"
+  data-usuario-formulario
+  data-modo="<%= modo %>"
+  data-autoedicion-bloqueada="<%= autoedicionBloqueada ? '1' : '0' %>"
+  data-url-empresas="/usuarios/api/opciones/empresas"
+  data-url-sitios="/usuarios/api/opciones/sitios"
+  data-url-guardar="<%= modo === 'editar' ? `/usuarios/api/${usuarioObjetivo.id}/actualizar` : '/usuarios/api/crear' %>"
+  data-url-volver="/usuarios"
+>
+  <section class="hero-operativo hero-monitores hero-usuario-formulario <%= modo === 'editar' ? 'hero-usuario-edicion' : 'hero-usuario-alta' %> card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-person-gear" aria-hidden="true"></i>
+              <span><%= modo === 'editar' ? 'Cuenta y permisos' : 'Acceso y permisos' %></span>
+            </span>
+            <h1><%= modo === 'editar' ? `Editar ${usuarioObjetivo.usuario}` : 'Nuevo usuario' %></h1>
+            <p><%= modo === 'editar'
+              ? 'Gestiona los datos, el alcance y los permisos de esta cuenta.'
+              : 'Crea una cuenta y define a qué puede acceder.' %></p>
+            <% if (modo === 'editar') { %>
+              <div class="hero-etiquetas hero-monitores__etiquetas">
+                <span class="insignia d-inline-flex align-items-center gap-2">
+                  <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                  <span>Tu alcance: <%= alcanceActual.nivelScope %></span>
+                </span>
+              </div>
+            <% } %>
+            <div class="hero-monitores__acciones">
+              <a
+                href="/usuarios"
+                class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+              >
+                <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                <span>Volver al directorio</span>
+              </a>
+              <% if (modo === 'editar' && usuarioObjetivo) { %>
+                <%- include('parciales/enlace-actividad-auditada', {
+                  sujetoTipo: 'usuario',
+                  sujetoId: usuarioObjetivo.id,
+                  retorno: `/usuarios/editar/${usuarioObjetivo.id}`,
+                  permisoFuncional: contextoUsuarioActual?.permisos?.administrarUsuarios
+                }) %>
+              <% } %>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <% if (usuarioObjetivo) { %>
+            <div class="hero-usuario-formulario__datos" role="group" aria-label="Datos de la cuenta">
+              <div class="hero-usuario-formulario__dato">
+                <i class="bi bi-signpost-split" aria-hidden="true"></i>
+                <span>
+                  <small>Alcance de la cuenta</small>
+                  <strong><%= usuarioObjetivo.nivelScope %></strong>
+                  <small class="hero-usuario-formulario__detalle"><%= usuarioObjetivo.descripcionScope || 'Alcance actual' %></small>
+                </span>
+              </div>
+              <div class="hero-usuario-formulario__dato">
+                <i class="bi bi-clock-history" aria-hidden="true"></i>
+                <span>
+                  <small>Último acceso</small>
+                  <strong>
+                  <% if (usuarioObjetivo.ultimoAcceso) { %>
+                    <time data-fecha-utc="<%= usuarioObjetivo.ultimoAcceso %>"><%= usuarioObjetivo.ultimoAcceso %></time>
+                  <% } else { %>
+                    Nunca
+                  <% } %>
+                  </strong>
+                </span>
+              </div>
+            </div>
+          <% } else { %>
+            <div class="hero-usuario-formulario__datos" role="group" aria-label="Datos iniciales de la cuenta">
+              <div class="hero-usuario-formulario__dato">
+                <i class="bi bi-diagram-2" aria-hidden="true"></i>
+                <span><small>Alcance inicial</small><strong><%= formulario.nivelScope %></strong></span>
+              </div>
+              <div class="hero-usuario-formulario__dato">
+                <i class="bi bi-key" aria-hidden="true"></i>
+                <span><small>Primer acceso</small><strong>Cambio de contraseña</strong></span>
+              </div>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h2><%= modo === 'nuevo' ? 'Datos de la nueva cuenta' : 'Datos y permisos' %></h2>
+        <p class="texto-apoyo"><%= alcanceActual.descripcion %></p>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <form class="formulario-organizacion" data-usuario-formulario-submit novalidate>
+        <% if (formulario.id) { %>
+          <input type="hidden" name="id" value="<%= formulario.id %>">
+        <% } %>
+
+        <div class="d-grid gap-4">
+          <section class="card border-0 shadow-sm overflow-hidden" data-usuario-seccion="identidad">
+            <div class="card-header bg-white border-bottom py-3">
+              <div class="d-flex flex-column gap-1">
+                <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                  <i class="bi bi-person-vcard" aria-hidden="true"></i>
+                  <span>Identidad</span>
+                </div>
+                <p class="mb-0 text-body-secondary">
+                  Datos visibles del usuario y credenciales iniciales cuando aplica.
+                </p>
+              </div>
+            </div>
+            <div class="card-body p-4">
+              <div class="rejilla-formulario">
+                <div>
+                  <label for="usuario_form">Usuario</label>
+                  <input
+                    id="usuario_form"
+                    name="usuario"
+                    type="text"
+                    value="<%= formulario.usuario %>"
+                    <%= modo === 'editar' ? 'readonly' : 'required' %>
+                  >
+                </div>
+                <div>
+                  <label for="email_form">Email</label>
+                  <input
+                    id="email_form"
+                    name="email"
+                    type="email"
+                    value="<%= formulario.email %>"
+                    required
+                  >
+                  <% if (modo === 'editar') { %>
+                    <div class="usuario-email-estado" data-usuario-email-validacion>
+                      <span
+                        class="estado-badge estado-badge--compacto <%= usuarioObjetivo.emailValidado ? 'estado-badge--activo' : 'estado-badge--pendiente' %>"
+                        aria-label="Estado de verificación del email actualmente guardado"
+                      >
+                        <i
+                          class="bi <%= usuarioObjetivo.emailValidado ? 'bi-patch-check' : 'bi-exclamation-circle' %>"
+                          aria-hidden="true"
+                        ></i>
+                        <%= usuarioObjetivo.emailValidado ? 'Email validado' : 'Email no validado' %>
+                      </span>
+                      <small>Estado del email actualmente guardado.</small>
+                    </div>
+                  <% } %>
+                </div>
+                <div>
+                  <label for="nombre_mostrar_form">Nombre visible</label>
+                  <input
+                    id="nombre_mostrar_form"
+                    name="nombre_mostrar"
+                    type="text"
+                    value="<%= formulario.nombreMostrar %>"
+                  >
+                </div>
+                <div>
+                  <label for="nombre_completo_form">Nombre completo</label>
+                  <input
+                    id="nombre_completo_form"
+                    name="nombre_completo"
+                    type="text"
+                    value="<%= formulario.nombreCompleto %>"
+                  >
+                </div>
+
+                <% if (modo === 'nuevo') { %>
+                  <div>
+                    <label for="password_form">Clave temporal</label>
+                    <input id="password_form" name="password" type="password" required>
+                  </div>
+                  <div>
+                    <label for="password_confirmacion_form">Confirmar clave temporal</label>
+                    <input
+                      id="password_confirmacion_form"
+                      name="password_confirmacion"
+                      type="password"
+                      required
+                    >
+                  </div>
+                <% } %>
+              </div>
+            </div>
+          </section>
+
+          <section class="card border-0 shadow-sm overflow-hidden" data-usuario-seccion="scope">
+            <div class="card-header bg-white border-bottom py-3">
+              <div class="d-flex flex-column gap-1">
+                <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                  <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                  <span>Alcance</span>
+                  <% if (autoedicionBloqueada) { %>
+                    <span class="chip-simple">Solo lectura</span>
+                  <% } %>
+                </div>
+                <p class="mb-0 text-body-secondary">
+                  <%= autoedicionBloqueada
+                    ? 'Tu propia sesión no puede cambiar aquí el alcance. Solo se muestra como referencia.'
+                    : 'Determina el alcance operativo que podrá ver y administrar este usuario.' %>
+                </p>
+              </div>
+            </div>
+            <div class="card-body p-4 d-grid gap-4">
+              <div class="rejilla-formulario">
+                <div>
+                  <label for="nivel_scope_form">Nivel de alcance</label>
+                  <select id="nivel_scope_form" name="nivel_scope" data-scope-nivel required <%= autoedicionBloqueada ? 'disabled' : '' %>>
+                    <% for (const opcion of opcionesNivelScope) { %>
+                      <option
+                        value="<%= opcion.valor %>"
+                        <%= formulario.nivelScope === opcion.valor ? 'selected' : '' %>
+                      ><%= opcion.etiqueta %></option>
+                    <% } %>
+                  </select>
+                  <% if (autoedicionBloqueada) { %>
+                    <input type="hidden" name="nivel_scope" value="<%= formulario.nivelScope %>">
+                  <% } %>
+                </div>
+              </div>
+
+              <div class="rejilla-formulario rejilla-formulario--scope">
+                <div data-campo-scope="tenant">
+                  <label for="tenant_id_form">Tenant</label>
+                  <select id="tenant_id_form" name="tenant_id" data-scope-tenant <%= autoedicionBloqueada ? 'disabled' : '' %>>
+                    <option value="">Selecciona tenant</option>
+                    <% for (const opcion of opcionesTenants) { %>
+                      <option
+                        value="<%= opcion.valor %>"
+                        <%= String(formulario.tenantId) === String(opcion.valor) ? 'selected' : '' %>
+                      ><%= opcion.etiqueta %></option>
+                    <% } %>
+                  </select>
+                  <% if (autoedicionBloqueada) { %>
+                    <input type="hidden" name="tenant_id" value="<%= formulario.tenantId || '' %>">
+                  <% } %>
+                </div>
+
+                <div data-campo-scope="empresa">
+                  <label for="empresa_id_form">Empresa</label>
+                  <div
+                    class="scope-select-ayuda"
+                    data-scope-tooltip="empresa"
+                    tabindex="0"
+                    aria-label="Ayuda para seleccionar empresa"
+                  >
+                    <select id="empresa_id_form" name="empresa_id" data-scope-empresa <%= autoedicionBloqueada ? 'disabled' : '' %>>
+                      <option value="">Selecciona empresa</option>
+                      <% for (const opcion of opcionesEmpresas) { %>
+                        <option
+                          value="<%= opcion.valor %>"
+                          data-tenant-id="<%= opcion.tenantId %>"
+                          <%= String(formulario.empresaId) === String(opcion.valor) ? 'selected' : '' %>
+                        ><%= opcion.etiqueta %></option>
+                      <% } %>
+                    </select>
+                  </div>
+                  <% if (autoedicionBloqueada) { %>
+                    <input type="hidden" name="empresa_id" value="<%= formulario.empresaId || '' %>">
+                  <% } %>
+                  <p class="scope-select-ayuda__texto" data-scope-ayuda="empresa" hidden>
+                    Selecciona antes un tenant para habilitar la empresa.
+                  </p>
+                </div>
+
+                <div data-campo-scope="sitio">
+                  <label for="sitio_id_form">Sitio</label>
+                  <div
+                    class="scope-select-ayuda"
+                    data-scope-tooltip="sitio"
+                    tabindex="0"
+                    aria-label="Ayuda para seleccionar sitio"
+                  >
+                    <select id="sitio_id_form" name="sitio_id" data-scope-sitio <%= autoedicionBloqueada ? 'disabled' : '' %>>
+                      <option value="">Selecciona sitio</option>
+                      <% for (const opcion of opcionesSitios) { %>
+                        <option
+                          value="<%= opcion.valor %>"
+                          data-tenant-id="<%= opcion.tenantId %>"
+                          data-empresa-id="<%= opcion.empresaId %>"
+                          <%= String(formulario.sitioId) === String(opcion.valor) ? 'selected' : '' %>
+                        ><%= opcion.etiqueta %></option>
+                      <% } %>
+                    </select>
+                  </div>
+                  <% if (autoedicionBloqueada) { %>
+                    <input type="hidden" name="sitio_id" value="<%= formulario.sitioId || '' %>">
+                  <% } %>
+                  <p class="scope-select-ayuda__texto" data-scope-ayuda="sitio" hidden>
+                    Selecciona antes una empresa para habilitar el sitio.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card border-0 shadow-sm overflow-hidden" data-usuario-seccion="permisos">
+            <div class="card-header bg-white border-bottom py-3">
+              <div class="d-flex flex-column gap-1">
+                <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                  <i class="bi bi-shield-check" aria-hidden="true"></i>
+                  <span>Permisos</span>
+                  <% if (autoedicionBloqueada) { %>
+                    <span class="chip-simple">Solo lectura</span>
+                  <% } %>
+                </div>
+                <p class="mb-0 text-body-secondary">
+                  <%= autoedicionBloqueada
+                    ? 'Tu propia sesión no puede cambiar aquí permisos. Se muestran solo como referencia.'
+                    : 'Solo puedes modificar los permisos que también posee tu sesión.' %>
+                </p>
+              </div>
+            </div>
+            <div class="card-body p-4 d-grid gap-4">
+              <div class="usuarios-permisos-resumen" data-permisos-resumen>
+                <span class="chip-simple chip-simple--ok" data-permisos-resumen-activos>Activos 0</span>
+                <span class="chip-simple" data-permisos-resumen-editables>Editables 0</span>
+                <span class="chip-simple" data-permisos-resumen-bloqueados>Bloqueados 0</span>
+                <span class="chip-simple" data-permisos-resumen-visibles>Visibles 0</span>
+              </div>
+
+              <p class="usuarios-permisos-aviso" data-permiso-panel-aviso role="status" hidden>
+                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                Sin el permiso «Ver», esta cuenta no podrá abrir el panel operativo.
+              </p>
+
+              <div class="usuarios-permisos-herramientas">
+                <div class="usuarios-permisos-busqueda">
+                  <label for="permisos_busqueda_form">Buscar permiso</label>
+                  <input
+                    id="permisos_busqueda_form"
+                    type="search"
+                    placeholder="Busca por nombre o descripción"
+                    data-permisos-busqueda
+                  >
+                  <p class="texto-apoyo mb-0">Busca por nombre o descripción; los grupos con resultados se abrirán automáticamente.</p>
+                </div>
+              </div>
+
+              <div class="usuarios-permisos-grupos" data-permisos-grupos>
+                <% for (const grupo of gruposPermisos) { %>
+                  <details class="usuarios-permisos-grupo usuarios-permisos-grupo--plegable" data-permisos-grupo data-grupo-nombre="<%= grupo.nombre %>" <%= grupo.nombre === 'Panel' ? 'open' : '' %>>
+                    <summary class="usuarios-permisos-grupo__cabecera">
+                      <div>
+                        <h3><%= grupo.nombre %></h3>
+                        <p class="texto-apoyo mb-0"><%= descripcionGrupo[grupo.nombre] %></p>
+                      </div>
+                      <span class="chip-simple" data-grupo-contador><%= grupo.permisos.length %> permisos</span>
+                    </summary>
+
+                    <div class="rejilla-permisos">
+                      <% for (const permiso of grupo.permisos) { %>
+                        <label
+                          class="tarjeta-permiso <%= permiso.editable && !autoedicionBloqueada ? '' : 'tarjeta-permiso--bloqueada' %>"
+                          data-permiso-item
+                          data-permiso-busqueda="<%= `${etiquetaPermiso(permiso)} ${descripcionPermiso(permiso)}`.toLowerCase() %>"
+                        >
+                          <input
+                            type="checkbox"
+                            name="<%= permiso.claveFormulario %>"
+                            value="1"
+                            data-permiso-checkbox
+                            data-permiso-clave="<%= permiso.claveFormulario %>"
+                            data-permiso-editable="<%= permiso.editable && !autoedicionBloqueada ? '1' : '0' %>"
+                            <%= permiso.activo ? 'checked' : '' %>
+                            <%= permiso.editable && !autoedicionBloqueada ? '' : 'disabled' %>
+                          >
+                          <span class="tarjeta-permiso__texto">
+                            <strong><%= etiquetaPermiso(permiso) %></strong>
+                            <span><%= descripcionPermiso(permiso) %></span>
+                          </span>
+                        </label>
+                      <% } %>
+                    </div>
+                  </details>
+                <% } %>
+              </div>
+
+              <div class="estado-pow usuarios-permisos-vacio" data-permisos-vacio hidden>
+                No hay permisos que coincidan con el filtro actual.
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <% if (permisosSoloLecturaActivos.length > 0) { %>
+          <div class="mensaje-error mensaje-error--suave">
+            Hay permisos activos que tu sesión no posee. Puedes verlos, pero no
+            modificarlos desde aquí.
+          </div>
+        <% } %>
+
+        <% if (modo === 'nuevo') { %>
+          <div class="mensaje-exito mensaje-exito--suave">
+            Deberá cambiar la clave temporal en su primer acceso. Guárdala ahora: no se mostrará de nuevo.
+          </div>
+        <% } else if (usuarioObjetivo && usuarioObjetivo.esUsuarioActual) { %>
+          <div class="mensaje-error mensaje-error--suave">
+            Tu propio usuario no puede cambiar aquí ni alcance ni permisos.
+          </div>
+        <% } %>
+
+        <div class="acciones-formulario acciones-formulario--sticky">
+          <div class="acciones-formulario__estado" data-cambios-pendientes hidden>
+            <strong>Cambios sin guardar.</strong>
+            <span>Revisa alcance, permisos y dependencias antes de confirmar.</span>
+          </div>
+          <div class="acciones-formulario__botones">
+            <button type="submit" class="boton-primario" data-boton-guardar>
+              <%= modo === 'editar' ? 'Guardar cambios' : 'Revisar y crear…' %>
+            </button>
+            <a href="/usuarios" class="boton-secundario enlace-boton">Cancelar</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <% if (modo === 'nuevo') { %>
+    <div class="modal fade modal-impacto-trigger modal-revision-usuario" id="modal-revision-usuario" tabindex="-1" aria-labelledby="modal-revision-usuario-titulo" aria-hidden="true" data-usuario-revision-modal>
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <h2 class="modal-title h4" id="modal-revision-usuario-titulo">Revisar nueva cuenta</h2>
+              <p class="texto-apoyo mb-0">Comprueba el alcance y los permisos antes de crearla.</p>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body d-grid gap-3">
+            <div class="modal-revision-usuario__resumen">
+              <div><small>Usuario</small><strong data-revision-usuario></strong></div>
+              <div><small>Email</small><strong data-revision-email></strong></div>
+              <div><small>Alcance</small><strong data-revision-alcance></strong></div>
+            </div>
+            <div>
+              <h3 class="h6 mb-2">Permisos seleccionados <span class="chip-simple" data-revision-permisos-total></span></h3>
+              <ul class="modal-revision-usuario__permisos mb-0" data-revision-permisos></ul>
+            </div>
+            <p class="usuarios-permisos-aviso mb-0" data-revision-panel-aviso role="status" hidden>
+              <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+              Sin «Ver», la cuenta no podrá abrir el panel operativo.
+            </p>
+            <p class="texto-apoyo mb-0">La cuenta deberá cambiar su clave temporal en el primer acceso.</p>
+            <div class="alert alert-danger mb-0" role="alert" data-revision-error hidden></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Volver a editar</button>
+            <button type="button" class="btn btn-primary" data-revision-confirmar>Crear usuario</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (modo === 'editar') { %>
+    <div class="modal fade modal-impacto-trigger modal-revision-usuario" id="modal-revision-cambios-usuario" tabindex="-1" aria-labelledby="modal-revision-cambios-usuario-titulo" aria-describedby="modal-revision-cambios-usuario-descripcion" aria-hidden="true" data-usuario-revision-cambios-modal>
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <h2 class="modal-title h4" id="modal-revision-cambios-usuario-titulo">Revisar cambios de <%= usuarioObjetivo.usuario %></h2>
+              <p class="texto-apoyo mb-0" id="modal-revision-cambios-usuario-descripcion">Estos cambios modificarán el alcance o los permisos de la cuenta.</p>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body d-grid gap-3">
+            <div data-revision-cambios-alcance hidden>
+              <h3 class="h6 mb-2">Alcance</h3>
+              <div class="modal-revision-usuario__resumen">
+                <div><small>Actual</small><strong data-revision-cambios-alcance-anterior></strong></div>
+                <div><small>Nuevo</small><strong data-revision-cambios-alcance-nuevo></strong></div>
+              </div>
+            </div>
+            <div data-revision-cambios-anadidos hidden>
+              <h3 class="h6 mb-2">Permisos que se concederán</h3>
+              <ul class="modal-revision-usuario__permisos mb-0" data-revision-cambios-lista-anadidos></ul>
+            </div>
+            <div data-revision-cambios-retirados hidden>
+              <h3 class="h6 mb-2">Permisos que se retirarán</h3>
+              <ul class="modal-revision-usuario__permisos mb-0" data-revision-cambios-lista-retirados></ul>
+            </div>
+            <p class="usuarios-permisos-aviso mb-0" data-revision-cambios-panel-aviso role="status" hidden>
+              <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+              Sin «Ver», la cuenta no podrá abrir el panel operativo.
+            </p>
+            <div class="alert alert-danger mb-0" role="alert" data-revision-cambios-error hidden></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Volver a editar</button>
+            <button type="button" class="btn btn-primary" data-revision-cambios-confirmar>Guardar cambios</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (modo === 'editar' && reinicioPasswordAdministrativo) { %>
+    <section class="seccion-panel">
+      <%- include('parciales/usuario-reinicio-password-administrativo', {
+        usuarioObjetivo,
+        reinicioPasswordAdministrativo
+      }) %>
+    </section>
+  <% } %>
+</section>
+
+<script src="/js/usuarios.js?v=usuarios-edicion-ux-20261004"></script>
+<% if (modo === 'editar' && reinicioPasswordAdministrativo) { %>
+  <script src="/js/usuario-reinicio-password-administrativo.js?v=usuarios-edicion-ux-20261004"></script>
+<% } %>
+
+<%- include('../parciales/pie') %>

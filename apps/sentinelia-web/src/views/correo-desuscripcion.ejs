@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#101722">
+  <title><%= titulo %></title>
+  <link
+    rel="icon"
+    type="image/svg+xml"
+    href="/IMG/Sentinelia.svg"
+    media="(prefers-color-scheme: light)"
+  >
+  <link
+    rel="icon"
+    type="image/svg+xml"
+    href="/IMG/Sentinelia-DarkBackground.svg"
+    media="(prefers-color-scheme: dark)"
+  >
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #101722; color: #eef4ff; }
+    main { width: min(34rem, calc(100% - 2rem)); box-sizing: border-box; padding: 2rem; border: 1px solid #34445a; border-radius: 1rem; background: #182333; box-shadow: 0 1rem 3rem #0006; }
+    h1 { margin-top: 0; font-size: 1.5rem; }
+    p { line-height: 1.6; color: #cbd6e5; }
+    button { width: 100%; margin-top: 1rem; padding: .8rem 1rem; border: 0; border-radius: .6rem; background: #4c8dff; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <main>
+    <% if (completada) { %>
+      <h1>Solicitud procesada</h1>
+      <p>La solicitud se ha procesado. Ya puedes cerrar esta ventana.</p>
+    <% } else { %>
+      <h1>Dejar de recibir notificaciones</h1>
+      <p>Confirma que deseas dejar de recibir estas notificaciones por correo.</p>
+      <form method="post" action="/correo/desuscripcion/<%= encodeURIComponent(token) %>">
+        <button type="submit">Confirmar</button>
+      </form>
+    <% } %>
+  </main>
+</body>
+</html>

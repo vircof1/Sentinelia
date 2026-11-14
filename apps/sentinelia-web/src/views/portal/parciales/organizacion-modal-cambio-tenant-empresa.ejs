@@ -1,0 +1,175 @@
+<div
+  class="modal fade modal-organizacion-eliminacion"
+  id="modal-cambio-tenant-empresa"
+  tabindex="-1"
+  aria-labelledby="modal-cambio-tenant-empresa-titulo"
+  aria-hidden="true"
+  data-organizacion-modal-cambio-tenant
+>
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-organizacion-eliminacion__dialogo">
+    <div class="modal-content border-0 shadow modal-organizacion-eliminacion__contenido">
+      <div class="d-flex flex-column h-100 modal-organizacion-eliminacion__formulario">
+        <div class="modal-header">
+          <div>
+            <span class="badge text-bg-warning-subtle text-warning-emphasis rounded-pill mb-2 d-inline-flex align-items-center gap-2">
+              <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+              Cambio de jerarquía
+            </span>
+            <h2 class="modal-title fs-4 d-inline-flex align-items-center gap-2" id="modal-cambio-tenant-empresa-titulo">
+              <i class="bi bi-diagram-3" aria-hidden="true"></i>
+              Confirmar cambio de tenant
+            </h2>
+            <p class="text-body-secondary mb-0" data-organizacion-cambio-tenant-subtitulo>
+              Se está evaluando el impacto antes de aplicar el movimiento.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="modal"
+            aria-label="Cerrar"
+          ></button>
+        </div>
+
+        <div class="modal-body overflow-auto modal-organizacion-eliminacion__cuerpo">
+          <div class="alert alert-warning d-flex align-items-start gap-3 mb-4">
+            <div class="fs-4 lh-1 text-warning-emphasis">
+              <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+            </div>
+            <div>
+              <strong class="d-block mb-1">La empresa cambiará de tenant</strong>
+              <span data-organizacion-cambio-tenant-descripcion>
+                Se cargará el detalle de impacto antes de permitir la confirmación.
+              </span>
+            </div>
+          </div>
+
+          <div
+            class="d-flex align-items-center gap-3 py-4"
+            data-organizacion-cambio-tenant-cargando
+          >
+            <div class="spinner-border text-secondary" role="status" aria-hidden="true"></div>
+            <div>
+              <strong class="d-block">Calculando impacto</strong>
+              <span class="text-body-secondary">Revisando filas vivas e histórico materializado en SQL…</span>
+            </div>
+          </div>
+
+          <div class="alert alert-danger d-none" data-organizacion-cambio-tenant-error></div>
+
+          <div class="d-none" data-organizacion-cambio-tenant-contenido>
+            <div class="row g-3 mb-4">
+              <div class="col-12 col-md-4">
+                <div class="card border-primary-subtle bg-primary-subtle h-100">
+                  <div class="card-body">
+                    <div class="text-uppercase small fw-semibold text-primary-emphasis mb-2 d-inline-flex align-items-center gap-2">
+                      <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+                      Filas vivas
+                    </div>
+                    <div class="display-6 fw-bold text-primary-emphasis mb-1" data-cambio-tenant-total-vivo>0</div>
+                    <div class="small text-body-secondary">Registros que se reasignarán al nuevo tenant.</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12 col-md-4">
+                <div class="card border-warning-subtle bg-warning-subtle h-100">
+                  <div class="card-body">
+                    <div class="text-uppercase small fw-semibold text-warning-emphasis mb-2 d-inline-flex align-items-center gap-2">
+                      <i class="bi bi-clock-history" aria-hidden="true"></i>
+                      Histórico
+                    </div>
+                    <div class="display-6 fw-bold text-warning-emphasis mb-1" data-cambio-tenant-total-historico>0</div>
+                    <div class="small text-body-secondary">Registros históricos impactados por el cambio.</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12 col-md-4">
+                <div class="card border-danger-subtle bg-danger-subtle h-100">
+                  <div class="card-body">
+                    <div class="text-uppercase small fw-semibold text-danger-emphasis mb-2 d-inline-flex align-items-center gap-2">
+                      <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
+                      Bloqueos
+                    </div>
+                    <div class="display-6 fw-bold text-danger-emphasis mb-1" data-cambio-tenant-total-bloqueos>0</div>
+                    <div class="small text-body-secondary">Condiciones que conviene resolver antes del movimiento.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <section class="mb-4">
+              <h3 class="h6 mb-3 d-inline-flex align-items-center gap-2">
+                <i class="bi bi-diagram-2" aria-hidden="true"></i>
+                <span>Se actualizará ahora</span>
+              </h3>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Tabla</th>
+                      <th class="text-end">Filas</th>
+                    </tr>
+                  </thead>
+                  <tbody data-cambio-tenant-actualizaciones></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="mb-4">
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Tabla</th>
+                      <th class="text-end">Filas</th>
+                    </tr>
+                  </thead>
+                  <tbody data-cambio-tenant-historico></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="d-none" data-cambio-tenant-seccion-bloqueos>
+              <div class="alert alert-danger mb-3 d-flex align-items-start gap-2">
+                <i class="bi bi-shield-lock mt-1" aria-hidden="true"></i>
+                <span>Hay bloqueos potenciales detectados para el tenant de destino.</span>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Tabla</th>
+                      <th>Regla</th>
+                      <th class="text-end">Filas</th>
+                    </tr>
+                  </thead>
+                  <tbody data-cambio-tenant-bloqueos></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button
+            type="button"
+            class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
+            data-bs-dismiss="modal"
+          >
+            <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+            Mantener tenant actual
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary d-inline-flex align-items-center gap-2"
+            disabled
+            data-organizacion-cambio-tenant-confirmar
+          >
+            <i class="bi bi-check2-circle" aria-hidden="true"></i>
+            <span>Guardar cambio de tenant</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,570 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const filtrosDetalle = filtrosRegistros || {};
+  const paginacionDetalle = paginacionRegistros || {
+    pagina: 1,
+    tamanoPagina: 10,
+    totalPaginas: 1,
+    totalFiltrado: (registros || []).length,
+    desde: (registros || []).length > 0 ? 1 : 0,
+    hasta: (registros || []).length
+  };
+  const construirRutaDetalle = (overrides = {}) => {
+    const parametros = new URLSearchParams();
+    const retorno = retornoListado || '/dns';
+    const q = overrides.q ?? filtrosDetalle.textoBusqueda ?? '';
+    const tipoRegistro = overrides.tipo_registro ?? overrides.tipoRegistro ?? filtrosDetalle.tipoRegistro ?? '';
+    const activo = overrides.activo ?? filtrosDetalle.activo ?? 'todos';
+    const pagina = overrides.page ?? overrides.pagina ?? paginacionDetalle.pagina ?? 1;
+    const tamanoPagina = overrides.page_size ?? overrides.tamanoPagina ?? filtrosDetalle.tamanoPagina ?? paginacionDetalle.tamanoPagina ?? 10;
+
+    parametros.set('return_to', retorno);
+
+    if (String(q || '').trim()) {
+      parametros.set('q', String(q).trim());
+    }
+
+    if (String(tipoRegistro || '').trim()) {
+      parametros.set('tipo_registro', String(tipoRegistro).trim());
+    }
+
+    if (String(activo || '').trim() && String(activo).trim() !== 'todos') {
+      parametros.set('activo', String(activo).trim());
+    }
+
+    if (Number(tamanoPagina) > 0 && Number(tamanoPagina) !== 10) {
+      parametros.set('page_size', String(tamanoPagina));
+    }
+
+    if (Number(pagina) > 1) {
+      parametros.set('page', String(pagina));
+    }
+
+    const consulta = parametros.toString();
+    return consulta ? `/dns/${zona.id}?${consulta}` : `/dns/${zona.id}`;
+  };
+  const puedeGestionarRegistrosDnsVisible =
+    typeof puedeGestionarRegistrosDns !== 'undefined' &&
+    puedeGestionarRegistrosDns;
+  const rutaDetalleBase = construirRutaDetalle();
+  const rangoResumen = paginacionDetalle.totalFiltrado === 0
+    ? 'Mostrando 0 registros.'
+    : `Mostrando ${paginacionDetalle.desde}-${paginacionDetalle.hasta} de ${paginacionDetalle.totalFiltrado} registros filtrados.`;
+  const tonoPublicacionHero =
+    zona.estadoPublicacion === 'error'
+      ? 'kpi-resumen--alerta'
+      : (zona.estadoPublicacion === 'publicado'
+          ? 'kpi-resumen--ok'
+          : (zona.estadoPublicacion === 'excluida'
+              ? 'kpi-resumen--neutro'
+              : 'kpi-resumen--advertencia'));
+  const registrosFiltradosHero = Boolean(
+    filtrosDetalle.textoBusqueda || filtrosDetalle.tipoRegistro ||
+    (filtrosDetalle.activo && filtrosDetalle.activo !== 'todos')
+  );
+%>
+
+<section class="panel-general">
+  <section class="hero-operativo hero-monitores hero-dns-detalle card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-globe2" aria-hidden="true"></i>
+              <span>Zona DNS</span>
+            </span>
+            <h1><%= zona.nombreZona %></h1>
+            <p>
+              Consulta los registros de esta zona y comprueba si su configuración
+              está aplicada en BIND.
+            </p>
+            <div class="hero-etiquetas hero-monitores__etiquetas">
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-signpost-split" aria-hidden="true"></i>
+                <span><%= zona.alcanceDescripcion %></span>
+              </span>
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-shield-check" aria-hidden="true"></i>
+                <span><%= zona.categoriaOrigen === 'sistema' ? 'Zona del sistema' : 'Zona normal' %></span>
+              </span>
+            </div>
+            <div class="hero-monitores__acciones">
+              <a
+                href="<%= retornoListado %>"
+                class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+              >
+                <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
+                <span>Volver</span>
+              </a>
+              <%- include('parciales/enlace-actividad-auditada', {
+                sujetoTipo: 'zona_dns',
+                sujetoId: zona.id,
+                retorno: rutaDetalleBase,
+                permisoFuncional: contextoUsuarioActual?.permisos?.verDns
+              }) %>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis">
+            <article class="kpi-resumen <%= tonoPublicacionHero %> hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-cloud-check" aria-hidden="true"></i>
+                <span class="etiqueta">Publicación</span>
+              </span>
+              <strong><%= zona.etiquetaPublicacion %></strong>
+              <small><%= zona.descripcionPublicacion %></small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-list-ul" aria-hidden="true"></i>
+                <span class="etiqueta"><%= registrosFiltradosHero ? 'Registros filtrados' : 'Registros visibles' %></span>
+              </span>
+              <strong><%= resumenRegistros.totalRegistros %></strong>
+              <small><%= resumenRegistros.totalActivos %> activos <%= registrosFiltradosHero ? 'con los filtros actuales' : 'en la zona' %>.</small>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <% if (zona.estadoPublicacion === 'error') { %>
+    <div class="alert alert-danger mb-0" role="alert">
+      <strong>La publicación de esta zona ha fallado.</strong>
+      <span><%= zona.detalleUltimoErrorPublicacion || 'Consulta el diagnóstico de publicación para conocer el motivo.' %></span>
+    </div>
+  <% } else if (zona.estadoPublicacion === 'pendiente') { %>
+    <div class="alert alert-warning mb-0" role="status">
+      La configuración de esta zona está pendiente de publicación en BIND.
+    </div>
+  <% } %>
+
+  <details class="seccion-panel dns-detalle__contexto">
+    <summary class="dns-detalle__contexto-cabecera">
+      <span class="dns-detalle__contexto-texto">
+        <strong>Configuración y diagnóstico</strong>
+        <small>SOA <%= zona.soa.mname %> · <%= zona.etiquetaPublicacion %></small>
+      </span>
+      <span class="dns-detalle__contexto-accion">Ver detalles <i class="bi bi-chevron-down" aria-hidden="true"></i></span>
+    </summary>
+
+    <% if (flashDns) { %>
+      <script>
+        document.addEventListener('DOMContentLoaded', function () {
+          if (window.portalToast?.show) {
+            window.portalToast.show({
+              tipo: '<%= flashDns.tipo === 'error' ? 'error' : 'satisfactorio' %>',
+              titulo: 'DNS',
+              cuerpo: <%- JSON.stringify(String(flashDns.mensaje || '')) %>
+            });
+          }
+        });
+      </script>
+    <% } %>
+
+    <div class="row g-4">
+      <div class="col-12 col-xl-6">
+        <article class="card border-0 shadow-sm overflow-hidden h-100">
+          <div class="card-header bg-white border-bottom py-3">
+            <div class="d-flex flex-column gap-1">
+              <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                <i class="bi bi-hdd-stack" aria-hidden="true"></i>
+                <span>SOA</span>
+              </div>
+              <p class="mb-0 text-body-secondary">
+                Parámetros base que gobiernan la autoridad y el ciclo operativo de la zona.
+              </p>
+            </div>
+          </div>
+          <div class="card-body p-4">
+            <div class="metadatos-configuracion dns-detalle__metadatos">
+              <span>MNAME: <code><%= zona.soa.mname %></code></span>
+              <span>RNAME: <code><%= zona.soa.rname %></code></span>
+              <span>Serial: <code><%= zona.soa.serial %></code></span>
+              <span>Refresh: <code><%= zona.soa.refreshSegundos %> s</code></span>
+              <span>Retry: <code><%= zona.soa.retrySegundos %> s</code></span>
+              <span>Expire: <code><%= zona.soa.expireSegundos %> s</code></span>
+              <span>Minimum: <code><%= zona.soa.minimumSegundos %> s</code></span>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div class="col-12 col-xl-6">
+        <article class="card border-0 shadow-sm overflow-hidden h-100">
+          <div class="card-header bg-white border-bottom py-3">
+            <div class="d-flex flex-column gap-1">
+              <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                <i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>
+                <span>Publicación BIND</span>
+              </div>
+              <p class="mb-0 text-body-secondary">
+                Estado actual de publicación, hash vigente y última actividad registrada.
+              </p>
+            </div>
+          </div>
+          <div class="card-body p-4">
+            <div class="metadatos-configuracion dns-detalle__metadatos">
+              <span>Estado: <code><%= zona.etiquetaPublicacion %></code></span>
+              <span><%= zona.descripcionPublicacion %></span>
+              <% if (zona.generacionAplicadaBind) { %>
+                <span>Última generación aplicada: <code><%= zona.generacionAplicadaBind %></code> · modelo <code>v<%= zona.versionAplicadaBind %></code></span>
+              <% } %>
+              <span>Categoría: <code><%= zona.categoriaOrigen %></code></span>
+              <span>Publicar en BIND: <code><%= zona.publicarEnBind ? 'Sí' : 'No' %></code></span>
+              <span>Modelo: <code>v<%= zona.versionModelo %></code></span>
+              <span>Hash vigente: <code><%= zona.hashPublicacionVigente || '-' %></code></span>
+              <span>Última publicación confirmada:
+                <% if (zona.fechaUltimaPublicacionExitosa) { %>
+                  <code><time data-fecha-utc="<%= zona.fechaUltimaPublicacionExitosa %>"><%= zona.fechaUltimaPublicacionExitosa %></time></code>
+                <% } else { %>
+                  <code>Sin publicación</code>
+                <% } %>
+              </span>
+              <span>Error:
+                <% if (zona.fechaUltimoErrorPublicacion) { %>
+                  <code><time data-fecha-utc="<%= zona.fechaUltimoErrorPublicacion %>"><%= zona.fechaUltimoErrorPublicacion %></time></code>
+                <% } else { %>
+                  <code>Sin error</code>
+                <% } %>
+              </span>
+              <span>Detalle: <%= zona.detalleUltimoErrorPublicacion || 'Sin detalle.' %></span>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </details>
+
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h2>Registros DNS</h2>
+        <p class="texto-apoyo">Busca y gestiona los registros de esta zona.</p>
+      </div>
+      <div class="acciones-seccion dns-detalle__acciones-zona">
+        <% if (puedeGestionarRegistrosDnsVisible) { %>
+          <a href="/dns/<%= zona.id %>/registros/nuevo?return_to=<%= encodeURIComponent(rutaDetalleBase) %>" class="boton-primario enlace-boton">Nuevo registro</a>
+        <% } %>
+        <div class="dropdown">
+          <button
+            type="button"
+            class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
+            data-bs-toggle="dropdown"
+            data-bs-auto-close="outside"
+            aria-expanded="false"
+          >
+            <i class="bi bi-gear" aria-hidden="true"></i>
+            <span>Zona</span>
+          </button>
+          <div class="dropdown-menu dropdown-menu-end usuarios-tabla__acciones-menu">
+            <% if (puedeEditarZona && zonaEditable) { %>
+              <a href="/dns/<%= zonaEditable.id %>/editar?return_to=<%= encodeURIComponent(retornoListado) %>" class="dropdown-item d-flex align-items-center gap-2">
+                <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                <span>Editar zona</span>
+              </a>
+              <button type="button" class="dropdown-item dropdown-item--danger d-flex align-items-center gap-2" data-dns-eliminar-zona="<%= zonaEditable.id %>" data-dns-eliminar-retorno="<%= retornoListado %>">
+                <i class="bi bi-trash3" aria-hidden="true"></i>
+                <span>Eliminar zona…</span>
+              </button>
+            <% } %>
+            <a href="<%= retornoListado %>" class="dropdown-item d-flex align-items-center gap-2">
+              <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
+              <span>Volver a DNS</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <form method="get" action="/dns/<%= zona.id %>">
+        <input type="hidden" name="return_to" value="<%= retornoListado %>">
+        <input type="hidden" name="page_size" value="<%= filtrosDetalle.tamanoPagina || paginacionDetalle.tamanoPagina || 10 %>">
+        <div class="rejilla-filtros-listado dns-detalle__filtros">
+          <div>
+            <label for="registro_q">Buscar</label>
+            <input
+              id="registro_q"
+              type="search"
+              name="q"
+              autocomplete="off"
+              placeholder="host, valor o descripción"
+              value="<%= filtrosDetalle.textoBusqueda %>"
+            >
+          </div>
+          <div>
+            <label for="registro_tipo">Tipo</label>
+            <select id="registro_tipo" name="tipo_registro">
+              <% for (const opcion of opcionesTipoRegistro) { %>
+                <option value="<%= opcion.valor %>" <%= filtrosDetalle.tipoRegistro === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div>
+            <label for="registro_activo">Estado</label>
+            <select id="registro_activo" name="activo">
+              <% for (const opcion of opcionesActivoRegistros) { %>
+                <option value="<%= opcion.valor %>" <%= filtrosDetalle.activo === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+        </div>
+
+        <div class="barra-acciones-filtros">
+          <button type="submit" class="boton-primario">Aplicar filtros</button>
+          <a href="/dns/<%= zona.id %>?return_to=<%= encodeURIComponent(retornoListado) %>" class="boton-secundario">Limpiar</a>
+        </div>
+      </form>
+
+      <div class="fila-encabezado fila-encabezado--compacta mt-4">
+        <p class="texto-apoyo"><%= rangoResumen %></p>
+      </div>
+
+      <div class="dns-detalle__resumen-registros" aria-label="Resumen de los registros filtrados">
+        <span><strong><%= resumenRegistros.totalActivos %></strong> activos</span>
+        <span><strong><%= resumenRegistros.totalPublicables %></strong> publicables en BIND</span>
+        <span><strong><%= resumenRegistros.totalGobernados || 0 %></strong> con control automático</span>
+      </div>
+
+      <div class="table-responsive mt-3 organizacion-tabla dns-registros-tabla">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Host y tipo</th>
+              <th scope="col">Valor</th>
+              <th scope="col">Estado</th>
+              <th scope="col" class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if ((registros || []).length === 0) { %>
+              <tr>
+                <td colspan="4" class="text-body-secondary">
+                  No hay registros DNS con los filtros actuales.
+                </td>
+              </tr>
+            <% } %>
+
+            <% for (const registro of registros) { %>
+              <%
+                const clasesRegistro = [];
+                if (registro.estaGobernadoAutomaticamente) {
+                  clasesRegistro.push('dns-registros-tabla__fila-gobernada');
+                }
+                if (registro.categoriaOrigen === 'sistema') {
+                  clasesRegistro.push('dns-registros-tabla__fila-sistema');
+                }
+              %>
+              <tr class="<%= clasesRegistro.join(' ') %>">
+                <td>
+                  <div class="dns-registros-tabla__principal">
+                    <strong><%= registro.nombreVisible %></strong>
+                    <% if (registro.categoriaOrigen === 'sistema') { %>
+                      <div class="dns-registros-tabla__aviso-sistema">
+                        <i class="bi bi-exclamation-octagon" aria-hidden="true"></i>
+                        <span>Sistema · cambios sensibles</span>
+                      </div>
+                    <% } %>
+                    <div class="dns-registros-tabla__sublinea">
+                      <span class="insignia-monitor insignia-monitor--ok"><%= registro.tipoRegistro %></span>
+                      <% if (registro.descripcion) { %>
+                        <span><%= registro.descripcion %></span>
+                      <% } else { %>
+                        <span class="text-body-secondary">Sin descripción.</span>
+                      <% } %>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="dns-registros-tabla__sublinea dns-registros-tabla__sublinea--codigo">
+                    <code><%= registro.valorPrincipal || '-' %></code>
+                  </div>
+                </td>
+                <td>
+                  <div class="dns-registros-tabla__chips">
+                    <span class="insignia-monitor <%= registro.publicarEnBind ? 'insignia-monitor--ok' : 'insignia-monitor--off' %>">
+                      <%= registro.publicarEnBind ? 'Publicable BIND' : 'No publicable' %>
+                    </span>
+                    <span class="insignia-monitor <%= registro.activo ? 'insignia-monitor--ok' : 'insignia-monitor--off' %>">
+                      <%= registro.activo ? 'Activo' : 'Inactivo' %>
+                    </span>
+                    <% if (registro.estaGobernadoAutomaticamente) { %>
+                      <span class="insignia-monitor insignia-monitor--advertencia">
+                        <%= (registro.gobernanzaAutomatica?.gobernadoPor || registro.categoriaOrigen) === 'ddns' ? 'Controlado por agente (DDNS)' : 'Control automático' %>
+                      </span>
+                    <% } %>
+                  </div>
+                  <details class="dns-registros-tabla__detalles">
+                    <summary>Detalles técnicos <i class="bi bi-chevron-down" aria-hidden="true"></i></summary>
+                    <div class="dns-registros-tabla__metadatos">
+                      <span>TTL efectivo: <code><%= registro.ttlEfectivoSegundos %> s</code></span>
+                      <span>Categoría: <code><%= registro.categoriaOrigen %></code></span>
+                      <% if (registro.categoriaOrigen === 'sistema') { %>
+                        <span>Modificar este registro puede afectar al funcionamiento de la zona DNS.</span>
+                      <% } %>
+                      <% if (registro.bloqueaEdicionHumanaValorPrincipal) { %>
+                        <span>El valor no se edita manualmente.</span>
+                      <% } %>
+                      <% if (registro.estaGobernadoAutomaticamente) { %>
+                        <span>Control automático: <code><%= registro.gobernanzaAutomatica?.modoControl === 'valor_y_activo' ? 'valor y estado activo' : (registro.gobernanzaAutomatica?.modoControl || 'valor y estado activo') %></code></span>
+                        <% if (registro.gobernanzaAutomatica?.rolAsignado) { %>
+                          <span>Rol: <code><%= registro.gobernanzaAutomatica.rolAsignado %></code></span>
+                        <% } %>
+                        <% if (registro.gobernanzaAutomatica?.ttlSugerido != null) { %>
+                          <span>TTL sugerido: <code><%= registro.gobernanzaAutomatica.ttlSugerido %> s</code></span>
+                        <% } %>
+                      <% } %>
+                      <% if (registro.prioridad != null) { %><span>Prioridad: <code><%= registro.prioridad %></code></span><% } %>
+                      <% if (registro.peso != null) { %><span>Peso: <code><%= registro.peso %></code></span><% } %>
+                      <% if (registro.puerto != null) { %><span>Puerto: <code><%= registro.puerto %></code></span><% } %>
+                      <% if (registro.flags) { %><span>Flags: <code><%= registro.flags %></code></span><% } %>
+                      <% if (registro.tag) { %><span>Tag: <code><%= registro.tag %></code></span><% } %>
+                      <span>Actualizado:
+                        <code><time data-fecha-utc="<%= registro.fechaActualizacion %>"><%= registro.fechaActualizacion %></time></code>
+                      </span>
+                    </div>
+                  </details>
+                </td>
+                <td class="text-end">
+                  <%
+                    const puedeVerAuditoriaRegistro = Boolean(
+                      contextoUsuarioActual?.permisos?.verAuditoria &&
+                      contextoUsuarioActual?.permisos?.verDns
+                    );
+                    const puedeEliminarRegistro = Boolean(
+                      registro.editable && registro.eliminable
+                    );
+                    const tieneOpcionesRegistro = Boolean(
+                      registro.editable || puedeVerAuditoriaRegistro
+                    );
+                  %>
+                  <% if (tieneOpcionesRegistro) { %>
+                    <div class="usuarios-tabla__acciones">
+                      <div class="dropdown dns-registros-tabla__acciones">
+                        <button
+                          type="button"
+                          class="btn btn-outline-secondary btn-sm usuarios-tabla__acciones-toggle"
+                          id="opcionesRegistroDns<%= registro.id %>"
+                          data-bs-toggle="dropdown"
+                          data-bs-auto-close="outside"
+                          aria-expanded="false"
+                          aria-label="Opciones de <%= registro.nombreVisible %>"
+                          title="Opciones del registro"
+                        >
+                          <i class="bi bi-gear" aria-hidden="true"></i>
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end usuarios-tabla__acciones-menu">
+                          <% if (registro.editable && registro.estaGobernadoAutomaticamente) { %>
+                            <span class="dropdown-header text-wrap usuarios-tabla__acciones-ayuda">
+                              Registro gobernado: el valor principal no se edita manualmente.
+                            </span>
+                          <% } %>
+                          <% if (registro.editable) { %>
+                            <a
+                              href="/dns/<%= zona.id %>/registros/<%= registro.id %>/editar?return_to=<%= encodeURIComponent(rutaDetalleBase) %>"
+                              class="dropdown-item d-flex align-items-center gap-2"
+                            >
+                              <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                              <span>Editar registro</span>
+                            </a>
+                          <% } %>
+                          <% if (puedeVerAuditoriaRegistro) { %>
+                            <%- include('parciales/enlace-actividad-auditada', {
+                              sujetoTipo: 'registro_dns',
+                              sujetoId: registro.id,
+                              retorno: rutaDetalleBase,
+                              permisoFuncional: true,
+                              clase: 'dropdown-item d-flex align-items-center gap-2'
+                            }) %>
+                          <% } %>
+                          <% if (puedeEliminarRegistro) { %>
+                            <hr class="dropdown-divider">
+                            <button type="button" class="dropdown-item dropdown-item--danger d-flex align-items-center gap-2"
+                              data-dns-eliminar-registro="<%= registro.id %>"
+                              data-dns-eliminar-zona-id="<%= zona.id %>"
+                              data-dns-eliminar-toggle="opcionesRegistroDns<%= registro.id %>"
+                              data-dns-eliminar-retorno="<%= rutaDetalleBase %>">
+                              <i class="bi bi-trash3" aria-hidden="true"></i>
+                              <span>Eliminar registro…</span>
+                            </button>
+                          <% } %>
+                        </div>
+                      </div>
+                    </div>
+                  <% } else { %>
+                    <span class="text-body-secondary small">Sin opciones</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap border-top mt-4 pt-3">
+        <div class="dns-detalle__paginacion-contexto">
+          <span class="text-body-secondary">
+            Página <%= paginacionDetalle.pagina %> de <%= paginacionDetalle.totalPaginas %>
+          </span>
+          <form method="get" action="/dns/<%= zona.id %>" class="dns-detalle__tamano-pagina">
+            <input type="hidden" name="return_to" value="<%= retornoListado %>">
+            <input type="hidden" name="q" value="<%= filtrosDetalle.textoBusqueda || '' %>">
+            <input type="hidden" name="tipo_registro" value="<%= filtrosDetalle.tipoRegistro || '' %>">
+            <input type="hidden" name="activo" value="<%= filtrosDetalle.activo || 'todos' %>">
+            <label for="registro_page_size">Filas por página</label>
+            <select id="registro_page_size" name="page_size">
+              <% for (const opcion of [10, 25, 50, 100]) { %>
+                <option value="<%= opcion %>" <%= Number(filtrosDetalle.tamanoPagina || paginacionDetalle.tamanoPagina || 10) === opcion ? 'selected' : '' %>><%= opcion %></option>
+              <% } %>
+            </select>
+            <button type="submit" class="btn btn-outline-secondary btn-sm">Aplicar</button>
+          </form>
+        </div>
+        <div class="btn-group" role="group" aria-label="Paginación registros DNS">
+          <a
+            href="<%= construirRutaDetalle({ page: 1 }) %>"
+            class="btn btn-outline-secondary <%= paginacionDetalle.pagina <= 1 ? 'disabled' : '' %>"
+            <%= paginacionDetalle.pagina <= 1 ? 'aria-disabled="true" tabindex="-1"' : '' %>
+          >
+            <i class="bi bi-chevron-double-left me-2" aria-hidden="true"></i>
+            Primero
+          </a>
+          <a
+            href="<%= construirRutaDetalle({ page: Math.max(1, paginacionDetalle.pagina - 1) }) %>"
+            class="btn btn-outline-secondary <%= paginacionDetalle.pagina <= 1 ? 'disabled' : '' %>"
+            <%= paginacionDetalle.pagina <= 1 ? 'aria-disabled="true" tabindex="-1"' : '' %>
+          >
+            <i class="bi bi-chevron-left me-2" aria-hidden="true"></i>
+            Anterior
+          </a>
+          <a
+            href="<%= construirRutaDetalle({ page: Math.min(paginacionDetalle.totalPaginas, paginacionDetalle.pagina + 1) }) %>"
+            class="btn btn-outline-secondary <%= paginacionDetalle.pagina >= paginacionDetalle.totalPaginas ? 'disabled' : '' %>"
+            <%= paginacionDetalle.pagina >= paginacionDetalle.totalPaginas ? 'aria-disabled="true" tabindex="-1"' : '' %>
+          >
+            Siguiente
+            <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+          </a>
+          <a
+            href="<%= construirRutaDetalle({ page: paginacionDetalle.totalPaginas }) %>"
+            class="btn btn-outline-secondary <%= paginacionDetalle.pagina >= paginacionDetalle.totalPaginas ? 'disabled' : '' %>"
+            <%= paginacionDetalle.pagina >= paginacionDetalle.totalPaginas ? 'aria-disabled="true" tabindex="-1"' : '' %>
+          >
+            Último
+            <i class="bi bi-chevron-double-right ms-2" aria-hidden="true"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<% if (puedeEditarZona && zonaEditable) { %><%- include('parciales/dns-modal-eliminacion') %><% } %>
+<% if ((registros || []).some((registro) => registro.editable && registro.eliminable)) { %><%- include('parciales/dns-registro-modal-eliminacion') %><% } %>
+<script src="/js/dns-eliminacion.js?v=20261003-registros"></script>
+<%- include('../parciales/pie') %>

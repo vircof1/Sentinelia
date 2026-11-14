@@ -1,0 +1,201 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<section class="panel-general">
+  <section class="hero-operativo hero-monitores hero-eventos card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-activity" aria-hidden="true"></i>
+              <span>Actividad de monitores</span>
+            </span>
+            <h1>Eventos de monitores</h1>
+            <p>Consulta las comprobaciones de tus monitores y examina qué ocurrió en cada evento.</p>
+            <div class="hero-monitores__acciones">
+              <a href="<%= retornoListado %>" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
+                <span><%= retornoListado === '/monitores' ? 'Volver a monitores' : 'Volver' %></span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis hero-eventos__kpis">
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-calendar-range" aria-hidden="true"></i>
+                <span class="etiqueta">Período seleccionado</span>
+              </span>
+              <strong data-eventos-hero-rango><%= filtros.desde %> · <%= filtros.hasta %></strong>
+              <small>Fechas del filtro en tu horario local.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--ok hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-diagram-2" aria-hidden="true"></i>
+                <span class="etiqueta">Ámbito visible</span>
+              </span>
+              <strong><%= ({ tenant: 'Organización', empresa: 'Empresa', sitio: 'Sitio' })[alcanceActual.nivelScope] || alcanceActual.nivelScope %></strong>
+              <small>Solo monitores dentro de tu alcance.</small>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section
+    class="seccion-panel"
+    data-eventos-monitor-shell
+    data-url-eventos="/monitores/eventos/api"
+    data-url-opciones-monitores="/monitores/eventos/api/opciones/monitores"
+  >
+    <div class="seccion-cabecera">
+      <div>
+        <h2>Buscar eventos</h2>
+        <p class="texto-apoyo">Acota el período y los monitores que quieres revisar.</p>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <div class="rejilla-filtros-listado">
+        <div>
+          <label for="eventos_desde">Fecha inicio</label>
+          <input id="eventos_desde" type="date" value="<%= filtros.desde %>" data-eventos-desde>
+        </div>
+        <div>
+          <label for="eventos_hasta">Fecha fin</label>
+          <input id="eventos_hasta" type="date" value="<%= filtros.hasta %>" data-eventos-hasta>
+        </div>
+        <div>
+          <label for="eventos_monitor">Monitor</label>
+          <select id="eventos_monitor" data-eventos-monitor>
+            <option value="">Selecciona un monitor</option>
+          </select>
+        </div>
+        <div>
+          <label for="eventos_estado">Estado</label>
+          <select id="eventos_estado" data-eventos-estado>
+            <% for (const opcion of opcionesEstado) { %>
+              <option value="<%= opcion.valor %>" <%= filtros.estado === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+            <% } %>
+          </select>
+        </div>
+      </div>
+
+      <div class="barra-acciones-filtros eventos-filtros__ventanas" aria-label="Períodos rápidos">
+        <span class="texto-apoyo">Período rápido</span>
+        <% for (const preseleccion of preselecciones) { %>
+          <button
+            type="button"
+            class="boton-secundario"
+            data-eventos-preseleccion="<%= preseleccion.valor %>"
+          ><%= preseleccion.etiqueta %></button>
+        <% } %>
+      </div>
+
+      <details class="eventos-filtros-avanzados" data-eventos-mas-filtros>
+        <summary>Más filtros</summary>
+        <div class="rejilla-filtros-listado">
+          <div>
+            <label for="eventos_tipo">Tipo de monitor</label>
+            <select id="eventos_tipo" data-eventos-tipo>
+              <% for (const opcion of opcionesTipo) { %>
+                <option value="<%= opcion.valor %>" <%= filtros.tipo === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div>
+            <label for="eventos_codigo">Código resultado</label>
+            <input id="eventos_codigo" type="search" placeholder="Ej. timeout_icmp" value="<%= filtros.codigoResultado %>" data-eventos-codigo>
+          </div>
+          <div>
+            <label for="eventos_limite">Eventos a cargar</label>
+            <select id="eventos_limite" data-eventos-limite>
+              <% for (const opcion of opcionesLimite) { %>
+                <option value="<%= opcion %>" <%= Number(filtros.limite) === Number(opcion) ? 'selected' : '' %>><%= opcion %></option>
+              <% } %>
+            </select>
+          </div>
+          <div>
+            <label for="eventos_orden">Orden temporal</label>
+            <select id="eventos_orden" data-eventos-orden>
+              <option value="asc" <%= filtros.orden === 'asc' ? 'selected' : '' %>>Más antiguos primero</option>
+              <option value="desc" <%= filtros.orden === 'desc' ? 'selected' : '' %>>Más recientes primero</option>
+            </select>
+          </div>
+        </div>
+      </details>
+
+      <div class="barra-acciones-filtros">
+        <button type="button" class="boton-primario" data-eventos-aplicar>Buscar eventos</button>
+        <button type="button" class="boton-secundario" data-eventos-limpiar>Limpiar</button>
+      </div>
+    </div>
+
+    <div class="tarjeta eventos-sin-monitor" data-eventos-sin-monitor>
+      <i class="bi bi-graph-up" aria-hidden="true"></i>
+      <div>
+        <h3>Selecciona un monitor para ver sus eventos</h3>
+        <p class="texto-apoyo">Después podrás acotar el período y revisar sus lecturas sin mezclar métricas de otros monitores.</p>
+      </div>
+    </div>
+
+    <div data-eventos-resultados hidden>
+      <div class="rejilla-resumen">
+        <article class="kpi-resumen">
+          <span class="etiqueta">Encontrados</span>
+          <strong data-eventos-total>0</strong>
+          <small>En todo el período y con estos filtros.</small>
+        </article>
+        <article class="kpi-resumen">
+          <span class="etiqueta">Cargados</span>
+          <strong data-eventos-cargados>0</strong>
+          <small data-eventos-total-detalle>Sin consulta todavía.</small>
+        </article>
+        <article class="kpi-resumen">
+          <span class="etiqueta">Correctos en el período</span>
+          <strong data-eventos-exitosos>0</strong>
+          <small>Incluye todas las lecturas encontradas.</small>
+        </article>
+        <article class="kpi-resumen">
+          <span class="etiqueta">Fallidos en el período</span>
+          <strong data-eventos-fallidos>0</strong>
+          <small>Incluye todas las lecturas encontradas.</small>
+        </article>
+      </div>
+
+      <div class="tarjeta">
+        <div class="seccion-cabecera">
+          <div>
+            <h2>Duración de las comprobaciones</h2>
+            <p class="texto-apoyo" data-eventos-grafico-descripcion>Hasta 150 eventos se muestran individualmente; con más lecturas se agrupan en velas.</p>
+          </div>
+          <div class="acciones-lista d-flex flex-wrap align-items-center gap-2">
+            <p class="texto-apoyo mb-0" data-eventos-estado-carga>Cargando opciones...</p>
+            <a class="btn btn-outline-secondary btn-sm" data-eventos-ver-monitor href="#">
+              <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+              Ver monitor
+            </a>
+          </div>
+        </div>
+
+        <div class="visor-eventos">
+          <div class="visor-eventos__grafico">
+          <canvas data-eventos-canvas aria-label="Duración de las comprobaciones del monitor seleccionado"></canvas>
+          </div>
+          <aside class="visor-eventos__detalle" data-eventos-detalle>
+            <h3>Detalle del evento</h3>
+            <p class="texto-apoyo">Todavía no hay un punto seleccionado.</p>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<script src="/vendor/chartjs/chart.umd.js"></script>
+<script src="/js/monitores-eventos.js?v=velas-detalle-20260928"></script>
+
+<%- include('../parciales/pie') %>

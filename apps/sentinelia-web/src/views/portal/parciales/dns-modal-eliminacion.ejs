@@ -1,0 +1,47 @@
+<div class="modal fade modal-impacto-trigger modal-eliminacion-dns" id="modalEliminarZonaDns" tabindex="-1" aria-labelledby="modalEliminarZonaDnsTitulo" aria-hidden="true" data-dns-modal-eliminar>
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title h4" id="modalEliminarZonaDnsTitulo" data-dns-eliminar-titulo>Eliminar zona DNS</h2>
+          <p class="texto-apoyo mb-0">Revisa qué se borrará y qué dejará de funcionar.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="texto-apoyo mb-0" role="status" aria-live="polite" data-dns-eliminar-carga>Calculando el impacto…</p>
+        <div class="alert alert-danger mb-0" role="alert" hidden data-dns-eliminar-error></div>
+        <div hidden data-dns-eliminar-contenido>
+          <div class="modal-impacto-trigger__hero modal-impacto-trigger__hero--alerta">
+            <span class="organizacion-entidad__icono" aria-hidden="true"><i class="bi bi-shield-exclamation"></i></span>
+            <div>
+              <strong>Esta eliminación es irreversible.</strong>
+              <p class="texto-apoyo mb-0" data-dns-eliminar-identidad></p>
+            </div>
+          </div>
+          <div class="modal-impacto-trigger__metricas">
+            <article><span>Registros que se borrarán</span><strong data-dns-eliminar-cantidad="registros"></strong></article>
+            <article><span>Concesiones DDNS que se revocarán</span><strong data-dns-eliminar-cantidad="concesionesDdns"></strong></article>
+            <article><span>Acciones DNS que se deshabilitarán</span><strong data-dns-eliminar-cantidad="accionesDns"></strong></article>
+            <article><span>Ejecuciones pendientes que se cancelarán</span><strong data-dns-eliminar-cantidad="ejecucionesPendientes"></strong></article>
+          </div>
+          <div class="modal-impacto-trigger__avisos">
+            <p><i class="bi bi-info-circle" aria-hidden="true"></i><span>Los agentes, monitores, vínculos y el historial de ejecuciones se conservarán. Las acciones deshabilitadas no generarán nuevas ejecuciones hasta que se configure otro objetivo válido.</span></p>
+            <p hidden data-dns-eliminar-publicacion><i class="bi bi-info-circle" aria-hidden="true"></i><span>La zona se retirará de la configuración de BIND cuando se aplique la siguiente publicación DNS.</span></p>
+            <p hidden data-dns-eliminar-en-curso><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span data-dns-eliminar-en-curso-texto></span></p>
+          </div>
+          <p class="texto-apoyo mt-3 mb-0">Estas cifras corresponden al momento de abrir el diálogo; pueden variar si cambian los datos antes de confirmar.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <form method="post" action="/dns/eliminar" data-dns-eliminar-formulario>
+          <% if (typeof tokenCSRFPortal !== 'undefined' && tokenCSRFPortal) { %><input type="hidden" name="tokenCSRF" value="<%= tokenCSRFPortal %>"><% } %>
+          <input type="hidden" name="id_zona" data-dns-eliminar-id>
+          <input type="hidden" name="return_to" data-dns-eliminar-retorno>
+          <button type="submit" class="btn btn-danger d-inline-flex align-items-center gap-2" disabled data-dns-eliminar-confirmar><i class="bi bi-trash3" aria-hidden="true"></i><span>Eliminar zona y registros</span></button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

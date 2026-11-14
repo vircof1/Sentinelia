@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#edf1f5" data-theme-color>
+    <title><%= titulo %> | <%= nombrePortalVisible || 'Sentinelia' %></title>
+    <script src="/js/tema-inicial.js"></script>
+    <link rel="stylesheet" href="/vendor/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/vendor/bootstrap-icons/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="/css/portal.css?v=usuarios-ux-20261004">
+    <% const tokenCsrfActivo = tokenCSRFPortal || usuarioActual?.tokenCSRF || null; %>
+    <% if (tokenCsrfActivo) { %>
+      <meta name="csrf-token" content="<%= tokenCsrfActivo %>">
+    <% } %>
+  </head>
+  <body class="portal-con-escena"<% if (tokenCsrfActivo) { %> data-csrf-token="<%= tokenCsrfActivo %>"<% } %>>
+    <%
+      const impersonacionActiva = Boolean(
+        usuarioActual?.impersonacionActiva || contextoUsuarioActual?.impersonacionActiva
+      );
+      const permiteCatalogoImpersonacion = Boolean(
+        usuarioActual?.puedeImpersonar ||
+        contextoUsuarioActual?.permiteImpersonacionReal
+      );
+      const permiteImpersonacion = Boolean(
+        permiteCatalogoImpersonacion || impersonacionActiva
+      );
+      const nombreRealImpersonacion =
+        usuarioActual?.nombreVisibleReal ||
+        contextoUsuarioActual?.nombreVisibleReal ||
+        usuarioActual?.nombreVisible ||
+        '';
+      const nombreEfectivoImpersonacion =
+        usuarioActual?.nombreVisible ||
+        contextoUsuarioActual?.nombreVisible ||
+        '';
+      const descripcionRealImpersonacion =
+        usuarioActual?.usuarioReal ||
+        contextoUsuarioActual?.usuarioReal ||
+        '';
+      const inicialUsuarioMenu = String(
+        usuarioActual?.nombreVisible || usuarioActual?.usuario || '?'
+      ).trim().charAt(0).toUpperCase() || '?';
+    %>
+    <header class="barra-superior">
+      <div class="cabecera-principal">
+        <% if (usuarioActual && contextoUsuarioActual && contextoUsuarioActual.permisos) { %>
+          <button
+            type="button"
+            class="boton-menu"
+            aria-expanded="false"
+            aria-controls="menu-principal"
+            data-boton-menu
+          >
+            <span class="boton-menu__linea" aria-hidden="true"></span>
+            <span class="boton-menu__linea" aria-hidden="true"></span>
+            <span class="boton-menu__linea" aria-hidden="true"></span>
+            <span class="texto-oculto" data-boton-menu-texto>Abrir navegación</span>
+          </button>
+        <% } %>
+
+        <a class="marca" href="<%= usuarioActual ? '/panel' : '/login' %>" aria-label="<%= nombrePortalVisible || 'Sentinelia' %>">
+          <span class="marca-sello marca-sello--logo" aria-hidden="true">
+            <img src="/IMG/Sentinelia-DarkBackground.svg" alt="">
+          </span>
+          <span class="marca-textos">
+            <strong><%= nombrePortalVisible || 'Sentinelia' %></strong>
+            <small>Portal operativo</small>
+          </span>
+        </a>
+
+        <% if (usuarioActual && impersonacionActiva) { %>
+          <section class="franja-impersonacion franja-impersonacion--cabecera" aria-label="Estado de impersonación">
+            <div class="franja-impersonacion__texto">
+              <span class="insignia-suave insignia-suave--alerta">Modo verificación</span>
+              <strong class="franja-impersonacion__usuario"><%= nombreEfectivoImpersonacion %></strong>
+              <span class="franja-impersonacion__literal">sobre identidad real</span>
+              <strong class="franja-impersonacion__real"><%= nombreRealImpersonacion %></strong>
+              <% if (descripcionRealImpersonacion) { %>
+                <small class="franja-impersonacion__detalle">(<%= descripcionRealImpersonacion %>)</small>
+              <% } %>
+            </div>
+            <button
+              type="button"
+              class="boton-secundario"
+              data-impersonacion-abrir
+              aria-haspopup="dialog"
+              aria-controls="modal-impersonacion"
+            >
+              Ver sesión
+            </button>
+          </section>
+        <% } %>
+
+        <% if (usuarioActual) { %>
+          <div class="acciones-cabecera" role="group" aria-label="Acciones de usuario">
+        <% if (
+          capacidadesPortal?.eliminacionAdministrativaAgentes ||
+          capacidadesPortal?.eliminacionAdministrativaOrganizaciones
+        ) { %>
+          <div class="buzon-personal-cabecera" data-buzon-personal
+               data-url-listado="/buzon/api/notificaciones"
+               data-url-contador="/buzon/api/contador"
+               data-url-ws="/ws/panel-dashboard">
+            <button type="button" class="buzon-personal-cabecera__boton"
+                    aria-label="Abrir buzón personal" aria-expanded="false"
+                    aria-controls="buzon-personal-overlay" data-buzon-personal-abrir>
+              <i class="bi bi-inbox" aria-hidden="true"></i>
+              <span class="buzon-personal-cabecera__contador" data-buzon-personal-contador hidden>0</span>
+            </button>
+            <section id="buzon-personal-overlay" class="buzon-personal-overlay"
+                     data-buzon-personal-overlay hidden aria-label="Buzón personal"
+                     role="dialog" aria-modal="false">
+              <header>
+                <div><strong>Buzón personal</strong><small data-buzon-personal-resumen>Actualizando…</small></div>
+                <button type="button" class="btn-close" aria-label="Cerrar buzón personal" data-buzon-personal-cerrar></button>
+              </header>
+              <div class="buzon-personal-overlay__lista" data-buzon-personal-lista aria-live="polite"></div>
+              <button type="button" class="btn btn-sm btn-outline-secondary buzon-personal-overlay__mas"
+                      data-buzon-personal-mas hidden>Cargar anteriores</button>
+            </section>
+          </div>
+        <% } %>
+
+        <% if (usuarioActual && contextoUsuarioActual?.permisos?.verAvisosPlataforma) { %>
+          <div class="avisos-plataforma-cabecera" data-avisos-plataforma
+               data-url-resumen="/avisos-plataforma/api/resumen"
+               data-url-ws="/ws/panel-dashboard">
+            <button type="button" class="avisos-plataforma-cabecera__boton"
+                    aria-label="Abrir avisos de plataforma" aria-expanded="false"
+                    data-avisos-plataforma-abrir>
+              <i class="bi bi-bell" aria-hidden="true"></i>
+              <span class="avisos-plataforma-cabecera__contador" data-avisos-plataforma-contador hidden>0</span>
+            </button>
+            <section class="avisos-plataforma-overlay" data-avisos-plataforma-overlay hidden
+                     aria-label="Avisos de plataforma">
+              <header>
+                <div><strong>Avisos de plataforma</strong><small data-avisos-plataforma-resumen>Actualizando…</small></div>
+                <button type="button" class="btn-close" aria-label="Cerrar" data-avisos-plataforma-cerrar></button>
+              </header>
+              <div class="avisos-plataforma-overlay__lista" data-avisos-plataforma-lista></div>
+            </section>
+          </div>
+        <% } %>
+
+          <details class="menu-usuario-cabecera" data-menu-desplegable>
+            <summary aria-label="Abrir menú de usuario">
+              <span class="menu-usuario-cabecera__avatar" aria-hidden="true">
+                <%= inicialUsuarioMenu %>
+              </span>
+            </summary>
+            <div class="menu-usuario-cabecera__panel">
+              <div class="menu-usuario-cabecera__identidad">
+                <span class="etiqueta">Usuario</span>
+                <strong><%= usuarioActual.nombreVisible %></strong>
+              </div>
+              <a href="/mi-perfil" class="menu-usuario-cabecera__opcion">
+                <i class="bi bi-person" aria-hidden="true"></i>
+                <span>Mi perfil</span>
+              </a>
+              <fieldset class="selector-tema">
+                <legend class="selector-tema__etiqueta">Apariencia</legend>
+                <div class="selector-tema__opciones">
+                  <label class="selector-tema__opcion">
+                    <input type="radio" name="tema-portal" value="auto" data-selector-tema>
+                    <span>Automático</span>
+                  </label>
+                  <label class="selector-tema__opcion">
+                    <input type="radio" name="tema-portal" value="light" data-selector-tema>
+                    <span>Claro</span>
+                  </label>
+                  <label class="selector-tema__opcion">
+                    <input type="radio" name="tema-portal" value="dark" data-selector-tema>
+                    <span>Oscuro</span>
+                  </label>
+                </div>
+              </fieldset>
+              <form method="post" action="/salir">
+                <button type="submit" class="menu-usuario-cabecera__opcion menu-usuario-cabecera__opcion--salir">
+                  <span>Salir</span>
+                </button>
+              </form>
+            </div>
+          </details>
+          </div>
+        <% } %>
+      </div>
+
+      <% if (usuarioActual && contextoUsuarioActual && contextoUsuarioActual.permisos) { %>
+        <div class="cabecera-panel" id="menu-principal" data-panel-navegacion>
+          <nav class="navegacion-principal">
+            <% if (contextoUsuarioActual.permisos.ver) { %>
+              <a href="/panel" class="<%= rutaActual === '/panel' ? 'activo' : '' %>">Panel</a>
+            <% } %>
+            <% const puedeControlFederacion = (
+              contextoUsuarioActual.permisos.verDiagnosticoFederacion ||
+              (!impersonacionActiva && (
+                contextoUsuarioActual.permisos.configurarEmisionesFederacion ||
+                contextoUsuarioActual.permisos.configurarRecepcionesFederacion ||
+                contextoUsuarioActual.permisos.activarRelacionesFederacion ||
+                contextoUsuarioActual.permisos.gestionarCredencialesFederacion ||
+                contextoUsuarioActual.permisos.transferirResponsabilidadFederacion ||
+                contextoUsuarioActual.permisos.resolverConflictosFederacion
+              ))
+            ); %>
+            <% const puedeExplorarDatosRemotos = Boolean(
+              contextoUsuarioActual.permisos.ver ||
+              contextoUsuarioActual.permisos.verMonitores ||
+              contextoUsuarioActual.permisos.verTriggers ||
+              contextoUsuarioActual.permisos.verAuditoria ||
+              contextoUsuarioActual.permisos.verAgentes ||
+              contextoUsuarioActual.permisos.verDiagnosticoFederacion
+            ); %>
+            <% if (puedeControlFederacion || puedeExplorarDatosRemotos) { %>
+              <details class="navegacion-desplegable <%= rutaActual.startsWith('/federacion') ? 'activo' : '' %>" data-menu-desplegable>
+                <summary>Federación</summary>
+                <div class="navegacion-desplegable__menu">
+                  <% if (puedeControlFederacion) { %>
+                    <a href="/federacion" class="<%= rutaActual === '/federacion' ? 'activo' : '' %>">
+                      <i class="bi bi-diagram-2" aria-hidden="true"></i><span>Plano de control</span>
+                    </a>
+                  <% } %>
+                  <% if (puedeExplorarDatosRemotos) { %>
+                    <a href="/federacion/datos-remotos" class="<%= rutaActual.startsWith('/federacion/datos-remotos') ? 'activo' : '' %>">
+                      <i class="bi bi-collection" aria-hidden="true"></i><span>Espacios remotos</span>
+                    </a>
+                  <% } %>
+                  <% if (contextoUsuarioActual.permisos.verDiagnosticoFederacion) { %>
+                    <a href="/federacion/diagnostico" class="<%= rutaActual.startsWith('/federacion/diagnostico') ? 'activo' : '' %>">
+                      <i class="bi bi-activity" aria-hidden="true"></i><span>Diagnóstico</span>
+                    </a>
+                  <% } %>
+                </div>
+              </details>
+            <% } %>
+            <% const capacidadesOrganizacion = (
+              typeof capacidadesNavegacion === 'object' &&
+              capacidadesNavegacion?.organizacion
+            ) || {}; %>
+            <% if (capacidadesOrganizacion.visible) { %>
+              <details class="navegacion-desplegable <%= rutaActual.startsWith('/organizacion') ? 'activo' : '' %>" data-menu-desplegable>
+                <summary>Organización</summary>
+                <div class="navegacion-desplegable__menu">
+                  <% if (capacidadesOrganizacion.administrarTenants) { %>
+                    <a href="/organizacion/tenants" class="<%= rutaActual.startsWith('/organizacion/tenants') ? 'activo' : '' %>">
+                      <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                      <span>Tenants</span>
+                    </a>
+                  <% } %>
+                  <% if (capacidadesOrganizacion.administrarEmpresas) { %>
+                    <a href="/organizacion/empresas" class="<%= rutaActual.startsWith('/organizacion/empresas') ? 'activo' : '' %>">
+                      <i class="bi bi-buildings" aria-hidden="true"></i>
+                      <span>Empresas</span>
+                    </a>
+                  <% } %>
+                  <% if (capacidadesOrganizacion.administrarSitios) { %>
+                    <a href="/organizacion/sitios" class="<%= rutaActual.startsWith('/organizacion/sitios') ? 'activo' : '' %>">
+                      <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                      <span>Sitios</span>
+                    </a>
+                  <% } %>
+                </div>
+              </details>
+            <% } %>
+            <% if (contextoUsuarioActual.permisos.verMonitores) { %>
+              <details class="navegacion-desplegable <%= rutaActual.startsWith('/monitores') && !rutaActual.startsWith('/monitores/triggers') ? 'activo' : '' %>" data-menu-desplegable>
+                <summary>Monitores</summary>
+                <div class="navegacion-desplegable__menu">
+                  <% for (const tipoMonitorNav of (tiposMonitorNavegacion || [])) { %>
+                    <a
+                      href="/monitores?tipo=<%= encodeURIComponent(tipoMonitorNav.valor) %>"
+                      class="<%= rutaActual.startsWith('/monitores') && !rutaActual.startsWith('/monitores/triggers') && queryActual?.tipo === tipoMonitorNav.valor ? 'activo' : '' %>"
+                    >
+                      <i class="bi bi-<%= tipoMonitorNav.icono || 'hdd-network' %>" aria-hidden="true"></i>
+                      <span><%= tipoMonitorNav.etiqueta %></span>
+                    </a>
+                  <% } %>
+                  <a
+                    href="/monitores/comparar-eventos"
+                    class="<%= rutaActual.startsWith('/monitores/comparar-eventos') || rutaActual.startsWith('/monitores/eventos') ? 'activo' : '' %>"
+                  >
+                    <i class="bi bi-intersect" aria-hidden="true"></i>
+                    <span>Comparar</span>
+                  </a>
+                  <a
+                    href="/monitores/historico"
+                    class="<%= rutaActual.startsWith('/monitores/historico') ? 'activo' : '' %>"
+                  >
+                    <i class="bi bi-clock-history" aria-hidden="true"></i>
+                    <span>Histórico</span>
+                  </a>
+                </div>
+              </details>
+            <% } %>
+            <% if (contextoUsuarioActual.permisos.verTriggers) { %>
+              <% const automatizacionActiva = rutaActual.startsWith('/automatizacion') || rutaActual.startsWith('/monitores/triggers'); %>
+              <% const enlacesAutomatizacionActivos = rutaActual.startsWith('/automatizacion/enlaces') || rutaActual.startsWith('/monitores/triggers/vinculos'); %>
+              <details class="navegacion-desplegable <%= automatizacionActiva ? 'activo' : '' %>" data-menu-desplegable>
+                <summary>Automatización</summary>
+                <div class="navegacion-desplegable__menu">
+                  <a
+                    href="/automatizacion/acciones"
+                    class="<%= automatizacionActiva && !enlacesAutomatizacionActivos ? 'activo' : '' %>"
+                  >
+                    <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+                    <span>Acciones</span>
+                  </a>
+                  <% if (contextoUsuarioActual.permisos.verMonitores) { %>
+                    <a
+                      href="/automatizacion/enlaces"
+                      class="<%= enlacesAutomatizacionActivos ? 'activo' : '' %>"
+                    >
+                      <i class="bi bi-link-45deg" aria-hidden="true"></i>
+                      <span>Enlaces monitor–acción</span>
+                    </a>
+                  <% } %>
+                </div>
+              </details>
+            <% } %>
+            <% if (contextoUsuarioActual.permisos.administrarUsuarios) { %>
+              <a href="/usuarios" class="<%= rutaActual.startsWith('/usuarios') ? 'activo' : '' %>">Usuarios</a>
+            <% } %>
+            <% if (contextoUsuarioActual.permisos.verAgentes) { %>
+              <a href="/agentes" class="<%= rutaActual.startsWith('/agentes') ? 'activo' : '' %>">Agentes</a>
+            <% } %>
+            <% if (contextoUsuarioActual.permisos.verDns) { %>
+              <details class="navegacion-desplegable <%= rutaActual.startsWith('/dns') ? 'activo' : '' %>" data-menu-desplegable>
+                <summary>DNS</summary>
+                <div class="navegacion-desplegable__menu">
+                  <a href="/dns" class="<%= rutaActual.startsWith('/dns') ? 'activo' : '' %>">
+                    <i class="bi bi-globe2" aria-hidden="true"></i>
+                    <span>Zonas</span>
+                  </a>
+                </div>
+              </details>
+            <% } %>
+            <% if (contextoUsuarioActual.permisos.verAuditoria) { %>
+              <a href="/auditoria" class="<%= rutaActual.startsWith('/auditoria') ? 'activo' : '' %>">Auditoría</a>
+            <% } %>
+            <% if (contextoUsuarioActual.permisos.administrarConfiguracion) { %>
+              <a href="/configuracion" class="<%= rutaActual.startsWith('/configuracion') ? 'activo' : '' %>">Configuración</a>
+            <% } %>
+          </nav>
+
+          <% if (permiteImpersonacion) { %>
+            <div class="usuario-barra">
+              <button
+                type="button"
+                class="boton-secundario boton-secundario--iconico"
+                data-impersonacion-abrir
+                aria-haspopup="dialog"
+                aria-controls="modal-impersonacion"
+              >
+                <span class="boton-secundario__icono"><%= impersonacionActiva ? 'I' : 'M' %></span>
+                <span><%= impersonacionActiva ? 'Gestionar' : 'Impersonar' %></span>
+              </button>
+            </div>
+          <% } %>
+        </div>
+      <% } %>
+
+    </header>
+
+    <% if (usuarioActual && permiteImpersonacion) { %>
+      <section
+        id="modal-impersonacion"
+        class="modal-portal"
+        hidden
+        data-impersonacion-modal
+        data-url-listado="/impersonacion/api/usuarios"
+        data-url-iniciar="/impersonacion/api/iniciar"
+        data-url-revertir="/impersonacion/api/revertir"
+        data-url-tenants="/impersonacion/api/opciones/tenants"
+        data-url-empresas="/impersonacion/api/opciones/empresas"
+        data-url-sitios="/impersonacion/api/opciones/sitios"
+        data-impersonacion-activa="<%= impersonacionActiva ? '1' : '0' %>"
+        data-impersonacion-catalogo="<%= permiteCatalogoImpersonacion ? '1' : '0' %>"
+      >
+        <div class="modal-portal__cortina" data-impersonacion-cerrar></div>
+        <div
+          class="modal-portal__dialogo"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="impersonacion-titulo"
+        >
+          <div class="modal-portal__cabecera">
+            <div>
+              <span class="insignia-suave <%= impersonacionActiva ? 'insignia-suave--alerta' : '' %>">
+                <%= impersonacionActiva ? 'Impersonando' : 'Herramienta interna' %>
+              </span>
+              <h2 id="impersonacion-titulo">Impersonación de usuario</h2>
+              <p class="modal-portal__subtitulo">
+                Catálogo visible según el alcance de la identidad real.
+              </p>
+              <p class="modal-portal__subnota">
+                Uso interno de desarrollo y verificación avanzada.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="modal-portal__cerrar"
+              aria-label="Cerrar"
+              data-impersonacion-cerrar
+            >x</button>
+          </div>
+
+          <div class="tarjetas-impersonacion">
+            <article class="tarjeta-impersonacion">
+              <span class="tarjeta-impersonacion__etiqueta">Identidad real</span>
+              <strong><%= nombreRealImpersonacion %></strong>
+              <small><%= descripcionRealImpersonacion || 'Sesión base' %></small>
+            </article>
+            <article class="tarjeta-impersonacion">
+              <span class="tarjeta-impersonacion__etiqueta">Identidad efectiva</span>
+              <strong><%= nombreEfectivoImpersonacion %></strong>
+              <small><%= impersonacionActiva ? 'Contexto operativo actual' : 'Sin cambio activo' %></small>
+            </article>
+          </div>
+
+          <% if (permiteCatalogoImpersonacion) { %>
+            <form class="formulario-impersonacion" data-impersonacion-formulario>
+              <div class="rejilla-campos rejilla-campos--impersonacion">
+                <div class="campo">
+                  <label for="impersonacion_q">Usuario o nombre</label>
+                  <input
+                    id="impersonacion_q"
+                    name="q"
+                    type="search"
+                    placeholder="Buscar login o nombre visible"
+                    autocomplete="off"
+                  >
+                </div>
+                <div class="campo">
+                  <label for="impersonacion_tenant_id">Tenant</label>
+                  <select id="impersonacion_tenant_id" name="tenant_id" data-impersonacion-tenant>
+                    <option value="">Todos</option>
+                  </select>
+                </div>
+                <div class="campo">
+                  <label for="impersonacion_empresa_id">Empresa</label>
+                  <select id="impersonacion_empresa_id" name="empresa_id" data-impersonacion-empresa>
+                    <option value="">Todas</option>
+                  </select>
+                </div>
+                <div class="campo">
+                  <label for="impersonacion_sitio_id">Sitio</label>
+                  <select id="impersonacion_sitio_id" name="sitio_id" data-impersonacion-sitio>
+                    <option value="">Todos</option>
+                  </select>
+                </div>
+                <div class="campo">
+                  <label for="impersonacion_activo">Estado</label>
+                  <select id="impersonacion_activo" name="activo">
+                    <option value="todos">Todos</option>
+                    <option value="solo_activos">Solo activos</option>
+                    <option value="solo_inactivos">Solo inactivos</option>
+                  </select>
+                </div>
+                <div class="campo">
+                  <label for="impersonacion_page_size">Filas</label>
+                  <select id="impersonacion_page_size" name="page_size">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="acciones-formulario acciones-formulario--impersonacion">
+                <button type="submit" class="boton-primario">Buscar</button>
+                <button
+                  type="button"
+                  class="boton-secundario"
+                  data-impersonacion-limpiar
+                >
+                  Limpiar
+                </button>
+              </div>
+            </form>
+
+            <div class="resumen-impersonacion" data-impersonacion-resumen>
+              <strong>Catálogo preparado</strong>
+              <span>La selección usa alcance real y puede incluir cuentas inactivas.</span>
+            </div>
+
+            <div
+              class="listado-impersonacion"
+              data-impersonacion-listado
+              aria-live="polite"
+            ></div>
+
+            <div class="paginacion-impersonacion" data-impersonacion-paginacion></div>
+          <% } else { %>
+            <div class="estado-vacio">
+              La identidad real ya no conserva el permiso interno de impersonación.
+              Puedes revisar la sesión actual y volver a tu identidad real.
+            </div>
+          <% } %>
+
+          <div class="pie-impersonacion">
+            <% if (impersonacionActiva) { %>
+              <button
+                type="button"
+                class="boton-secundario"
+                data-impersonacion-revertir
+              >
+                Volver a mi sesión real
+              </button>
+            <% } %>
+            <button
+              type="button"
+              class="boton-secundario"
+              data-impersonacion-cerrar
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </section>
+    <% } %>
+    <%- include('escena-portal') %>
+    <main class="<%= typeof sinContenedorPrincipal !== 'undefined' && sinContenedorPrincipal ? 'pagina-sin-contenedor-principal' : 'contenedor-principal' %>">

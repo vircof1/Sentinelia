@@ -1,0 +1,1979 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const esEdicionMonitor = modo === 'editar';
+  const borradorFederadoSeguro = typeof borradorFederado === 'undefined'
+    ? null
+    : borradorFederado;
+  const tipoMonitorFormulario = String(
+    monitorObjetivo?.tipo || tipoVistaFijo || formulario.tipo || 'ping'
+  ).trim().toLowerCase();
+  const iconoTipoMonitor = contextoTipo.icono || 'hdd-network';
+  const nivelPertenenciaEfectivo =
+    restriccionesScope.nivelPertenenciaFijo || formulario.nivelPertenencia;
+  const opcionesAgentesTelemetriaSeguras =
+    typeof opcionesAgentesTelemetria === 'undefined'
+      ? []
+      : opcionesAgentesTelemetria;
+  const fuentesTelemetriaSeguras =
+    typeof fuentesTelemetriaIniciales === 'undefined'
+      ? { agente: null, senales: [], reglas: [] }
+      : fuentesTelemetriaIniciales;
+  const etiquetaPertenenciaMonitor =
+    nivelPertenenciaEfectivo === 'sitio' ? 'Monitor de sitio' : 'Monitor de empresa';
+  const buscarEtiquetaOpcionScope = (opciones, valor, fallback) => {
+    const valorNormalizado = String(valor || '').trim();
+    if (!valorNormalizado) return '';
+    const opcion = (opciones || []).find((item) => String(item.valor) === valorNormalizado);
+    return opcion?.etiqueta || fallback;
+  };
+  const etiquetaTenantScope = buscarEtiquetaOpcionScope(
+    opcionesTenants,
+    formulario.tenantId,
+    `Tenant #${formulario.tenantId}`
+  );
+  const etiquetaEmpresaScope = buscarEtiquetaOpcionScope(
+    opcionesEmpresas,
+    formulario.empresaId,
+    `Empresa #${formulario.empresaId}`
+  );
+  const etiquetaSitioScope = buscarEtiquetaOpcionScope(
+    opcionesSitios,
+    formulario.sitioId,
+    `Sitio #${formulario.sitioId}`
+  );
+  const permisosOrganizacion = contextoUsuarioActual?.permisos || {};
+  const ubicacionMonitorFormulario = [
+    {
+      etiqueta: 'Tenant',
+      nombre: monitorObjetivo?.tenantNombre || etiquetaTenantScope,
+      id: formulario.tenantId,
+      icono: 'bi-diagram-3',
+      puedeNavegar: Boolean(
+        esEdicionMonitor && formulario.tenantId &&
+        (permisosOrganizacion.administrarTenants || permisosOrganizacion.administrarOrganizacion)
+      ),
+      ruta: formulario.tenantId
+        ? '/organizacion/tenants/' + formulario.tenantId + '/editar'
+        : null
+    },
+    {
+      etiqueta: 'Empresa',
+      nombre: monitorObjetivo?.empresaNombre || etiquetaEmpresaScope,
+      id: formulario.empresaId,
+      icono: 'bi-buildings',
+      puedeNavegar: Boolean(
+        esEdicionMonitor && formulario.empresaId &&
+        (permisosOrganizacion.administrarEmpresas || permisosOrganizacion.administrarOrganizacion)
+      ),
+      ruta: formulario.empresaId
+        ? '/organizacion/empresas/' + formulario.empresaId + '/editar'
+        : null
+    },
+    {
+      etiqueta: 'Sitio',
+      nombre: monitorObjetivo?.sitioNombre || etiquetaSitioScope,
+      id: formulario.sitioId,
+      icono: 'bi-geo-alt',
+      puedeNavegar: Boolean(
+        esEdicionMonitor && formulario.sitioId &&
+        (permisosOrganizacion.administrarSitios || permisosOrganizacion.administrarOrganizacion)
+      ),
+      ruta: formulario.sitioId
+        ? '/organizacion/sitios/' + formulario.sitioId + '/editar'
+        : null
+    }
+  ].filter((elemento) => elemento.nombre && elemento.id);
+  const destinoHero = String(formulario.host || '').trim();
+  const fuenteTelemetriaHero = (() => {
+    if (tipoMonitorFormulario !== 'telemetria') return null;
+
+    const usaRegla = formulario.tipoFuente === 'regla_derivacion';
+    const identificador = usaRegla ? formulario.reglaId : formulario.senalId;
+    const fuentes = usaRegla
+      ? fuentesTelemetriaSeguras.reglas || []
+      : fuentesTelemetriaSeguras.senales || [];
+    const fuente = fuentes.find((item) => String(item?.id) === String(identificador)) || null;
+    const senal = usaRegla ? fuente?.senal || null : fuente;
+    const agente = opcionesAgentesTelemetriaSeguras.find(
+      (item) => String(item?.valor) === String(senal?.agenteId || fuente?.agenteId || formulario.agenteId)
+    ) || null;
+    const observacion = senal?.ultimaObservacion || null;
+
+    return {
+      tipoFuente: usaRegla ? 'regla_derivacion' : 'senal_directa',
+      nombre: fuente?.nombre || senal?.nombreHumano || senal?.codigoSenal || 'Señal pendiente',
+      detalle: senal
+        ? `${senal.tipoDato || 'Dato'}${senal.unidad ? ` · ${senal.unidad}` : ''} · salida operativa estable.`
+        : 'Selecciona una señal o una regla de interpretación existente.',
+      agente: agente?.etiqueta || 'Agente pendiente',
+      agenteId: agente?.valor || senal?.agenteId || fuente?.agenteId || null,
+      senal: senal?.nombreHumano || senal?.codigoSenal || 'Señal pendiente',
+      regla: usaRegla ? fuente?.nombre || 'Regla pendiente' : null,
+      ultimaLectura: observacion?.valor ?? null,
+      unidad: senal?.unidad || '',
+      recibidaEnUtc: observacion?.recibidoEnUtc || null
+    };
+  })();
+  const entradasLogicasHero = (() => {
+    if (tipoMonitorFormulario !== 'booleano') return [];
+
+    try {
+      const dependencias = JSON.parse(String(formulario.dependenciasLogicas || '[]'));
+      if (!Array.isArray(dependencias)) return [];
+      return dependencias
+        .map((dependencia, indice) => ({
+          variable: String(dependencia?.variable || String.fromCharCode(65 + indice))
+            .trim().toUpperCase(),
+          etiqueta: String(
+            dependencia?.etiqueta || dependencia?.nombre || dependencia?.monitor?.nombre || ''
+          ).trim(),
+          monitorId: dependencia?.monitorId || dependencia?.monitor_id || dependencia?.id || null
+        }))
+        .filter((entrada) => /^[A-Z]$/.test(entrada.variable));
+    } catch (_error) {
+      const monitorId = String(formulario.dependenciaMonitorIdLogica || '').trim();
+      return monitorId
+        ? [{ variable: 'A', etiqueta: `Monitor #${monitorId}`, monitorId }]
+        : [];
+    }
+  })();
+  const totalEntradasLogicasHero = entradasLogicasHero.length;
+  const etiquetaEntradasLogicasHero = totalEntradasLogicasHero === 1
+    ? '1 monitor de entrada'
+    : `${totalEntradasLogicasHero} monitores de entrada`;
+  const resumenEntradasLogicasHero = totalEntradasLogicasHero === 0
+    ? 'Sin entradas'
+    : totalEntradasLogicasHero === 1
+      ? '1 entrada'
+      : `${totalEntradasLogicasHero} entradas`;
+  const detalleEntradasLogicasHero = entradasLogicasHero
+    .map((entrada) => `${entrada.variable}: ${entrada.etiqueta || `Monitor #${entrada.monitorId || '?'}`}`)
+    .join(' · ');
+  const reglaLogicaHero = String(formulario.expresionLogica || '').trim();
+  const descripcionHero = (() => {
+    if (!esEdicionMonitor) return contextoTipo.ayudaFormulario;
+    if (tipoMonitorFormulario === 'booleano') {
+      if (totalEntradasLogicasHero === 0) {
+        return 'Combina señales de otros monitores para producir una disponibilidad operativa.';
+      }
+      return `Combina ${etiquetaEntradasLogicasHero} según la regla ${reglaLogicaHero || 'pendiente'}.`;
+    }
+    if (tipoMonitorFormulario === 'telemetria') {
+      return String(monitorObjetivo?.descripcion || '').trim() || contextoTipo.ayudaFormulario;
+    }
+    if (!destinoHero) return contextoTipo.ayudaFormulario;
+    if (tipoMonitorFormulario === 'ping') {
+      return 'Supervisa la disponibilidad ICMP de ' + destinoHero + '.';
+    }
+    if (tipoMonitorFormulario === 'tcp') {
+      return 'Supervisa la conectividad TCP de ' + destinoHero + '.';
+    }
+    return contextoTipo.ayudaFormulario;
+  })();
+  const retornoFormulario = retornoListado || '/monitores';
+  const rutaGestionActual = esEdicionMonitor
+    ? '/monitores/editar/' + monitorObjetivo.id + '?return_to=' + encodeURIComponent(retornoFormulario)
+    : null;
+  const rutaActividadOperativa = esEdicionMonitor
+    ? '/monitores/' + monitorObjetivo.id + '?return_to=' + encodeURIComponent(rutaGestionActual)
+    : null;
+  const urlAgenteTelemetriaHero = esEdicionMonitor && fuenteTelemetriaHero?.agenteId
+    ? '/agentes/' + encodeURIComponent(fuenteTelemetriaHero.agenteId) + '/editar?return_to=' + encodeURIComponent(rutaGestionActual)
+    : null;
+  const relacionesCruzadasSeguras = typeof relacionesCruzadas === 'undefined'
+    ? { monitoresLogicosDependientes: [], totalAutomatizaciones: 0 }
+    : relacionesCruzadas;
+  const totalMonitoresLogicosDependientes =
+    Array.isArray(relacionesCruzadasSeguras.monitoresLogicosDependientes)
+      ? relacionesCruzadasSeguras.monitoresLogicosDependientes.length
+      : 0;
+  const totalAutomatizacionesRelacionadas = Number(
+    relacionesCruzadasSeguras.totalAutomatizaciones || 0
+  );
+  const urlListadoLogicosRelacionados = esEdicionMonitor
+    ? '/monitores?tipo=booleano&entrada_monitor_id=' + monitorObjetivo.id
+    : null;
+  const urlListadoAutomatizacionesRelacionadas = esEdicionMonitor
+    ? '/automatizacion/enlaces?monitor_id=' + monitorObjetivo.id
+    : null;
+  const puedeVerActividadAuditada = Boolean(
+    esEdicionMonitor && contextoUsuarioActual?.permisos?.verAuditoria
+  );
+  const urlActividadAuditada = puedeVerActividadAuditada
+    ? '/auditoria?' + new URLSearchParams({
+      sujetoTipo: 'monitor',
+      sujetoId: String(monitorObjetivo.id),
+      returnTo: rutaGestionActual
+    }).toString()
+    : null;
+  const urlCrearRelacionLogica = esEdicionMonitor
+    ? '/monitores/nuevo?tipo=booleano&entrada_monitor_id=' + monitorObjetivo.id +
+      '&return_to=' + encodeURIComponent('/monitores/editar/' + monitorObjetivo.id)
+    : null;
+  const urlCrearAutomatizacion = esEdicionMonitor
+    ? '/monitores/triggers/nuevo?return_to=' +
+      encodeURIComponent('/monitores/editar/' + monitorObjetivo.id)
+    : null;
+  const urlCrearVinculoAutomatizacion = esEdicionMonitor
+    ? '/monitores/triggers/vinculos/nuevo?monitor_id=' + monitorObjetivo.id +
+      '&return_to=' + encodeURIComponent('/monitores/editar/' + monitorObjetivo.id)
+    : null;
+  const renderAyudaCampo = (etiqueta, ayuda, id) => `
+    <span class="campo-etiqueta-ayuda">
+      <span>${etiqueta}</span>
+      <button
+        type="button"
+        class="usuario-permiso-item__ayuda"
+        data-bs-toggle="tooltip"
+        data-bs-placement="top"
+        title="${ayuda.replaceAll('"', '&quot;')}"
+        aria-label="Ayuda sobre ${id}"
+      >
+        <i class="bi bi-info-circle" aria-hidden="true"></i>
+      </button>
+    </span>
+  `;
+%>
+
+<section
+  class="panel-general"
+  data-monitor-formulario
+  data-monitor-id="<%= monitorObjetivo?.id || '' %>"
+  data-monitor-tipo-fijo="<%= tipoVistaFijo || '' %>"
+  data-monitor-telemetria-fuentes-url="/monitores/telemetria/api/fuentes"
+  data-monitor-logico-inicial="<%= encodeURIComponent(JSON.stringify({
+    modo,
+    id: monitorObjetivo?.id || null,
+    tipo: tipoMonitorFormulario,
+    expresion: formulario.expresionLogica || '',
+    dependenciaMonitorId: formulario.dependenciaMonitorIdLogica || '',
+    dependencias: formulario.dependenciasLogicas || '',
+    estadoInicial: formulario.estadoInicialLogico || 'disponible',
+    retardoSenalSegundos: formulario.retardoSenalSegundosLogico || '0',
+    layoutVisual: formulario.layoutVisualLogico || ''
+  })) %>"
+>
+  <% if (borradorFederadoSeguro) { %>
+    <div class="alert alert-info" role="status">
+      <strong>Borrador local desde un monitor federado.</strong>
+      Revisa scope, expresión, políticas de pérdida y contexto humano antes de
+      guardar. Todavía no existe ningún monitor local y se creará inactivo.
+      <code class="d-block text-break mt-2"><%= borradorFederadoSeguro.procedenciaFederada.proyeccionId %></code>
+    </div>
+  <% } %>
+  <section class="hero-operativo hero-monitores card border-0 shadow-lg overflow-hidden monitor-formulario-hero">
+    <div class="card-body hero-operativo__cuerpo p-4">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4">
+        <div class="col-12">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia monitor-formulario-hero__insignia">
+              <i class="bi bi-<%= iconoTipoMonitor %>" aria-hidden="true"></i>
+              <span><%= esEdicionMonitor ? 'Gestión de monitor' : 'Configuración' %> · <%= tipoMonitorFormulario === 'booleano' ? 'Monitor lógico' : contextoTipo.etiquetaTipo %></span>
+            </span>
+            <h1><%= esEdicionMonitor ? monitorObjetivo.nombre : contextoTipo.etiquetaNuevaEntidad %></h1>
+            <p><%= descripcionHero %></p>
+            <% if (ubicacionMonitorFormulario.length > 0) { %>
+              <nav class="hero-monitor-detalle__ubicacion monitor-formulario-hero__ubicacion" aria-label="Ubicación organizativa del monitor">
+                <% ubicacionMonitorFormulario.forEach((elemento, indice) => { %>
+                  <% if (indice > 0) { %>
+                    <span class="hero-monitor-detalle__ubicacion-separador" aria-hidden="true">/</span>
+                  <% } %>
+                  <% if (elemento.puedeNavegar) { %>
+                    <a href="<%= elemento.ruta %>" class="hero-monitor-detalle__ubicacion-enlace" aria-label="Gestionar <%= elemento.etiqueta.toLowerCase() %>: <%= elemento.nombre %>">
+                      <i class="bi <%= elemento.icono %>" aria-hidden="true"></i>
+                      <span><%= elemento.nombre %></span>
+                    </a>
+                  <% } else { %>
+                    <span class="hero-monitor-detalle__ubicacion-texto">
+                      <i class="bi <%= elemento.icono %>" aria-hidden="true"></i>
+                      <span><%= elemento.nombre %></span>
+                    </span>
+                  <% } %>
+                <% }) %>
+              </nav>
+            <% } %>
+            <div class="hero-etiquetas hero-monitores__etiquetas">
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-<%= iconoTipoMonitor %>" aria-hidden="true"></i>
+                <span><%= tipoMonitorFormulario.toUpperCase() %></span>
+              </span>
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-pin-map" aria-hidden="true"></i>
+                <span><%= etiquetaPertenenciaMonitor %></span>
+              </span>
+              <% if (puedeVerActividadAuditada) { %>
+                <a
+                  href="<%= urlActividadAuditada %>"
+                  class="insignia d-inline-flex align-items-center gap-2 monitor-formulario-hero__auditoria"
+                  data-bs-toggle="tooltip"
+                  data-bs-title="Consultar los cambios administrativos auditados de este monitor"
+                  aria-label="Ver actividad auditada de este monitor"
+                >
+                  <i class="bi bi-clock-history" aria-hidden="true"></i>
+                  <span>Auditoría</span>
+                </a>
+              <% } %>
+            </div>
+            <div class="hero-monitores__acciones monitor-formulario-hero__acciones">
+              <a
+                href="<%= retornoListado || '/monitores' %>"
+                class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+              >
+                <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
+                <span><%= retornoFormulario.startsWith('/agentes/') ? 'Volver a la regla' : 'Volver al catálogo' %></span>
+              </a>
+              <% if (rutaActividadOperativa) { %>
+                <a
+                  href="<%= rutaActividadOperativa %>"
+                  class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+                >
+                  <i class="bi bi-activity" aria-hidden="true"></i>
+                  <span>Ver actividad operativa</span>
+                </a>
+              <% } %>
+              <% if (esEdicionMonitor) { %>
+                <button
+                  type="button"
+                  class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#monitor-relaciones-cruzadas"
+                  aria-expanded="false"
+                  aria-controls="monitor-relaciones-cruzadas"
+                >
+                  <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                  <span>Relaciones cruzadas</span>
+                </button>
+              <% } %>
+            </div>
+            <% if (esEdicionMonitor) { %>
+              <div id="monitor-relaciones-cruzadas" class="collapse monitor-formulario-hero__relaciones">
+                <div class="monitor-formulario-hero__relaciones-cuerpo">
+                  <% if (tipoMonitorFormulario === 'booleano') { %>
+                    <section class="monitor-formulario-hero__relacion-flujo monitor-formulario-hero__relacion-flujo--entrada">
+                      <span class="monitor-formulario-hero__relaciones-etiqueta">
+                        <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
+                        Entradas de datos
+                      </span>
+                      <a
+                        href="#monitor-logica-operativa"
+                        class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-ver"
+                        data-monitor-logico-ir-entradas
+                        data-bs-toggle="tooltip"
+                        data-bs-title="Ver y configurar los monitores que alimentan este monitor lógico."
+                        aria-label="Gestionar entradas lógicas"
+                      >
+                        <i class="bi bi-arrow-down-right" aria-hidden="true"></i>
+                        <span>Gestionar entradas</span>
+                        <span class="monitor-formulario-hero__relaciones-contador" aria-hidden="true" data-monitor-hero-entradas-contador><%= totalEntradasLogicasHero %></span>
+                      </a>
+                      <button type="button" class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-crear" data-monitor-logico-abrir-selector>
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                        Añadir entrada
+                      </button>
+                      <small data-monitor-hero-entradas-detalle><%= totalEntradasLogicasHero > 0 ? 'Regla: ' + (reglaLogicaHero || 'pendiente') + ' · ' + detalleEntradasLogicasHero : 'Aún no recibe datos. Añade un monitor de entrada para poder definir la regla lógica.' %></small>
+                    </section>
+
+                    <section class="monitor-formulario-hero__relacion-flujo monitor-formulario-hero__relacion-flujo--salida">
+                      <span class="monitor-formulario-hero__relaciones-etiqueta">
+                        <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                        Salidas
+                      </span>
+                      <div class="monitor-formulario-hero__salida-item">
+                        <strong>Monitores lógicos dependientes</strong>
+                        <% if (totalMonitoresLogicosDependientes > 0) { %>
+                          <a href="<%= urlListadoLogicosRelacionados %>" class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-ver" data-bs-toggle="tooltip" data-bs-title="Ver <%= totalMonitoresLogicosDependientes %> <%= totalMonitoresLogicosDependientes === 1 ? 'monitor lógico que usa esta salida' : 'monitores lógicos que usan esta salida' %>." aria-label="Ver <%= totalMonitoresLogicosDependientes %> monitores lógicos dependientes">
+                            <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                            <span>Ver vinculados</span>
+                            <span class="monitor-formulario-hero__relaciones-contador" aria-hidden="true"><%= totalMonitoresLogicosDependientes %></span>
+                          </a>
+                        <% } else { %>
+                          <span class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-ver is-disabled" role="img" tabindex="0" aria-disabled="true" data-bs-toggle="tooltip" data-bs-title="Ningún monitor lógico usa todavía la salida de este monitor." aria-label="No hay monitores lógicos dependientes">
+                            <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                            <span>Ver vinculados</span>
+                            <span class="monitor-formulario-hero__relaciones-contador" aria-hidden="true">0</span>
+                          </span>
+                        <% } %>
+                        <a href="<%= urlCrearRelacionLogica %>" class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-crear"><i class="bi bi-plus-circle" aria-hidden="true"></i>Crear relación lógica</a>
+                      </div>
+                      <div class="monitor-formulario-hero__salida-item">
+                        <strong>Automatizaciones</strong>
+                        <% if (totalAutomatizacionesRelacionadas > 0) { %>
+                          <a href="<%= urlListadoAutomatizacionesRelacionadas %>" class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-ver" data-bs-toggle="tooltip" data-bs-title="Ver <%= totalAutomatizacionesRelacionadas %> <%= totalAutomatizacionesRelacionadas === 1 ? 'automatización vinculada a esta salida' : 'automatizaciones vinculadas a esta salida' %>." aria-label="Ver <%= totalAutomatizacionesRelacionadas %> automatizaciones vinculadas">
+                            <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                            <span>Ver vinculadas</span>
+                            <span class="monitor-formulario-hero__relaciones-contador" aria-hidden="true"><%= totalAutomatizacionesRelacionadas %></span>
+                          </a>
+                        <% } else { %>
+                          <span class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-ver is-disabled" role="img" tabindex="0" aria-disabled="true" data-bs-toggle="tooltip" data-bs-title="No hay automatizaciones vinculadas todavía a esta salida." aria-label="No hay automatizaciones vinculadas">
+                            <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                            <span>Ver vinculadas</span>
+                            <span class="monitor-formulario-hero__relaciones-contador" aria-hidden="true">0</span>
+                          </span>
+                        <% } %>
+                        <span class="d-flex flex-wrap gap-2">
+                          <a href="<%= urlCrearAutomatizacion %>" class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-crear"><i class="bi bi-plus-circle" aria-hidden="true"></i>Crear automatización</a>
+                          <a href="<%= urlCrearVinculoAutomatizacion %>" class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-crear"><i class="bi bi-link-45deg" aria-hidden="true"></i>Crear vínculo de automatización</a>
+                        </span>
+                      </div>
+                    </section>
+                  <% } else { %>
+                  <% if (tipoMonitorFormulario === 'telemetria') { %>
+                    <section class="monitor-formulario-hero__relacion-flujo monitor-formulario-hero__relacion-flujo--entrada monitor-formulario-hero__relacion-flujo--telemetria">
+                      <span class="monitor-formulario-hero__relaciones-etiqueta"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>Entrada de datos</span>
+                      <div class="monitor-formulario-hero__flujo-telemetria" aria-label="Flujo de datos de telemetría">
+                        <% if (urlAgenteTelemetriaHero) { %>
+                          <a
+                            href="<%= urlAgenteTelemetriaHero %>"
+                            class="monitor-formulario-hero__nodo-flujo monitor-formulario-hero__nodo-flujo--enlace"
+                            data-bs-toggle="tooltip"
+                            data-bs-title="Gestionar el agente que emite la telemetría. Volverás a este monitor al terminar."
+                          >
+                            <i class="bi bi-cpu" aria-hidden="true"></i>
+                            <span><%= fuenteTelemetriaHero?.agente || 'Agente pendiente' %></span>
+                            <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                          </a>
+                        <% } else { %>
+                          <span class="monitor-formulario-hero__nodo-flujo" data-bs-toggle="tooltip" data-bs-title="Agente que emite la telemetría utilizada por este monitor."><i class="bi bi-cpu" aria-hidden="true"></i><span><%= fuenteTelemetriaHero?.agente || 'Agente pendiente' %></span></span>
+                        <% } %>
+                        <i class="bi bi-arrow-right monitor-formulario-hero__flecha-flujo" aria-hidden="true"></i>
+                        <span class="monitor-formulario-hero__nodo-flujo" data-bs-toggle="tooltip" data-bs-title="Señal original que llega desde el agente."><i class="bi bi-broadcast-pin" aria-hidden="true"></i><span><%= fuenteTelemetriaHero?.senal || 'Señal pendiente' %></span></span>
+                        <% if (fuenteTelemetriaHero?.regla) { %>
+                          <i class="bi bi-arrow-right monitor-formulario-hero__flecha-flujo" aria-hidden="true"></i>
+                          <span class="monitor-formulario-hero__nodo-flujo" data-bs-toggle="tooltip" data-bs-title="Regla que interpreta la señal antes de entregar su resultado al monitor."><i class="bi bi-sliders2" aria-hidden="true"></i><span><%= fuenteTelemetriaHero.regla %></span></span>
+                        <% } %>
+                        <i class="bi bi-arrow-right monitor-formulario-hero__flecha-flujo" aria-hidden="true"></i>
+                        <span class="monitor-formulario-hero__nodo-flujo monitor-formulario-hero__nodo-flujo--destino"><i class="bi bi-activity" aria-hidden="true"></i><span>Este monitor</span></span>
+                      </div>
+                      <small><% if (fuenteTelemetriaHero?.recibidaEnUtc) { %>Última lectura: <%= fuenteTelemetriaHero.ultimaLectura %><%= fuenteTelemetriaHero.unidad ? ` ${fuenteTelemetriaHero.unidad}` : '' %> · recibida <time data-fecha-utc="<%= fuenteTelemetriaHero.recibidaEnUtc %>"><%= fuenteTelemetriaHero.recibidaEnUtc %></time>.<% } else { %>Aún no existe una lectura vigente; el monitor se mantendrá como desconocido hasta recibirla.<% } %></small>
+                    </section>
+                  <% } %>
+                  <div>
+                    <span class="monitor-formulario-hero__relaciones-etiqueta">
+                      <i class="bi bi-<%= tipoMonitorFormulario === 'telemetria' ? 'box-arrow-up-right' : 'bezier2' %>" aria-hidden="true"></i>
+                      <%= tipoMonitorFormulario === 'telemetria' ? 'Salidas · monitores lógicos' : 'Monitores lógicos' %>
+                    </span>
+                    <% if (totalMonitoresLogicosDependientes > 0) { %>
+                      <a
+                        href="<%= urlListadoLogicosRelacionados %>"
+                        class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-ver"
+                        data-bs-toggle="tooltip"
+                        data-bs-title="Ver <%= totalMonitoresLogicosDependientes %> <%= totalMonitoresLogicosDependientes === 1 ? 'monitor lógico que utiliza este monitor como entrada' : 'monitores lógicos que utilizan este monitor como entrada' %>"
+                        aria-label="Ver <%= totalMonitoresLogicosDependientes %> <%= totalMonitoresLogicosDependientes === 1 ? 'monitor lógico vinculado' : 'monitores lógicos vinculados' %>"
+                      >
+                        <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                        <span>Ver vinculados</span>
+                        <span class="monitor-formulario-hero__relaciones-contador" aria-hidden="true"><%= totalMonitoresLogicosDependientes %></span>
+                      </a>
+                    <% } else { %>
+                      <span
+                        class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-ver is-disabled"
+                        role="img"
+                        tabindex="0"
+                        aria-disabled="true"
+                        data-bs-toggle="tooltip"
+                        data-bs-title="Ningún monitor lógico utiliza todavía este monitor como entrada."
+                        aria-label="No hay monitores lógicos vinculados"
+                      >
+                        <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                        <span>Ver vinculados</span>
+                        <span class="monitor-formulario-hero__relaciones-contador" aria-hidden="true">0</span>
+                      </span>
+                      <small>Puede actuar como entrada de composición cuando un monitor lógico lo requiera.</small>
+                    <% } %>
+                    <a
+                      href="<%= urlCrearRelacionLogica %>"
+                      class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-crear"
+                    >
+                      <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                      Crear relación lógica
+                    </a>
+                  </div>
+                  <div>
+                    <span class="monitor-formulario-hero__relaciones-etiqueta">
+                      <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+                      Automatizaciones
+                    </span>
+                    <% if (totalAutomatizacionesRelacionadas > 0) { %>
+                      <a
+                        href="<%= urlListadoAutomatizacionesRelacionadas %>"
+                        class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-ver"
+                        data-bs-toggle="tooltip"
+                        data-bs-title="Ver <%= totalAutomatizacionesRelacionadas %> <%= totalAutomatizacionesRelacionadas === 1 ? 'automatización vinculada a este monitor' : 'automatizaciones vinculadas a este monitor' %>"
+                        aria-label="Ver <%= totalAutomatizacionesRelacionadas %> <%= totalAutomatizacionesRelacionadas === 1 ? 'automatización vinculada' : 'automatizaciones vinculadas' %>"
+                      >
+                        <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                        <span>Ver vinculadas</span>
+                        <span class="monitor-formulario-hero__relaciones-contador" aria-hidden="true"><%= totalAutomatizacionesRelacionadas %></span>
+                      </a>
+                    <% } else { %>
+                      <span
+                        class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-ver is-disabled"
+                        role="img"
+                        tabindex="0"
+                        aria-disabled="true"
+                        data-bs-toggle="tooltip"
+                        data-bs-title="No hay automatizaciones vinculadas todavía a este monitor."
+                        aria-label="No hay automatizaciones vinculadas"
+                      >
+                        <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                        <span>Ver vinculadas</span>
+                        <span class="monitor-formulario-hero__relaciones-contador" aria-hidden="true">0</span>
+                      </span>
+                      <small>Podrá tener acciones explícitas según las condiciones que se configuren.</small>
+                    <% } %>
+                    <a
+                      href="<%= urlCrearAutomatizacion %>"
+                      class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-crear"
+                    >
+                      <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                      Crear automatización
+                    </a>
+                    <a
+                      href="<%= urlCrearVinculoAutomatizacion %>"
+                      class="btn btn-outline-light btn-sm monitor-formulario-hero__relaciones-crear"
+                    >
+                      <i class="bi bi-link-45deg" aria-hidden="true"></i>
+                      Crear vínculo de automatización
+                    </a>
+                  </div>
+                  <% } %>
+                </div>
+              </div>
+            <% } %>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="rejilla-resumen hero-monitores__kpis monitor-formulario__resumen <%= tipoMonitorFormulario === 'telemetria' ? 'monitor-formulario__resumen--telemetria' : '' %>">
+            <article class="kpi-resumen <%= formulario.activo ? 'kpi-resumen--ok' : 'kpi-resumen--neutro' %> hero-monitores__kpi monitor-formulario__resumen-card">
+              <span class="hero-monitores__kpi-cabecera monitor-formulario__resumen-cabecera">
+                <i class="bi bi-toggle-<%= formulario.activo ? 'on' : 'off' %>" aria-hidden="true"></i>
+                <span class="etiqueta">Estado de configuración</span>
+              </span>
+              <strong><%= formulario.activo ? 'Activo' : 'Inactivo' %></strong>
+              <small><%= formulario.activo ? 'El motor de supervisión podrá planificarlo al publicar el catálogo.' : 'Queda guardado sin ejecución operativa.' %></small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--neutro hero-monitores__kpi monitor-formulario__resumen-card">
+              <span class="hero-monitores__kpi-cabecera monitor-formulario__resumen-cabecera">
+                <i class="bi bi-stopwatch" aria-hidden="true"></i>
+                <span class="etiqueta">Cadencia</span>
+              </span>
+              <strong data-monitor-resumen-cadencia data-duracion-segundos="<%= formulario.intervaloEjecucionSegundos %>" data-duracion-aproximada="true"><%= formulario.intervaloEjecucionSegundos %> s</strong>
+              <small data-monitor-resumen-cadencia-detalle>El motor de supervisión repetirá la comprobación con esta periodicidad.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi monitor-formulario__resumen-card">
+              <span class="hero-monitores__kpi-cabecera monitor-formulario__resumen-cabecera">
+                <i class="bi bi-<%= tipoMonitorFormulario === 'booleano' ? 'diagram-2' : tipoMonitorFormulario === 'telemetria' ? 'broadcast-pin' : 'terminal' %>" aria-hidden="true"></i>
+                <span class="etiqueta"><%= tipoMonitorFormulario === 'booleano' ? 'Entradas lógicas' : tipoMonitorFormulario === 'tcp' ? 'Destino TCP' : tipoMonitorFormulario === 'telemetria' ? 'Señal observada' : 'Objetivo' %></span>
+              </span>
+              <strong data-monitor-resumen-objetivo><%= tipoMonitorFormulario === 'booleano' ? resumenEntradasLogicasHero : tipoMonitorFormulario === 'telemetria' ? fuenteTelemetriaHero?.nombre : (formulario.host || 'Pendiente') %></strong>
+              <small data-monitor-resumen-objetivo-detalle><%= tipoMonitorFormulario === 'booleano' ? (totalEntradasLogicasHero > 0 ? 'Regla: ' + (reglaLogicaHero || 'pendiente') + ' · ' + detalleEntradasLogicasHero : 'Añade monitores de entrada para definir la regla lógica.') : tipoMonitorFormulario === 'telemetria' ? fuenteTelemetriaHero?.detalle : contextoTipo.ayudaDestino %></small>
+            </article>
+            <article class="kpi-resumen <%= tipoMonitorFormulario === 'telemetria' ? 'kpi-resumen--ok' : 'kpi-resumen--advertencia' %> hero-monitores__kpi monitor-formulario__resumen-card">
+              <span class="hero-monitores__kpi-cabecera monitor-formulario__resumen-cabecera">
+                <i class="bi bi-<%= tipoMonitorFormulario === 'telemetria' ? 'cpu' : 'pin-map' %>" aria-hidden="true"></i>
+                <span class="etiqueta"><%= tipoMonitorFormulario === 'telemetria' ? 'Agente emisor' : 'Pertenencia' %></span>
+              </span>
+              <strong data-monitor-resumen-scope><%= tipoMonitorFormulario === 'telemetria' ? fuenteTelemetriaHero?.agente : (formulario.nivelPertenencia === 'sitio' ? 'Sitio' : 'Empresa') %></strong>
+              <small data-monitor-resumen-scope-detalle data-monitor-resumen-agente-detalle><% if (tipoMonitorFormulario === 'telemetria') { %>Última lectura: <%= fuenteTelemetriaHero?.ultimaLectura ?? 'sin dato' %><%= fuenteTelemetriaHero?.unidad ? ` ${fuenteTelemetriaHero.unidad}` : '' %><% if (fuenteTelemetriaHero?.recibidaEnUtc) { %> · recibida <time data-fecha-utc="<%= fuenteTelemetriaHero.recibidaEnUtc %>"><%= fuenteTelemetriaHero.recibidaEnUtc %></time><% } %><% } else { %><%= nivelPertenenciaEfectivo === 'sitio' ? 'Sitio · ' + (monitorObjetivo?.sitioNombre || etiquetaSitioScope) : 'Empresa · ' + (monitorObjetivo?.empresaNombre || etiquetaEmpresaScope) %><% } %></small>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h2>Configuración del monitor</h2>
+        <p class="texto-apoyo"><%= alcanceActual.descripcion %></p>
+      </div>
+    </div>
+
+    <% if (errorFormulario) { %>
+      <div class="mensaje-error"><%= errorFormulario %></div>
+    <% } %>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 pb-0">
+        <h3 class="mb-0 d-inline-flex align-items-center gap-2">
+          <i class="bi bi-sliders" aria-hidden="true"></i>
+          <%= esEdicionMonitor ? 'Editar definición' : 'Alta de monitor' %>
+        </h3>
+      </div>
+
+      <div class="card-body pt-3">
+      <form
+        method="post"
+        action="<%= modo === 'editar' ? `/monitores/${monitorObjetivo.id}/actualizar` : '/monitores/crear' %>"
+        class="formulario-organizacion <%= tipoMonitorFormulario === 'telemetria' ? 'monitor-formulario--telemetria' : '' %>"
+        data-monitor-formulario-submit
+      >
+        <input type="hidden" name="return_to" value="<%= retornoListado || '/monitores' %>">
+        <div class="d-grid gap-4 monitor-formulario__flujo">
+          <section class="card border-0 shadow-sm overflow-hidden" data-monitor-form-seccion="identidad">
+            <div class="card-header bg-white border-bottom py-3">
+              <div class="d-flex flex-column gap-1">
+                <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                  <i class="bi bi-card-heading" aria-hidden="true"></i>
+                  <span>Identidad</span>
+                </div>
+                <p class="mb-0 text-body-secondary">
+                  Nombre visible, protocolo y estado operativo base del monitor.
+                </p>
+              </div>
+            </div>
+            <div class="card-body p-4">
+              <div class="row g-3">
+                <div class="col-12 col-lg-5">
+                  <label for="monitor_nombre" class="form-label">Nombre</label>
+                  <input
+                    id="monitor_nombre"
+                    name="nombre"
+                    type="text"
+                    class="form-control"
+                    value="<%= formulario.nombre %>"
+                    data-monitor-nombre
+                    required
+                  >
+                </div>
+                <div class="col-12 col-lg-4">
+                  <label for="monitor_tipo" class="form-label">Tipo</label>
+                  <% if (tipoVistaFijo) { %>
+                    <input type="hidden" name="tipo" value="<%= tipoMonitorFormulario %>">
+                    <div class="campo-fijo">
+                      <strong class="d-inline-flex align-items-center gap-2">
+                        <i class="bi bi-<%= iconoTipoMonitor %>" aria-hidden="true"></i>
+                        <span><%= tipoMonitorFormulario === 'booleano' ? 'Monitor lógico' : contextoTipo.etiquetaTipo %></span>
+                      </strong>
+                      <!-- El tipo queda fijado por la vista desde la que has entrado. -->
+                    </div>
+                  <% } else { %>
+                    <select id="monitor_tipo" name="tipo" class="form-select" data-monitor-tipo required>
+                      <% for (const opcion of opcionesTipo) { %>
+                        <option value="<%= opcion.valor %>" <%= formulario.tipo === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                      <% } %>
+                    </select>
+                  <% } %>
+                </div>
+                <div class="col-12 col-lg-3">
+                  <label for="monitor_activo" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Estado',
+                      'Activo permite que el motor de supervisión lo programe al publicar el catálogo. Inactivo conserva la definición, pero no ejecuta comprobaciones.',
+                      'estado del monitor'
+                    ) %>
+                  </label>
+                  <select id="monitor_activo" name="activo" class="form-select" data-monitor-activo>
+                    <option value="1" <%= formulario.activo ? 'selected' : '' %>>Activo</option>
+                    <option value="0" <%= !formulario.activo ? 'selected' : '' %>>Inactivo</option>
+                  </select>
+                  <p class="texto-apoyo mb-0" data-monitor-estado-ayuda>
+                    <%= formulario.activo ? 'El motor de supervisión podrá planificarlo al publicar el catálogo.' : 'Queda guardado sin ejecución operativa.' %>
+                  </p>
+                </div>
+              </div>
+
+              <div class="mt-3">
+                <label for="monitor_descripcion" class="form-label">Descripción</label>
+                <textarea id="monitor_descripcion" name="descripcion" class="form-control" rows="4" placeholder="Explica brevemente qué supervisa este monitor y por qué es importante."><%= formulario.descripcion %></textarea>
+              </div>
+            </div>
+          </section>
+
+          <section class="card border-0 shadow-sm overflow-hidden" data-monitor-form-seccion="contexto">
+            <div class="card-header bg-white border-bottom py-3">
+              <div class="d-flex flex-column gap-1">
+                <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                  <i class="bi bi-life-preserver" aria-hidden="true"></i>
+                  <span>Contexto operativo</span>
+                </div>
+                <p class="mb-0 text-body-secondary">
+                  Cómo interpretar el resultado y qué recordatorio mostrar cuando haya que actuar.
+                </p>
+              </div>
+            </div>
+            <div class="card-body p-4 d-grid gap-3">
+              <div>
+                <label for="monitor_entrada_composicion" class="form-label">
+                  <%- renderAyudaCampo(
+                    tipoMonitorFormulario === 'booleano' ? 'Visibilidad de la alerta' : 'Uso como entrada de un monitor lógico',
+                    tipoMonitorFormulario === 'booleano'
+                      ? 'Elige si este monitor debe mostrar su propia alerta en el panel o si solo debe aportar su estado a otros monitores lógicos. Sus automatizaciones seguirán funcionando en ambos casos.'
+                      : 'Seguirá evaluándose y conservará su histórico. Podrá alimentar monitores lógicos, pero su fallo no abrirá una alerta individual en el panel. Sus automatizaciones directas seguirán funcionando.',
+                    tipoMonitorFormulario === 'booleano' ? 'visibilidad de la alerta' : 'uso como entrada de un monitor lógico'
+                  ) %>
+                </label>
+                <select id="monitor_entrada_composicion" name="entrada_composicion_booleana" class="form-select">
+                  <option value="0" <%= !formulario.entradaComposicionBooleana ? 'selected' : '' %>><%= tipoMonitorFormulario === 'booleano' ? 'Mostrar alerta propia en el panel' : 'Monitor con alerta individual en el panel' %></option>
+                  <option value="1" <%= formulario.entradaComposicionBooleana ? 'selected' : '' %>><%= tipoMonitorFormulario === 'booleano' ? 'Usar solo como entrada de otros monitores' : 'Entrada de un monitor lógico' %></option>
+                </select>
+                <p class="texto-apoyo mb-0"><%= tipoMonitorFormulario === 'booleano' ? 'Si lo usas solo como entrada, su estado seguirá alimentando reglas y automatizaciones, pero su indisponibilidad no aparecerá como alerta propia.' : 'Como entrada, su estado sigue evaluándose y puede activar automatizaciones configuradas. Su indisponibilidad no aparece como alerta individual del panel.' %></p>
+              </div>
+              <div
+                class="row g-3"
+                data-monitor-semantica-estado
+                <%= tipoMonitorFormulario === 'booleano' ? 'hidden' : '' %>
+              >
+                <div class="col-12 col-lg-5">
+                  <label for="monitor_interpretacion_estado" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Lectura del resultado',
+                      'Normal: una respuesta correcta lo deja disponible. Falló porque respondió: una respuesta correcta se interpreta como problema operativo.',
+                      'lectura del resultado'
+                    ) %>
+                  </label>
+                  <select
+                    id="monitor_interpretacion_estado"
+                    name="interpretacion_estado"
+                    class="form-select"
+                    data-monitor-interpretacion-estado
+                    <%= tipoMonitorFormulario === 'booleano' ? 'disabled' : '' %>
+                  >
+                    <option value="normal" <%= formulario.interpretacionEstado !== 'invertida' ? 'selected' : '' %>>Normal</option>
+                    <option value="invertida" <%= formulario.interpretacionEstado === 'invertida' ? 'selected' : '' %>>Falló porque respondió</option>
+                  </select>
+                </div>
+                <div class="col-12 col-lg-7 d-flex align-items-end">
+                  <p class="texto-apoyo mb-0" data-monitor-interpretacion-ayuda>
+                    <%= formulario.interpretacionEstado === 'invertida'
+                      ? 'Si el destino responde, el motor de supervisión abrirá un fallo operativo conservando el resultado técnico real.'
+                      : 'Si la prueba responde correctamente, el monitor quedará disponible.' %>
+                  </p>
+                </div>
+              </div>
+
+              <div class="row g-3">
+                <div class="col-12 col-lg-6">
+                  <label for="monitor_descripcion_fallo" class="form-label">
+                    <%- renderAyudaCampo(
+                      tipoMonitorFormulario === 'booleano' ? 'Guía para atender un fallo' : 'Motivo humano del fallo',
+                      tipoMonitorFormulario === 'booleano'
+                        ? 'Explica a la persona que lo atienda qué significa el fallo y qué conviene revisar. No sustituye la explicación concreta de la regla lógica.'
+                        : 'Nota recordatoria para explicar por qué este monitor es importante cuando aparezca en detalle, comparador o panel.',
+                      'motivo humano del fallo'
+                    ) %>
+                  </label>
+                  <textarea
+                    id="monitor_descripcion_fallo"
+                    name="descripcion_fallo"
+                    class="form-control"
+                    rows="4"
+                    maxlength="512"
+                    data-monitor-descripcion-fallo
+                    placeholder="Ej: El cliente ya quitó CG-NAT y este puerto no debería responder hasta completar la integración."
+                  ><%= formulario.descripcionFallo %></textarea>
+                  <p class="texto-apoyo mb-0"><%= tipoMonitorFormulario === 'booleano' ? 'Explica el contexto y el siguiente paso para una persona.' : 'Máximo 512 caracteres. Es una nota humana, no un mensaje técnico del motor de supervisión.' %></p>
+                </div>
+                <div class="col-12 col-lg-6">
+                  <label for="monitor_posible_solucion" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Posible solución',
+                      'Siguiente acción sugerida para el operador cuando este monitor falle. No ejecuta nada automáticamente.',
+                      'posible solución'
+                    ) %>
+                  </label>
+                  <textarea
+                    id="monitor_posible_solucion"
+                    name="posible_solucion"
+                    class="form-control"
+                    rows="4"
+                    maxlength="512"
+                    data-monitor-posible-solucion
+                    placeholder="Ej: Llamar a desarrollo, completar la integración y cerrar el caso asociado."
+                  ><%= formulario.posibleSolucion %></textarea>
+                  <p class="texto-apoyo mb-0">Máximo 512 caracteres. Se mostrará como ayuda operativa, no como automatización.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card border-0 shadow-sm overflow-hidden" data-monitor-form-seccion="alcance">
+            <div class="card-header bg-white border-bottom py-3">
+              <div class="d-flex flex-column gap-1">
+                <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                  <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                  <span>Alcance</span>
+                </div>
+                <p class="mb-0 text-body-secondary">
+                  El formulario respeta tu sesión actual y solo deja elegir combinaciones válidas.
+                </p>
+              </div>
+            </div>
+            <div class="card-body p-4">
+              <details class="filtros-avanzados monitor-formulario__alcance-avanzado" <%= modo === 'nuevo' ? 'open' : '' %>>
+                <summary>
+                  <span>
+                    <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                    Editar alcance
+                  </span>
+                  <small data-monitor-alcance-resumen>
+                    <%= nivelPertenenciaEfectivo === 'sitio'
+                      ? `Sitio · ${etiquetaTenantScope} / ${etiquetaEmpresaScope} / ${etiquetaSitioScope}`
+                      : `Empresa · ${etiquetaTenantScope} / ${etiquetaEmpresaScope}` %>
+                  </small>
+                </summary>
+                <div class="filtros-avanzados__contenido d-grid gap-4">
+              <div class="row g-3">
+                <div class="col-12 col-lg-4">
+                  <label for="monitor_nivel_pertenencia" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Pertenencia',
+                      'Un monitor de empresa hereda el contexto corporativo. Un monitor de sitio exige además seleccionar un sitio concreto y queda más acotado.',
+                      'pertenencia del monitor'
+                    ) %>
+                  </label>
+                  <% if (restriccionesScope.nivelPertenenciaFijo) { %>
+                    <input type="hidden" name="nivel_pertenencia" value="<%= nivelPertenenciaEfectivo %>">
+                  <% } %>
+                  <select
+                    id="monitor_nivel_pertenencia"
+                    name="nivel_pertenencia"
+                    class="form-select"
+                    data-monitor-pertenencia
+                    <%= restriccionesScope.nivelPertenenciaFijo ? 'disabled' : '' %>
+                  >
+                    <% for (const opcion of opcionesPertenencia) { %>
+                      <option value="<%= opcion.valor %>" <%= nivelPertenenciaEfectivo === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                    <% } %>
+                  </select>
+                </div>
+              </div>
+
+              <div class="row g-3 monitor-formulario__scope">
+                <div class="col-12 col-md-6 col-xl-4">
+                  <label for="monitor_tenant_id" class="form-label">Tenant</label>
+                  <% if (restriccionesScope.tenantBloqueado) { %>
+                    <input
+                      type="hidden"
+                      name="tenant_id"
+                      value="<%= formulario.tenantId %>"
+                      data-scope-etiqueta="<%= etiquetaTenantScope %>"
+                    >
+                  <% } %>
+                  <select id="monitor_tenant_id" name="tenant_id" class="form-select" data-monitor-tenant <%= restriccionesScope.tenantBloqueado ? 'disabled' : '' %> required>
+                    <option value="">Selecciona tenant</option>
+                    <% for (const opcion of opcionesTenants) { %>
+                      <option value="<%= opcion.valor %>" <%= String(formulario.tenantId) === String(opcion.valor) ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                    <% } %>
+                  </select>
+                  <% if (restriccionesScope.tenantBloqueado) { %>
+                    <p class="monitor-formulario__scope-fijado">
+                      <i class="bi bi-lock" aria-hidden="true"></i>
+                      <span>Tenant fijado por tu sesión.</span>
+                    </p>
+                  <% } %>
+                </div>
+
+                <div class="col-12 col-md-6 col-xl-4">
+                  <label for="monitor_empresa_id" class="form-label">Empresa</label>
+                  <% if (restriccionesScope.empresaBloqueada) { %>
+                    <input
+                      type="hidden"
+                      name="empresa_id"
+                      value="<%= formulario.empresaId %>"
+                      data-scope-etiqueta="<%= etiquetaEmpresaScope %>"
+                    >
+                  <% } %>
+                  <div
+                    class="scope-select-ayuda"
+                    data-monitor-scope-tooltip="empresa"
+                    tabindex="-1"
+                    aria-label="Ayuda para seleccionar empresa"
+                  >
+                    <select id="monitor_empresa_id" name="empresa_id" class="form-select" data-monitor-empresa <%= restriccionesScope.empresaBloqueada ? 'disabled' : '' %> required>
+                      <option value="">Selecciona empresa</option>
+                      <% for (const opcion of opcionesEmpresas) { %>
+                        <option
+                          value="<%= opcion.valor %>"
+                          data-tenant-id="<%= opcion.tenantId %>"
+                          <%= String(formulario.empresaId) === String(opcion.valor) ? 'selected' : '' %>
+                        ><%= opcion.etiqueta %></option>
+                      <% } %>
+                    </select>
+                  </div>
+                  <% if (restriccionesScope.empresaBloqueada) { %>
+                    <p class="monitor-formulario__scope-fijado">
+                      <i class="bi bi-lock" aria-hidden="true"></i>
+                      <span>Empresa fijada por tu sesión.</span>
+                    </p>
+                  <% } %>
+                  <p class="scope-select-ayuda__texto" data-monitor-scope-ayuda="empresa" hidden>
+                    Selecciona antes un tenant para habilitar la empresa.
+                  </p>
+                </div>
+
+                <div class="col-12 col-md-6 col-xl-4">
+                  <label for="monitor_sitio_id" class="form-label">Sitio</label>
+                  <% if (restriccionesScope.sitioBloqueadoPorScope) { %>
+                    <input
+                      type="hidden"
+                      name="sitio_id"
+                      value="<%= formulario.sitioId %>"
+                      data-scope-etiqueta="<%= etiquetaSitioScope %>"
+                    >
+                  <% } %>
+                  <div
+                    class="scope-select-ayuda"
+                    data-monitor-scope-tooltip="sitio"
+                    tabindex="-1"
+                    aria-label="Ayuda para seleccionar sitio"
+                  >
+                    <select
+                      id="monitor_sitio_id"
+                      name="sitio_id"
+                      class="form-select"
+                      data-monitor-sitio
+                      <%= restriccionesScope.sitioBloqueadoPorScope ? 'disabled' : '' %>
+                    >
+                      <option value="">Monitor de empresa</option>
+                      <% for (const opcion of opcionesSitios) { %>
+                        <option
+                          value="<%= opcion.valor %>"
+                          data-tenant-id="<%= opcion.tenantId %>"
+                          data-empresa-id="<%= opcion.empresaId %>"
+                          <%= String(formulario.sitioId) === String(opcion.valor) ? 'selected' : '' %>
+                        ><%= opcion.etiqueta %></option>
+                      <% } %>
+                    </select>
+                  </div>
+                  <% if (restriccionesScope.sitioBloqueadoPorScope) { %>
+                    <p class="monitor-formulario__scope-fijado">
+                      <i class="bi bi-lock" aria-hidden="true"></i>
+                      <span>Sitio fijado por tu sesión.</span>
+                    </p>
+                  <% } %>
+                  <p class="scope-select-ayuda__texto" data-monitor-scope-ayuda="sitio" hidden>
+                    Selecciona antes una empresa y elige "Monitor de sitio" para habilitar este selector.
+                  </p>
+                </div>
+              </div>
+
+              <div class="mensaje-exito mensaje-exito--suave monitor-formulario__scope-resumen" data-monitor-scope-resumen>
+                El alcance efectivo se completará con tenant, empresa y sitio según tu selección.
+              </div>
+                </div>
+              </details>
+            </div>
+          </section>
+
+          <section class="card border-0 shadow-sm overflow-hidden" data-monitor-form-seccion="programacion">
+            <div class="card-header bg-white border-bottom py-3">
+              <div class="d-flex flex-column gap-1">
+                <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                  <i class="bi bi-stopwatch" aria-hidden="true"></i>
+                  <span>Ritmo y estabilidad</span>
+                </div>
+                <p class="mb-0 text-body-secondary">
+                  Decide cada cuánto se revisa la señal y cuántas lecturas hacen falta para cambiar el estado.
+                </p>
+              </div>
+            </div>
+            <div class="card-body p-4">
+              <div class="row g-3">
+                <div class="col-12 col-md-6">
+                  <label for="monitor_intervalo_ejecucion_segundos" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Intervalo (segundos)',
+                      'Cada cuánto se ejecutará. Un intervalo muy bajo ofrece datos más frescos, pero aumenta la carga del motor de supervisión y el volumen de eventos.',
+                      'intervalo del monitor'
+                    ) %>
+                  </label>
+                  <input
+                    id="monitor_intervalo_ejecucion_segundos"
+                    name="intervalo_ejecucion_segundos"
+                    type="number"
+                    class="form-control"
+                    min="15"
+                    max="86400"
+                    step="1"
+                    value="<%= formulario.intervaloEjecucionSegundos %>"
+                    data-monitor-intervalo
+                    required
+                  >
+                  <p class="monitor-formulario__tiempo-ayuda" data-monitor-tiempo-ayuda="intervalo"></p>
+                </div>
+                <div class="col-12 col-md-6">
+                  <label for="monitor_desfase_inicial_segundos" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Desfase inicial (segundos)',
+                      'Retraso solo para el arranque inicial. Ayuda a evitar que muchos monitores nuevos disparen a la vez.',
+                      'desfase inicial'
+                    ) %>
+                  </label>
+                  <input
+                    id="monitor_desfase_inicial_segundos"
+                    name="desfase_inicial_segundos"
+                    type="number"
+                    class="form-control"
+                    min="0"
+                    max="3600"
+                    step="1"
+                    value="<%= formulario.desfaseInicialSegundos %>"
+                    data-monitor-desfase
+                    required
+                  >
+                  <p class="monitor-formulario__tiempo-ayuda" data-monitor-tiempo-ayuda="desfase"></p>
+                </div>
+              </div>
+              <div class="row g-3 mt-1">
+                <div class="col-12 col-md-6">
+                  <label for="monitor_inferencias_indisponible" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Fallos consecutivos para marcar como indisponible',
+                      'Número de comprobaciones fallidas seguidas necesarias para marcarlo como indisponible. Una comprobación correcta reinicia la cuenta. Con 1, el cambio es inmediato.',
+                      'fallos consecutivos para marcar como indisponible'
+                    ) %>
+                  </label>
+                  <input id="monitor_inferencias_indisponible" name="inferencias_indisponible_consecutivas"
+                    type="number" class="form-control" min="1" max="1000" step="1"
+                    value="<%= formulario.inferenciasIndisponibleConsecutivas %>" required>
+                  <p class="texto-apoyo mb-0">Con 1, un único fallo cambia el estado.</p>
+                </div>
+                <div class="col-12 col-md-6">
+                  <label for="monitor_inferencias_disponible" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Comprobaciones correctas para recuperar disponibilidad',
+                      'Número de comprobaciones correctas seguidas necesarias para recuperar disponibilidad. Una comprobación fallida reinicia la cuenta. Con 1, la recuperación es inmediata.',
+                      'comprobaciones correctas para recuperar disponibilidad'
+                    ) %>
+                  </label>
+                  <input id="monitor_inferencias_disponible" name="inferencias_disponible_consecutivas"
+                    type="number" class="form-control" min="1" max="1000" step="1"
+                    value="<%= formulario.inferenciasDisponibleConsecutivas %>" required>
+                  <p class="texto-apoyo mb-0">Con 1, una respuesta correcta recupera el estado.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card border-0 shadow-sm overflow-hidden" data-monitor-form-seccion="comprobacion">
+            <div class="card-header bg-white border-bottom py-3">
+              <div class="d-flex flex-column gap-1">
+                <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                  <i class="bi bi-cpu" aria-hidden="true"></i>
+                  <span><%= tipoMonitorFormulario === 'booleano' ? 'Comportamiento lógico' : tipoMonitorFormulario === 'telemetria' ? 'Fuente y criterio de evaluación' : contextoTipo.etiquetaBloqueTipo %></span>
+                </div>
+                <p class="mb-0 text-body-secondary" data-monitor-ayuda-tipo>
+                  <%= tipoMonitorFormulario === 'booleano'
+                    ? 'Combina el estado de otros monitores para obtener una única disponibilidad.'
+                    : tipoMonitorFormulario === 'telemetria'
+                      ? 'Elige el dato que alimenta el monitor y define cuándo una lectura requiere atención.'
+                      : contextoTipo.ayudaFormulario %>
+                </p>
+              </div>
+            </div>
+            <div class="card-body p-4 d-grid gap-4">
+              <div class="row g-3" data-monitor-bloque-sondeo <%= ['booleano', 'telemetria'].includes(tipoMonitorFormulario) ? 'hidden' : '' %>>
+                <div class="col-12 col-xl-6">
+                  <label for="monitor_host" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Host o IP',
+                      'Destino real de la comprobación. Usa un nombre estable cuando quieras que el monitor siga la resolución DNS; usa IP cuando quieras fijar el objetivo exacto.',
+                      'host o IP'
+                    ) %>
+                  </label>
+                  <input
+                    id="monitor_host"
+                    name="host"
+                    type="text"
+                    class="form-control"
+                    value="<%= formulario.host %>"
+                    placeholder="srv1.interno.local"
+                    maxlength="255"
+                    data-monitor-host
+                    data-monitor-campo-sondeo
+                    <%= ['booleano', 'telemetria'].includes(tipoMonitorFormulario) ? 'disabled' : 'required' %>
+                  >
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                  <label for="monitor_timeout_ms" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Timeout (ms)',
+                      'Tiempo máximo de espera. Si el destino tarda más, esa comprobación cuenta como fallida. Debe ser razonable respecto al intervalo.',
+                      'timeout del monitor'
+                    ) %>
+                  </label>
+                  <input
+                    id="monitor_timeout_ms"
+                    name="timeout_ms"
+                    type="number"
+                    class="form-control"
+                    min="250"
+                    max="60000"
+                    step="50"
+                    value="<%= formulario.timeoutMs %>"
+                    data-monitor-timeout
+                    data-monitor-campo-sondeo
+                    <%= ['booleano', 'telemetria'].includes(tipoMonitorFormulario) ? 'disabled' : 'required' %>
+                  >
+                  <p class="monitor-formulario__tiempo-ayuda" data-monitor-tiempo-ayuda="timeout"></p>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                  <label for="monitor_reintentos" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Reintentos',
+                      'Número de intentos adicionales antes de dar la comprobación por fallida. Más reintentos suavizan ruido, pero alargan el tiempo real de veredicto.',
+                      'reintentos del monitor'
+                    ) %>
+                  </label>
+                  <input
+                    id="monitor_reintentos"
+                    name="reintentos"
+                    type="number"
+                    class="form-control"
+                    min="0"
+                    max="10"
+                    step="1"
+                    value="<%= formulario.reintentos %>"
+                    data-monitor-reintentos
+                    data-monitor-campo-sondeo
+                    <%= ['booleano', 'telemetria'].includes(tipoMonitorFormulario) ? 'disabled' : 'required' %>
+                  >
+                  <p class="monitor-formulario__texto-ayuda" data-monitor-reintentos-ayuda></p>
+                </div>
+              </div>
+
+              <section
+                class="bloque-configuracion-monitor__tipo monitor-formulario__tipo"
+                data-monitor-bloque-tipo="telemetria"
+                <%= tipoMonitorFormulario === 'telemetria' ? '' : 'hidden' %>
+              >
+                <div class="row g-3" data-monitor-telemetria>
+                  <div class="col-12 col-lg-6">
+                    <label for="monitor_telemetria_agente_id" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Agente que envía la señal',
+                        'Elige el equipo cuyos datos quieres vigilar. Solo aparecen los agentes que puedes administrar.',
+                        'agente de telemetría'
+                      ) %>
+                    </label>
+                    <select
+                      id="monitor_telemetria_agente_id"
+                      name="telemetria_agente_id"
+                      class="form-select"
+                      data-monitor-telemetria-agente
+                      data-monitor-campo-tipo
+                      <%= tipoMonitorFormulario === 'telemetria' ? 'required' : 'disabled' %>
+                    >
+                      <option value="">Selecciona un agente</option>
+                      <% for (const opcion of opcionesAgentesTelemetriaSeguras) { %>
+                        <option
+                          value="<%= opcion.valor %>"
+                          data-tenant-id="<%= opcion.tenantId %>"
+                          data-empresa-id="<%= opcion.empresaId %>"
+                          data-sitio-id="<%= opcion.sitioId %>"
+                          <%= String(formulario.agenteId) === String(opcion.valor) ? 'selected' : '' %>
+                        ><%= opcion.etiqueta %></option>
+                      <% } %>
+                    </select>
+                    <p class="monitor-formulario__texto-ayuda" data-monitor-telemetria-agente-ayuda>
+                      Al elegirlo se mostrarán sus señales y reglas de interpretación disponibles.
+                    </p>
+                  </div>
+
+                  <div class="col-12 col-lg-6">
+                    <label for="monitor_telemetria_tipo_fuente" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Cómo detectar un problema',
+                        'Puedes definir aquí los valores normales de la señal o reutilizar una regla de interpretación ya preparada para este agente.',
+                        'fuente de telemetría'
+                      ) %>
+                    </label>
+                    <select
+                      id="monitor_telemetria_tipo_fuente"
+                      name="telemetria_tipo_fuente"
+                      class="form-select"
+                      data-monitor-telemetria-tipo-fuente
+                      data-monitor-campo-tipo
+                      <%= tipoMonitorFormulario === 'telemetria' ? 'required' : 'disabled' %>
+                    >
+                      <option value="senal_directa" <%= formulario.tipoFuente !== 'regla_derivacion' ? 'selected' : '' %>>Definir aquí los valores normales</option>
+                      <option value="regla_derivacion" <%= formulario.tipoFuente === 'regla_derivacion' ? 'selected' : '' %>>Usar una regla de interpretación existente</option>
+                    </select>
+                  </div>
+
+                  <div class="col-12" data-monitor-telemetria-fuente-directa>
+                    <label for="monitor_telemetria_senal_id" class="form-label">Señal que quieres vigilar</label>
+                    <select
+                      id="monitor_telemetria_senal_id"
+                      name="telemetria_senal_id"
+                      class="form-select"
+                      data-monitor-telemetria-senal
+                      data-monitor-campo-tipo
+                      <%= tipoMonitorFormulario === 'telemetria' && formulario.tipoFuente !== 'regla_derivacion' ? 'required' : 'disabled' %>
+                    >
+                      <option value="">Selecciona una señal</option>
+                      <% for (const senal of fuentesTelemetriaSeguras.senales || []) { %>
+                        <option
+                          value="<%= senal.id %>"
+                          data-fuente="<%= encodeURIComponent(JSON.stringify(senal)) %>"
+                          <%= String(formulario.senalId) === String(senal.id) ? 'selected' : '' %>
+                        ><%= senal.nombreHumano || senal.codigoSenal %> · <%= senal.tipoDato %><%= senal.unidad ? ` · ${senal.unidad}` : '' %></option>
+                      <% } %>
+                    </select>
+                  </div>
+
+                  <div class="col-12" data-monitor-telemetria-fuente-regla <%= formulario.tipoFuente === 'regla_derivacion' ? '' : 'hidden' %>>
+                    <label for="monitor_telemetria_regla_id" class="form-label">Regla de interpretación</label>
+                    <select
+                      id="monitor_telemetria_regla_id"
+                      name="telemetria_regla_id"
+                      class="form-select"
+                      data-monitor-telemetria-regla
+                      data-monitor-campo-tipo
+                      <%= tipoMonitorFormulario === 'telemetria' && formulario.tipoFuente === 'regla_derivacion' ? 'required' : 'disabled' %>
+                    >
+                      <option value="">Selecciona una regla de interpretación</option>
+                      <% for (const regla of fuentesTelemetriaSeguras.reglas || []) { %>
+                        <option
+                          value="<%= regla.id %>"
+                          data-fuente="<%= encodeURIComponent(JSON.stringify(regla)) %>"
+                          <%= String(formulario.reglaId) === String(regla.id) ? 'selected' : '' %>
+                        ><%= regla.nombre %> (#<%= regla.id %>) · <%= regla.estado %></option>
+                      <% } %>
+                    </select>
+                  </div>
+
+                  <div class="col-12">
+                    <div class="mensaje-exito mensaje-exito--suave" data-monitor-telemetria-contexto>
+                      <strong data-monitor-telemetria-contexto-nombre>Selecciona una señal o una regla</strong>
+                      <div class="d-flex flex-wrap gap-2 mt-2">
+                        <span class="badge text-bg-light" data-monitor-telemetria-contexto-tipo>Tipo: sin seleccionar</span>
+                        <span class="badge text-bg-light" data-monitor-telemetria-contexto-unidad>Unidad: sin unidad</span>
+                        <span class="badge text-bg-light" data-monitor-telemetria-contexto-valor>Última observación: sin dato</span>
+                      </div>
+                      <small class="d-block mt-2" data-monitor-telemetria-contexto-fecha>Estos datos proceden del agente y se muestran como referencia.</small>
+                    </div>
+                    <input type="hidden" name="telemetria_tipo_dato" value="<%= formulario.tipoDato %>" data-monitor-telemetria-tipo-dato data-monitor-campo-tipo <%= tipoMonitorFormulario === 'telemetria' ? '' : 'disabled' %>>
+                    <input type="hidden" name="telemetria_unidad" value="<%= formulario.unidad %>" data-monitor-telemetria-unidad data-monitor-campo-tipo <%= tipoMonitorFormulario === 'telemetria' ? '' : 'disabled' %>>
+                  </div>
+
+                  <div class="col-12" data-monitor-telemetria-condicion-directa>
+                    <div class="row g-3">
+                      <div class="col-12" data-monitor-telemetria-condicion-numerica>
+                        <div class="row g-3">
+                          <div class="col-12 col-md-6">
+                            <label for="monitor_telemetria_minimo" class="form-label">Valor mínimo normal</label>
+                            <input id="monitor_telemetria_minimo" name="telemetria_minimo" type="number" step="any" class="form-control" value="<%= formulario.minimo %>" data-monitor-telemetria-minimo data-monitor-campo-tipo>
+                          </div>
+                          <div class="col-12 col-md-6">
+                            <label for="monitor_telemetria_maximo" class="form-label">Valor máximo normal</label>
+                            <input id="monitor_telemetria_maximo" name="telemetria_maximo" type="number" step="any" class="form-control" value="<%= formulario.maximo %>" data-monitor-telemetria-maximo data-monitor-campo-tipo>
+                          </div>
+                          <div class="col-12"><p class="monitor-formulario__texto-ayuda mb-0">Indica al menos un límite. Un valor igual al mínimo o al máximo todavía se considera normal.</p></div>
+                        </div>
+                      </div>
+
+                      <div class="col-12" data-monitor-telemetria-condicion-valor hidden>
+                        <div class="row g-3">
+                          <div class="col-12 col-md-4" data-monitor-telemetria-operador-contenedor>
+                            <label for="monitor_telemetria_operador" class="form-label">La lectura es normal cuando sea</label>
+                            <select id="monitor_telemetria_operador" name="telemetria_operador" class="form-select" data-monitor-telemetria-operador data-monitor-campo-tipo>
+                              <option value="igual" <%= formulario.operador !== 'diferente' ? 'selected' : '' %>>Igual a</option>
+                              <option value="diferente" <%= formulario.operador === 'diferente' ? 'selected' : '' %>>Diferente de</option>
+                            </select>
+                          </div>
+                          <div class="col-12 col-md-8" data-monitor-telemetria-valor-texto>
+                            <label for="monitor_telemetria_valor_esperado_texto" class="form-label">Valor esperado</label>
+                            <input id="monitor_telemetria_valor_esperado_texto" name="telemetria_valor_esperado" type="text" class="form-control" maxlength="512" value="<%= formulario.valorEsperado %>" data-monitor-telemetria-valor-esperado-texto data-monitor-campo-tipo>
+                          </div>
+                          <div class="col-12 col-md-8" data-monitor-telemetria-valor-booleano hidden>
+                            <label for="monitor_telemetria_valor_esperado_booleano" class="form-label">Valor considerado normal</label>
+                            <select id="monitor_telemetria_valor_esperado_booleano" name="telemetria_valor_esperado" class="form-select" data-monitor-telemetria-valor-esperado-booleano data-monitor-campo-tipo disabled>
+                              <option value="true" <%= formulario.valorEsperado !== 'false' ? 'selected' : '' %>>Verdadero</option>
+                              <option value="false" <%= formulario.valorEsperado === 'false' ? 'selected' : '' %>>Falso</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <label for="monitor_telemetria_retardo_fallo_segundos" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Esperar antes de confirmar el problema (s)',
+                        'Usa 0 para reaccionar en cuanto llegue una lectura anómala. Indica un tiempo si el problema debe mantenerse antes de cambiar el estado del monitor.',
+                        'retardo de fallo de telemetría'
+                      ) %>
+                    </label>
+                    <input
+                      id="monitor_telemetria_retardo_fallo_segundos"
+                      name="telemetria_retardo_fallo_segundos"
+                      type="number"
+                      min="0"
+                      max="86400"
+                      step="1"
+                      class="form-control"
+                      value="<%= formulario.retardoFalloSegundos %>"
+                      data-monitor-telemetria-retardo
+                      data-monitor-campo-tipo
+                      <%= tipoMonitorFormulario === 'telemetria' ? 'required' : 'disabled' %>
+                    >
+                    <p class="monitor-formulario__texto-ayuda mb-0">Mientras transcurre la espera, las lecturas quedan registradas pero no generan alertas ni ejecutan automatizaciones. Si la señal se normaliza, no se confirma el problema.</p>
+                  </div>
+
+                  <div class="col-12">
+                    <div class="alert alert-info py-2 mb-0">
+                      Este criterio decide cuándo cambia el estado del monitor. Las alertas y automatizaciones reaccionarán a ese estado.
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section
+                id="monitor-logica-operativa"
+                class="bloque-configuracion-monitor__tipo monitor-formulario__tipo"
+                data-monitor-bloque-tipo="booleano"
+                <%= tipoMonitorFormulario === 'booleano' ? '' : 'hidden' %>
+              >
+                <div class="monitor-formulario__subcabecera">
+                  <h3 class="d-inline-flex align-items-center gap-2">
+                    <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                    <span>Entradas y comportamiento lógico</span>
+                  </h3>
+                  <p class="mb-0 text-body-secondary">
+                    Define qué monitores alimentan la regla y cómo se transforma su estado en una salida.
+                  </p>
+                </div>
+
+                <div class="row g-3">
+                  <div class="col-12 col-lg-4" hidden>
+                    <label for="monitor_dependencia_monitor_id_logica" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Entrada A',
+                        'Este dato interno guarda qué monitor alimenta la primera entrada de la regla. Normalmente se completa al usar “Añadir entrada”.',
+                        'entrada A'
+                      ) %>
+                    </label>
+                    <input
+                      id="monitor_dependencia_monitor_id_logica"
+                      name="dependencia_monitor_id_logica"
+                      type="number"
+                      class="form-control"
+                      min="1"
+                      step="1"
+                      value="<%= formulario.dependenciaMonitorIdLogica %>"
+                      placeholder="Ej: 120"
+                      data-monitor-logico-dependencia
+                      data-monitor-campo-tipo
+                      data-monitor-campo-logico
+                      <%= tipoMonitorFormulario === 'booleano' ? '' : 'disabled' %>
+                    >
+                    <p class="monitor-formulario__texto-ayuda">
+                      Compatibilidad interna: se mantiene sincronizado con la variable <code>A</code>.
+                    </p>
+                  </div>
+
+                  <textarea
+                    name="dependencias_logicas"
+                    data-monitor-logico-dependencias-json
+                    data-monitor-campo-tipo
+                    data-monitor-campo-logico
+                    hidden
+                    <%= tipoMonitorFormulario === 'booleano' ? '' : 'disabled' %>
+                  ><%= formulario.dependenciasLogicas || '' %></textarea>
+
+                  <div class="col-12">
+                    <div class="monitor-logico-constructor monitor-logico-constructor--entradas">
+                      <div class="monitor-logico-constructor__cabecera">
+                        <div>
+                          <h4 class="h6 mb-1">Entradas y regla</h4>
+                          <p class="mb-0 text-body-secondary">
+                            Añade los monitores que participan en la regla. Cada uno recibe una letra que podrás usar en el editor visual.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-2"
+                          data-monitor-logico-abrir-selector
+                          <%= tipoMonitorFormulario === 'booleano' ? '' : 'disabled' %>
+                        >
+                          <i class="bi bi-search" aria-hidden="true"></i>
+                          <span>Añadir entrada</span>
+                        </button>
+                      </div>
+
+                      <div class="monitor-logico-traduccion">
+                        <div>
+                          <span class="monitor-logico-constructor__etiqueta">Entradas de la regla</span>
+                          <dl class="monitor-logico-traduccion__lista mb-0" data-monitor-logico-traduccion-lista>
+                            <div>
+                              <dt>A</dt>
+                              <dd>
+                                <strong data-monitor-logico-variable-a>
+                                  <% if (formulario.dependenciaMonitorIdLogica) { %>
+                                    Monitor #<%= formulario.dependenciaMonitorIdLogica %>
+                                  <% } else { %>
+                                    Sin monitor seleccionado
+                                  <% } %>
+                                </strong>
+                                <span data-monitor-logico-variable-a-detalle>
+                                  <% if (formulario.dependenciaMonitorIdLogica) { %>
+                                    Esta entrada alimenta la letra A de la regla.
+                                  <% } else { %>
+                                    Añade un monitor para empezar a definir la regla.
+                                  <% } %>
+                                </span>
+                              </dd>
+                            </div>
+                            <div class="monitor-logico-traduccion__fila--reservada">
+                              <dt>B</dt>
+                              <dd><strong>Reservada</strong><span>Preparada para múltiples entradas.</span></dd>
+                            </div>
+                            <div class="monitor-logico-traduccion__fila--reservada">
+                              <dt>C</dt>
+                              <dd><strong>Reservada</strong><span>Preparada para múltiples entradas.</span></dd>
+                            </div>
+                          </dl>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <%- include('parciales/monitor-logico-editor-visual', {
+                    formulario,
+                    tipoMonitorFormulario
+                  }) %>
+
+                  <input
+                    id="monitor_expresion_logica"
+                    name="expresion_logica"
+                    type="hidden"
+                    value="<%= formulario.expresionLogica %>"
+                    data-monitor-logico-expresion
+                    data-monitor-campo-tipo
+                    data-monitor-campo-logico
+                    <%= tipoMonitorFormulario === 'booleano' ? '' : 'disabled' %>
+                  >
+                  <span data-monitor-logico-expresion-preview hidden>
+                    La expresión normalizada será evaluada por el runtime.
+                  </span>
+
+                  <div class="col-12 col-lg-3">
+                    <label for="monitor_estado_inicial_logico" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Estado inicial de la salida',
+                        'Estado temporal que se mostrará hasta que haya información suficiente para evaluar la regla. Elige Disponible si no quieres alertar durante el arranque.',
+                        'salida inicial'
+                      ) %>
+                    </label>
+                    <select
+                      id="monitor_estado_inicial_logico"
+                      name="estado_inicial_logico"
+                      class="form-select"
+                      data-monitor-logico-estado-inicial
+                      data-monitor-campo-tipo
+                      data-monitor-campo-logico
+                      <%= tipoMonitorFormulario === 'booleano' ? '' : 'disabled' %>
+                    >
+                      <option value="disponible" <%= formulario.estadoInicialLogico !== 'indisponible' ? 'selected' : '' %>>Disponible</option>
+                      <option value="indisponible" <%= formulario.estadoInicialLogico === 'indisponible' ? 'selected' : '' %>>Indisponible</option>
+                    </select>
+                  </div>
+
+                  <div class="col-12 col-lg-3">
+                    <label for="monitor_retardo_senal_segundos_logico" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Retardo antes de cambiar la salida (s)',
+                        'Evita cambios breves o inestables: la nueva situación debe mantenerse durante este tiempo antes de cambiar el estado visible. Usa 0 para aplicarla al momento.',
+                        'retardo de señal'
+                      ) %>
+                    </label>
+                    <input
+                      id="monitor_retardo_senal_segundos_logico"
+                      name="retardo_senal_segundos_logico"
+                      type="number"
+                      class="form-control"
+                      min="0"
+                      max="86400"
+                      step="1"
+                      value="<%= formulario.retardoSenalSegundosLogico %>"
+                      data-monitor-logico-retardo
+                      data-monitor-campo-tipo
+                      data-monitor-campo-logico
+                      <%= tipoMonitorFormulario === 'booleano' ? '' : 'disabled' %>
+                    >
+                    <p class="monitor-formulario__texto-ayuda">
+                      Con 0, el cambio se aplica al momento. Un valor mayor filtra cambios pasajeros.
+                    </p>
+                  </div>
+
+                  <div class="col-12">
+                    <label for="monitor_mensaje_fallo_logico" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Explicación de la regla incumplida',
+                        'Describe qué condición no se ha cumplido. Este texto acompaña la alerta y los eventos; la guía para actuar se define más abajo en Contexto operativo.',
+                        'mensaje de fallo lógico'
+                      ) %>
+                    </label>
+                    <textarea
+                      id="monitor_mensaje_fallo_logico"
+                      name="mensaje_fallo_logico"
+                      class="form-control"
+                      rows="3"
+                      placeholder="La condición lógica definida no se cumple."
+                      data-monitor-logico-mensaje-fallo
+                      data-monitor-campo-tipo
+                      data-monitor-campo-logico
+                      <%= tipoMonitorFormulario === 'booleano' ? '' : 'disabled' %>
+                    ><%= formulario.mensajeFalloLogico %></textarea>
+                  </div>
+
+                  <div class="col-12">
+                    <section class="monitor-logico-plan" data-monitor-logico-plan>
+                      <div class="monitor-logico-plan__cabecera">
+                        <div>
+                          <span class="badge rounded-pill text-bg-success-subtle text-success-emphasis mb-2 d-inline-flex align-items-center gap-2">
+                            <i class="bi bi-play-circle" aria-hidden="true"></i>
+                            Plan de evaluación
+                          </span>
+                          <h4 class="h5 mb-1">Qué hará este monitor al guardar</h4>
+                          <p class="mb-0 text-body-secondary">
+                            Revisa qué entradas usará la regla, el resultado esperado y cualquier dato que falte antes de guardar.
+                          </p>
+                        </div>
+                        <span class="monitor-logico-plan__estado" data-monitor-logico-plan-estado>
+                          Pendiente
+                        </span>
+                      </div>
+
+                      <div class="monitor-logico-plan__grid">
+                        <article class="monitor-logico-plan__item">
+                          <span>Dependencia</span>
+                          <strong data-monitor-logico-plan-dependencia>Ningún monitor seleccionado</strong>
+                          <small data-monitor-logico-plan-dependencia-detalle>Selecciona la entrada A para completar el plan.</small>
+                        </article>
+                        <article class="monitor-logico-plan__item">
+                          <span>Variable A observada</span>
+                          <strong data-monitor-logico-plan-variable-a>Sin dato</strong>
+                          <small data-monitor-logico-plan-variable-a-detalle>Disponible = true; indisponible = false.</small>
+                        </article>
+                        <article class="monitor-logico-plan__item">
+                          <span>Resultado ahora</span>
+                          <strong data-monitor-logico-plan-resultado>No calculable</strong>
+                          <small data-monitor-logico-plan-resultado-detalle>Se calculará cuando haya expresión y estado observado.</small>
+                        </article>
+                        <article class="monitor-logico-plan__item">
+                          <span>Retardo de señal</span>
+                          <strong data-monitor-logico-plan-retardo>Sin retardo</strong>
+                          <small data-monitor-logico-plan-retardo-detalle>La salida cambiará inmediatamente cuando pueda evaluarse.</small>
+                        </article>
+                      </div>
+
+                      <div class="monitor-logico-plan__notas">
+                        <div>
+                          <span class="monitor-logico-constructor__etiqueta">Impacto posterior</span>
+                          <p class="mb-0" data-monitor-logico-plan-impacto>
+                            Si la salida queda indisponible, los triggers vinculados podrán reaccionar según sus eventos configurados.
+                          </p>
+                        </div>
+                        <ul class="monitor-logico-plan__avisos mb-0" data-monitor-logico-plan-avisos>
+                          <li>Completa la entrada A para generar el plan.</li>
+                        </ul>
+                      </div>
+
+                    </section>
+                  </div>
+
+                  <div class="col-12">
+                    <section class="monitor-logico-impacto" data-monitor-logico-impacto>
+                      <div class="monitor-logico-impacto__cabecera">
+                        <div>
+                          <span class="badge rounded-pill text-bg-warning-subtle text-warning-emphasis mb-2 d-inline-flex align-items-center gap-2">
+                            <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
+                            Edición segura
+                          </span>
+                          <h4 class="h5 mb-1">Comprobaciones antes de guardar</h4>
+                          <p class="mb-0 text-body-secondary">
+                            Solo resume cambios sensibles y validaciones pendientes. El resumen operativo completo queda al final.
+                          </p>
+                        </div>
+                        <span class="monitor-logico-impacto__estado" data-monitor-logico-impacto-estado>
+                          Sin cambios sensibles
+                        </span>
+                      </div>
+
+                      <div class="monitor-logico-impacto__listas">
+                        <div>
+                          <span class="monitor-logico-constructor__etiqueta">Cambios que se aplicarán</span>
+                          <ul data-monitor-logico-impacto-cambios>
+                            <li>No hay cambios sensibles en la lógica.</li>
+                          </ul>
+                        </div>
+                        <div>
+                          <span class="monitor-logico-constructor__etiqueta">Comprobaciones al guardar</span>
+                          <ul data-monitor-logico-impacto-avisos>
+                            <li>Ciclos y alcance completo se validarán de nuevo en servidor al guardar.</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              </section>
+
+              <section
+                class="bloque-configuracion-monitor__tipo monitor-formulario__tipo"
+                data-monitor-bloque-tipo="ping"
+                <%= tipoMonitorFormulario === 'ping' ? '' : 'hidden' %>
+              >
+                <details class="filtros-avanzados monitor-formulario__parametros-icmp-avanzados">
+                  <summary>
+                    <span>
+                      <i class="bi bi-broadcast-pin" aria-hidden="true"></i>
+                      Parámetros ICMP avanzados
+                    </span>
+                    <small data-monitor-icmp-avanzados-resumen>
+                      Carga <%= formulario.tamanoPaqueteBytes %> B · TTL <%= formulario.ttl %>
+                    </small>
+                  </summary>
+                  <div class="filtros-avanzados__contenido">
+                <div class="row g-3">
+                  <div class="col-12 col-md-6">
+                    <label for="monitor_tamano_paquete_bytes" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Carga ICMP (bytes)',
+                        'Tamaño de la carga del paquete ICMP. Los valores altos hacen la prueba más pesada; para supervisión básica suele bastar un valor moderado.',
+                        'carga ICMP'
+                      ) %>
+                    </label>
+                    <input
+                      id="monitor_tamano_paquete_bytes"
+                      name="tamano_paquete_bytes"
+                      type="number"
+                      class="form-control"
+                      min="8"
+                      max="4096"
+                      step="1"
+                      value="<%= formulario.tamanoPaqueteBytes %>"
+                      data-monitor-payload
+                      data-monitor-campo-tipo
+                      <%= tipoMonitorFormulario === 'ping' ? '' : 'disabled' %>
+                    >
+                    <p class="monitor-formulario__texto-ayuda" data-monitor-payload-ayuda></p>
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <label for="monitor_ttl" class="form-label">
+                      <%- renderAyudaCampo(
+                        'TTL',
+                        'Límite de saltos de la comprobación ICMP. Normalmente basta el valor estándar; cámbialo solo si quieres limitar alcance o diagnosticar rutas.',
+                        'TTL ICMP'
+                      ) %>
+                    </label>
+                    <input
+                      id="monitor_ttl"
+                      name="ttl"
+                      type="number"
+                      class="form-control"
+                      min="1"
+                      max="255"
+                      step="1"
+                      value="<%= formulario.ttl %>"
+                      data-monitor-ttl
+                      data-monitor-campo-tipo
+                      <%= tipoMonitorFormulario === 'ping' ? '' : 'disabled' %>
+                    >
+                    <p class="monitor-formulario__texto-ayuda" data-monitor-ttl-ayuda></p>
+                  </div>
+                </div>
+                  </div>
+                </details>
+              </section>
+
+              <section
+                class="bloque-configuracion-monitor__tipo monitor-formulario__tipo"
+                data-monitor-bloque-tipo="tcp"
+                <%= tipoMonitorFormulario === 'tcp' ? '' : 'hidden' %>
+              >
+                <div class="monitor-formulario__subcabecera">
+                  <h3 class="d-inline-flex align-items-center gap-2">
+                    <i class="bi bi-plug" aria-hidden="true"></i>
+                    <span>Parámetros TCP</span>
+                  </h3>
+                  <p class="mb-0 text-body-secondary">
+                    Ajustan cómo se abre y valida la conexión.
+                  </p>
+                </div>
+                <div class="row g-3">
+                  <div class="col-12 col-md-4">
+                    <label for="monitor_puerto" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Puerto',
+                        'Puerto real del servicio. Si activas TLS, conviene revisar que el puerto tenga sentido con el protocolo esperado.',
+                        'puerto TCP'
+                      ) %>
+                    </label>
+                    <input
+                      id="monitor_puerto"
+                      name="puerto"
+                      type="number"
+                      class="form-control"
+                      min="1"
+                      max="65535"
+                      step="1"
+                      value="<%= formulario.puerto %>"
+                      data-monitor-puerto
+                      data-monitor-campo-tipo
+                      <%= tipoMonitorFormulario === 'tcp' ? '' : 'disabled' %>
+                    >
+                    <p class="monitor-formulario__texto-ayuda" data-monitor-puerto-ayuda></p>
+                  </div>
+                  <div class="col-12 col-md-4 campo-checkbox">
+                    <label for="monitor_usar_tls" class="etiqueta-checkbox">
+                      <input
+                        id="monitor_usar_tls"
+                        name="usar_tls"
+                        type="checkbox"
+                        value="1"
+                        <%= formulario.usarTls ? 'checked' : '' %>
+                        data-monitor-usar-tls
+                        data-monitor-campo-tipo
+                        <%= tipoMonitorFormulario === 'tcp' ? '' : 'disabled' %>
+                      >
+                      <span>Exigir TLS válido</span>
+                    </label>
+                  </div>
+                  <div class="col-12 col-md-4" data-monitor-campo-tls-vigencia hidden>
+                    <label for="monitor_vigencia_minima_cert_dias" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Vigencia mínima certificado (días)',
+                        'Si el certificado caduca antes de este margen, el monitor fallará aunque el servicio responda. Útil para detectar renovación tardía.',
+                        'vigencia mínima TLS'
+                      ) %>
+                    </label>
+                    <input
+                      id="monitor_vigencia_minima_cert_dias"
+                      name="vigencia_minima_cert_dias"
+                      type="number"
+                      class="form-control"
+                      min="0"
+                      max="3650"
+                      step="1"
+                      value="<%= formulario.vigenciaMinimaCertDias %>"
+                      data-monitor-vigencia
+                      data-monitor-campo-tipo
+                      data-monitor-campo-tls-vigencia-input
+                      <%= tipoMonitorFormulario === 'tcp' && formulario.usarTls ? '' : 'disabled' %>
+                    >
+                    <p class="monitor-formulario__texto-ayuda" data-monitor-vigencia-ayuda>
+                      Si el certificado expira antes de este margen, el monitor fallará.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section class="card border-0 shadow-sm overflow-hidden" data-monitor-form-seccion="impacto">
+            <div class="card-header bg-white border-bottom py-3">
+              <div class="d-flex flex-column gap-1">
+                <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                  <i class="bi bi-activity" aria-hidden="true"></i>
+                  <span>Impacto operativo</span>
+                </div>
+                <p class="mb-0 text-body-secondary">
+                  Resumen rápido para validar si la definición tiene sentido antes de guardar.
+                </p>
+              </div>
+            </div>
+            <div class="card-body p-4 d-grid gap-3">
+              <div class="monitor-formulario__impacto-grid">
+                <article class="kpi-resumen kpi-resumen--suave">
+                  <span class="hero-monitores__kpi-cabecera">
+                    <i class="bi bi-clock-history" aria-hidden="true"></i>
+                    <span class="etiqueta">Frecuencia</span>
+                  </span>
+                  <strong data-monitor-impacto-frecuencia>Se calculará al completar el intervalo.</strong>
+                  <small data-monitor-impacto-cadencia>La periodicidad real se ajustará con tu intervalo y desfase.</small>
+                </article>
+                <article class="kpi-resumen kpi-resumen--neutro">
+                  <span class="hero-monitores__kpi-cabecera">
+                    <i class="bi bi-signpost-split" aria-hidden="true"></i>
+                    <span class="etiqueta">Alcance efectivo</span>
+                  </span>
+                  <strong data-monitor-impacto-scope>Todavía incompleto</strong>
+                  <small data-monitor-impacto-scope-detalle>Selecciona tenant, empresa y, si aplica, sitio.</small>
+                </article>
+                <article class="kpi-resumen kpi-resumen--ok">
+                  <span class="hero-monitores__kpi-cabecera">
+                    <i class="bi bi-bullseye" aria-hidden="true"></i>
+                    <span class="etiqueta"><%= tipoMonitorFormulario === 'booleano' ? 'Regla y entradas' : 'Destino' %></span>
+                  </span>
+                  <strong data-monitor-impacto-destino>Pendiente</strong>
+                  <small data-monitor-impacto-destino-detalle><%= tipoMonitorFormulario === 'booleano' ? 'Se resumirán las entradas que alimentan la regla.' : 'Se mostrará el objetivo real del monitor.' %></small>
+                </article>
+              </div>
+              <div class="mensaje-error mensaje-error--suave monitor-formulario__alertas" data-monitor-alertas hidden>
+                <strong>Revisa esta configuración.</strong>
+                <ul class="mb-0" data-monitor-alertas-lista></ul>
+              </div>
+            </div>
+          </section>
+
+          <div class="acciones-formulario acciones-formulario--sticky" data-monitor-estado="coherente">
+            <div class="acciones-formulario__estado" data-monitor-cambios-pendientes>
+              <strong data-monitor-estado-titulo><%= modo === 'editar' ? 'Edición coherente' : 'Alta coherente' %></strong>
+              <span data-monitor-estado-resumen hidden></span>
+            </div>
+            <div class="acciones-formulario__botones">
+              <button type="submit" class="boton-primario">
+                <%= modo === 'editar' ? contextoTipo.etiquetaGuardar : contextoTipo.etiquetaCrear %>
+              </button>
+              <a href="<%= retornoListado || '/monitores' %>" class="boton-secundario enlace-boton">Cancelar</a>
+            </div>
+          </div>
+        </div>
+      </form>
+      </div>
+    </div>
+  </section>
+</section>
+
+<div
+  class="modal fade"
+  id="modal-selector-monitor-logico"
+  tabindex="-1"
+  aria-labelledby="modal-selector-monitor-logico-titulo"
+  aria-hidden="true"
+  data-monitor-logico-selector-modal
+  data-url-listado="/monitores/api/listado"
+  data-monitor-actual-id="<%= monitorObjetivo?.id || '' %>"
+>
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <div>
+          <span class="badge text-bg-success-subtle text-success-emphasis rounded-pill mb-2 d-inline-flex align-items-center gap-2">
+            <i class="bi bi-diagram-3" aria-hidden="true"></i>
+            Entrada lógica
+          </span>
+          <h2 class="modal-title fs-4" id="modal-selector-monitor-logico-titulo">
+            Añadir monitor a la regla
+          </h2>
+          <p class="text-body-secondary mb-0">
+            Elige el monitor cuyo estado debe alimentar esta letra. Solo se muestran monitores que puedes usar.
+          </p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="row g-3 align-items-end">
+          <div class="col-12 col-lg-4">
+            <label for="monitor_logico_selector_q" class="form-label">Monitor</label>
+            <input
+              id="monitor_logico_selector_q"
+              type="search"
+              class="form-control"
+              placeholder="Nombre, descripción o alcance"
+              autocomplete="off"
+              data-monitor-logico-selector-q
+            >
+          </div>
+          <div class="col-6 col-lg-2">
+            <label for="monitor_logico_selector_tipo" class="form-label">Tipo</label>
+            <select id="monitor_logico_selector_tipo" class="form-select" data-monitor-logico-selector-tipo>
+              <% for (const opcion of opcionesTipo) { %>
+                <option value="<%= opcion.valor %>"><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-6 col-lg-2">
+            <label for="monitor_logico_selector_estado" class="form-label">Estado</label>
+            <select id="monitor_logico_selector_estado" class="form-select" data-monitor-logico-selector-activo>
+              <option value="solo_activos" selected>Solo activos</option>
+              <option value="todos">Todos</option>
+              <option value="solo_inactivos">Solo inactivos</option>
+            </select>
+          </div>
+          <div class="col-6 col-lg-2">
+            <label for="monitor_logico_selector_filas" class="form-label">Filas</label>
+            <select id="monitor_logico_selector_filas" class="form-select" data-monitor-logico-selector-page-size>
+              <option value="10" selected>10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+          <div class="col-6 col-lg-2">
+            <label for="monitor_logico_selector_orden" class="form-label">Orden</label>
+            <select id="monitor_logico_selector_orden" class="form-select" data-monitor-logico-selector-sort-by>
+              <option value="nombre" selected>Nombre</option>
+              <option value="tipo">Tipo</option>
+              <option value="actualizado">Actualizado</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mt-3">
+          <button type="button" class="btn btn-primary d-inline-flex align-items-center gap-2" data-monitor-logico-selector-aplicar>
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <span>Buscar</span>
+          </button>
+          <button type="button" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" data-monitor-logico-selector-limpiar>
+            <i class="bi bi-eraser" aria-hidden="true"></i>
+            <span>Limpiar</span>
+          </button>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mt-4 mb-3">
+          <p class="text-body-secondary mb-0" data-monitor-logico-selector-resumen>
+            Cargando monitores...
+          </p>
+          <p class="text-body-secondary mb-0">
+            Alcance actual: <strong><%= alcanceActual.descripcion %></strong>
+          </p>
+        </div>
+
+        <div class="table-responsive">
+          <div data-monitor-logico-selector-estado class="text-body-secondary mb-2">Cargando monitores...</div>
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Monitor</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Alcance</th>
+                <th scope="col">Runtime</th>
+                <th scope="col" class="text-end">Selección</th>
+              </tr>
+            </thead>
+            <tbody data-monitor-logico-selector-filas>
+              <tr>
+                <td colspan="5" class="text-body-secondary">Cargando monitores...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer d-flex justify-content-between align-items-center gap-3 flex-wrap">
+        <span class="text-body-secondary" data-monitor-logico-selector-pagina></span>
+        <div class="btn-group" role="group" aria-label="Paginación selector de monitor lógico">
+          <button type="button" class="btn btn-outline-secondary" data-monitor-logico-selector-page-action="first">
+            <i class="bi bi-chevron-double-left me-2" aria-hidden="true"></i>
+            Primero
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-monitor-logico-selector-page-action="prev">
+            <i class="bi bi-chevron-left me-2" aria-hidden="true"></i>
+            Anterior
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-monitor-logico-selector-page-action="next">
+            Siguiente
+            <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-monitor-logico-selector-page-action="last">
+            Último
+            <i class="bi bi-chevron-double-right ms-2" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/monitores.js?v=remove-inline-logical-simulator-20260715"></script>
+
+<%- include('../parciales/pie') %>

@@ -1,0 +1,228 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const parametrosRetornoNuevaZona = new URLSearchParams({
+    q: filtros.textoBusqueda,
+    tipo: filtros.tipoZona,
+    categoria_origen: filtros.categoriaOrigen,
+    estado_publicacion: filtros.estadoPublicacion,
+    activo: filtros.activo,
+    page: String(filtros.pagina || 1),
+    page_size: String(filtros.tamanoPagina || 10)
+  });
+  if (filtros.sitioId) parametrosRetornoNuevaZona.set('sitio_id', String(filtros.sitioId));
+  if (retornoHero && retornoHero !== '/dns') parametrosRetornoNuevaZona.set('return_to', retornoHero);
+%>
+
+<section class="panel-general" data-dns-lista data-url-listado="/dns/api/listado" data-sitio-id="<%= filtros.sitioId || '' %>" data-retorno-hero="<%= retornoHero && retornoHero !== '/dns' ? retornoHero : '' %>">
+  <% if (filtros.sitioId) { %><p class="texto-apoyo" data-dns-sitio-contexto>Filtrado por sitio #<%= filtros.sitioId %>.</p><% } %>
+  <section class="hero-operativo hero-monitores hero-dns card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-globe2" aria-hidden="true"></i>
+              <span>Catálogo DNS</span>
+            </span>
+            <h1>Zonas DNS</h1>
+            <p>Consulta tus zonas y su estado de publicación. Abre una zona para ver sus registros y gestionar los cambios.</p>
+            <div class="hero-etiquetas hero-monitores__etiquetas">
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                <span>Alcance <%= alcanceActual.nivelScope %></span>
+              </span>
+            </div>
+            <div class="hero-monitores__acciones">
+              <% if (retornoHero && retornoHero !== '/dns') { %>
+                <a href="<%= retornoHero %>" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2">
+                  <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
+                  <span>Volver</span>
+                </a>
+              <% } %>
+              <% if (puedeEditarDns) { %>
+                <a href="/dns/nuevo?return_to=<%= encodeURIComponent(`/dns?${parametrosRetornoNuevaZona.toString()}`) %>" data-dns-nueva-zona class="btn btn-light btn-sm d-inline-flex align-items-center gap-2">
+                  <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                  <span>Nueva zona</span>
+                </a>
+              <% } %>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis hero-dns__kpis">
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-collection" aria-hidden="true"></i>
+                <span class="etiqueta">Zonas visibles</span>
+              </span>
+              <strong data-dns-kpi-total-zonas><%= resumen.totalZonas %></strong>
+              <small>Dentro del filtro actual.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--ok hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-cloud-check" aria-hidden="true"></i>
+                <span class="etiqueta">Publicadas</span>
+              </span>
+              <strong data-dns-kpi-total-publicadas><%= resumen.totalPublicadas %></strong>
+              <small>Configuración actual aplicada en BIND.</small>
+            </article>
+            <article class="kpi-resumen kpi-resumen--advertencia hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+                <span class="etiqueta">Pendientes o con error</span>
+              </span>
+              <strong data-dns-kpi-total-no-publicadas><%= resumen.totalPendientes + resumen.totalErrores %></strong>
+              <small data-dns-kpi-desglose-publicacion><%= resumen.totalPendientes %> pendientes · <%= resumen.totalErrores %> con error</small>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h2>Catálogo de zonas</h2>
+        <p class="texto-apoyo">Busca una zona, comprueba su publicación y abre sus registros.</p>
+      </div>
+    </div>
+
+    <% if (flashDns) { %>
+      <script>
+        document.addEventListener('DOMContentLoaded', function () {
+          if (window.portalToast?.show) {
+            window.portalToast.show({
+              tipo: '<%= flashDns.tipo === 'error' ? 'error' : 'satisfactorio' %>',
+              titulo: 'DNS',
+              cuerpo: <%- JSON.stringify(String(flashDns.mensaje || '')) %>
+            });
+          }
+        });
+      </script>
+    <% } %>
+
+    <div class="tarjeta">
+      <div class="rejilla-filtros-listado dns-filtros-principales">
+        <div>
+          <label for="dns_q">Zona o texto</label>
+          <input
+            id="dns_q"
+            type="search"
+            autocomplete="off"
+            placeholder="ej. empresa.local"
+            value="<%= filtros.textoBusqueda %>"
+            data-dns-busqueda
+          >
+        </div>
+        <div>
+          <label for="dns_estado_publicacion">Publicación</label>
+          <select id="dns_estado_publicacion" data-dns-estado-publicacion>
+            <% for (const opcion of opcionesEstadoPublicacion) { %>
+              <option value="<%= opcion.valor %>" <%= filtros.estadoPublicacion === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+            <% } %>
+          </select>
+        </div>
+      </div>
+      <details class="dns-filtros-avanzados" <%= filtros.categoriaOrigen || (filtros.activo && filtros.activo !== 'todos') ? 'open' : '' %>>
+        <summary>Más filtros</summary>
+        <div class="rejilla-filtros-listado mt-3">
+          <div>
+            <label for="dns_categoria_origen">Categoría</label>
+            <select id="dns_categoria_origen" data-dns-categoria>
+              <% for (const opcion of opcionesCategoriaOrigen) { %>
+                <option value="<%= opcion.valor %>" <%= filtros.categoriaOrigen === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div>
+            <label for="dns_activo">Habilitación</label>
+            <select id="dns_activo" data-dns-activo>
+              <% for (const opcion of opcionesActivo) { %>
+                <option value="<%= opcion.valor %>" <%= filtros.activo === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+        </div>
+      </details>
+
+      <div class="barra-acciones-filtros">
+        <button type="button" class="boton-primario" data-dns-aplicar>Aplicar filtros</button>
+        <button type="button" class="boton-secundario" data-dns-limpiar>Limpiar</button>
+        <div>
+          <label for="dns_page_size">Filas</label>
+          <select id="dns_page_size" data-dns-page-size>
+            <% for (const opcion of [10, 25, 50, 100]) { %>
+              <option value="<%= opcion %>" <%= Number(filtros.tamanoPagina || 10) === opcion ? 'selected' : '' %>><%= opcion %></option>
+            <% } %>
+          </select>
+        </div>
+      </div>
+
+      <div class="fila-encabezado fila-encabezado--compacta">
+        <p class="texto-apoyo" data-dns-resumen-listado>
+          Cargando zonas DNS...
+        </p>
+        <p class="texto-apoyo">
+          Alcance actual: <strong><%= alcanceActual.descripcion %></strong>
+        </p>
+      </div>
+
+      <div class="table-responsive mt-4 organizacion-tabla dns-tabla">
+        <div class="dns-tabla__estado texto-apoyo" data-dns-estado></div>
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Zona</th>
+              <th scope="col">Estado operativo</th>
+              <th scope="col">Alcance</th>
+              <th scope="col" class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody data-dns-filas>
+            <% if ((zonas || []).length === 0) { %>
+              <tr>
+                <td colspan="4" class="text-body-secondary">
+                  No hay zonas DNS visibles con los filtros actuales.
+                </td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+        <div
+          class="d-flex justify-content-between align-items-center gap-3 flex-wrap border-top mt-4 pt-3"
+          data-dns-paginador
+        >
+          <span class="text-body-secondary" data-dns-pagina-actual>
+            Página <%= paginacion?.pagina || 1 %> de <%= paginacion?.totalPaginas || 1 %>
+          </span>
+          <div class="btn-group" role="group" aria-label="Paginación DNS">
+            <button type="button" class="btn btn-outline-secondary" data-dns-page-action="first">
+              <i class="bi bi-chevron-double-left me-2" aria-hidden="true"></i>
+              Primero
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-dns-page-action="prev">
+              <i class="bi bi-chevron-left me-2" aria-hidden="true"></i>
+              Anterior
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-dns-page-action="next">
+              Siguiente
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-dns-page-action="last">
+              Último
+              <i class="bi bi-chevron-double-right ms-2" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<% if (puedeEditarDns) { %><%- include('parciales/dns-modal-eliminacion') %><% } %>
+<script src="/js/dns.js?v=catalogo-20261003-estado"></script>
+<script src="/js/dns-eliminacion.js?v=20261003"></script>
+<%- include('../parciales/pie') %>

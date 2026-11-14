@@ -1,0 +1,352 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<section class="panel-general">
+  <section class="hero-operativo hero-monitores hero-usuarios <%= alcanceActual.nivelScope === 'portal' ? 'hero-usuarios--portal' : '' %> card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-people" aria-hidden="true"></i>
+              <span>Gobierno de acceso</span>
+            </span>
+            <h1>Directorio de usuarios</h1>
+            <p>Gestiona las personas y sus permisos dentro de tu alcance.</p>
+            <div class="hero-etiquetas hero-monitores__etiquetas">
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                <span>Alcance <%= alcanceActual.nivelScope %></span>
+              </span>
+            </div>
+            <div class="hero-monitores__acciones">
+              <a
+                href="/usuarios/nuevo"
+                class="btn btn-light btn-sm d-inline-flex align-items-center gap-2"
+              >
+                <i class="bi bi-person-plus" aria-hidden="true"></i>
+                <span>Nuevo usuario</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis">
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-people" aria-hidden="true"></i>
+                <span class="etiqueta">Visibles</span>
+              </span>
+              <strong data-kpi-total-usuarios><%= resumen.totalUsuarios %></strong>
+              <small>Usuarios que encajan con los filtros activos.</small>
+            </article>
+            <% if (alcanceActual.nivelScope === 'portal') { %>
+              <article class="kpi-resumen kpi-resumen--ok hero-monitores__kpi">
+                <span class="hero-monitores__kpi-cabecera">
+                  <i class="bi bi-globe2" aria-hidden="true"></i>
+                  <span class="etiqueta">Portal</span>
+                </span>
+                <strong data-kpi-total-portal><%= resumen.totalPortal %></strong>
+                <small>Identidades con alcance global del portal.</small>
+              </article>
+            <% } %>
+            <% if (['portal', 'tenant'].includes(alcanceActual.nivelScope)) { %>
+              <article class="kpi-resumen kpi-resumen--neutro hero-monitores__kpi">
+                <span class="hero-monitores__kpi-cabecera">
+                  <i class="bi bi-building" aria-hidden="true"></i>
+                  <span class="etiqueta">Tenant</span>
+                </span>
+                <strong data-kpi-total-tenant><%= resumen.totalTenant %></strong>
+                <small>Usuarios delegados a nivel tenant.</small>
+              </article>
+            <% } %>
+            <article class="kpi-resumen kpi-resumen--advertencia hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-diagram-2" aria-hidden="true"></i>
+                <span class="etiqueta">Empresa / sitio</span>
+              </span>
+              <strong data-kpi-total-local><%= resumen.totalEmpresa + resumen.totalSitio %></strong>
+              <small>Usuarios con alcance de empresa o sitio.</small>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section
+    id="usuarios-directorio"
+    class="seccion-panel"
+    data-usuarios-lista
+    data-url-listado="/usuarios/api/listado"
+    data-url-eliminar-base="/usuarios/api"
+    data-url-empresas="/usuarios/api/opciones/empresas"
+  >
+    <div class="seccion-cabecera">
+      <div>
+        <h2>Listado visible</h2>
+        <p class="texto-apoyo"><%= alcanceActual.descripcion %></p>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <div class="rejilla-filtros-listado">
+        <div>
+          <label for="filtro_busqueda_usuarios">Nombre o usuario</label>
+          <input
+            id="filtro_busqueda_usuarios"
+            type="search"
+            placeholder="Buscar por usuario, email o nombre"
+            autocomplete="off"
+            data-usuarios-busqueda
+            value="<%= filtros.textoBusqueda %>"
+          >
+        </div>
+        <div>
+          <label for="filtro_tenant_usuarios">Tenant</label>
+          <select id="filtro_tenant_usuarios" data-usuarios-tenant>
+            <option value="">Todos</option>
+            <% for (const opcion of opcionesTenants) { %>
+              <option
+                value="<%= opcion.valor %>"
+                <%= String(filtros.tenantId) === String(opcion.valor) ? 'selected' : '' %>
+              ><%= opcion.etiqueta %></option>
+            <% } %>
+          </select>
+        </div>
+        <div>
+          <label for="filtro_empresa_usuarios">Empresa</label>
+          <select id="filtro_empresa_usuarios" data-usuarios-empresa>
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <div>
+          <label for="filtro_activo_usuarios">Activo</label>
+          <select id="filtro_activo_usuarios" data-usuarios-activo>
+            <option value="solo_activos" <%= filtros.activo === 'solo_activos' ? 'selected' : '' %>>Solo activos</option>
+            <option value="solo_inactivos" <%= filtros.activo === 'solo_inactivos' ? 'selected' : '' %>>Solo inactivos</option>
+            <option value="todos" <%= filtros.activo === 'todos' ? 'selected' : '' %>>Todos</option>
+          </select>
+        </div>
+        <div>
+          <label for="filtro_filas_usuarios">Filas</label>
+          <select id="filtro_filas_usuarios" data-usuarios-page-size>
+            <% for (const tamano of [10, 25, 50, 100]) { %>
+              <option value="<%= tamano %>" <%= Number(filtros.tamanoPagina) === tamano ? 'selected' : '' %>><%= tamano %></option>
+            <% } %>
+          </select>
+        </div>
+      </div>
+
+      <div class="barra-acciones-filtros">
+        <button type="button" class="boton-primario" data-usuarios-aplicar>
+          Aplicar filtros
+        </button>
+        <button type="button" class="boton-secundario" data-usuarios-limpiar>
+          Limpiar
+        </button>
+      </div>
+
+      <div class="fila-encabezado fila-encabezado--compacta">
+        <p class="texto-apoyo" data-usuarios-resumen-listado>
+          Cargando usuarios...
+        </p>
+        <p class="texto-apoyo">
+          Alcance actual: <strong><%= alcanceActual.descripcion %></strong>
+        </p>
+      </div>
+
+      <div class="table-responsive mt-4 organizacion-tabla usuarios-tabla">
+        <div data-usuarios-estado class="texto-apoyo usuarios-tabla__estado">Cargando usuarios...</div>
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">
+                <button type="button" class="boton-orden" data-sort-by="id">ID</button>
+              </th>
+              <th scope="col">
+                <button type="button" class="boton-orden" data-sort-by="usuario">Usuario</button>
+              </th>
+              <th scope="col">
+                <button type="button" class="boton-orden" data-sort-by="nombre">Nombre</button>
+              </th>
+              <th scope="col">
+                <button type="button" class="boton-orden" data-sort-by="tenant">Tenant</button>
+              </th>
+              <th scope="col">
+                <button type="button" class="boton-orden" data-sort-by="empresa">Empresa</button>
+              </th>
+              <th scope="col">Permisos</th>
+              <th scope="col">
+                <button type="button" class="boton-orden" data-sort-by="activo">Activo</button>
+              </th>
+              <th scope="col">
+                <button type="button" class="boton-orden" data-sort-by="creado">Creado</button>
+              </th>
+              <th scope="col" class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody data-usuarios-filas>
+            <tr>
+              <td colspan="9" class="text-body-secondary">
+                Cargando usuarios...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div
+        class="d-flex justify-content-between align-items-center gap-3 flex-wrap border-top mt-4 pt-3"
+        data-usuarios-paginador
+      >
+        <span class="text-body-secondary" data-usuarios-pagina-actual></span>
+        <div class="btn-group" role="group" aria-label="Paginación usuarios">
+          <button type="button" class="btn btn-outline-secondary" data-page-action="first">
+            <i class="bi bi-chevron-double-left me-2" aria-hidden="true"></i>
+            Primero
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-page-action="prev">
+            <i class="bi bi-chevron-left me-2" aria-hidden="true"></i>
+            Anterior
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-page-action="next">
+            Siguiente
+            <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-page-action="last">
+            Último
+            <i class="bi bi-chevron-double-right ms-2" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<div
+  class="modal fade"
+  id="modal-usuarios-permisos"
+  tabindex="-1"
+  aria-labelledby="modal-usuarios-permisos-titulo"
+  aria-hidden="true"
+  data-usuarios-permisos-modal
+>
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <div>
+          <span class="badge text-bg-info-subtle text-info-emphasis rounded-pill mb-2 d-inline-flex align-items-center gap-2">
+            <i class="bi bi-shield-check" aria-hidden="true"></i>
+            Detalle de permisos
+          </span>
+          <h2
+            class="modal-title fs-4 d-inline-flex align-items-center gap-2"
+            id="modal-usuarios-permisos-titulo"
+          >
+            <i class="bi bi-people" aria-hidden="true"></i>
+            <span data-usuarios-permisos-modal-titulo>Permisos de usuario</span>
+          </h2>
+          <p class="text-body-secondary mb-0" data-usuarios-permisos-modal-subtitulo>
+            Se cargará el catálogo de permisos del usuario seleccionado.
+          </p>
+        </div>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Cerrar"
+        ></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="d-flex flex-wrap gap-2 mb-3" data-usuarios-permisos-modal-resumen>
+          <span class="chip-simple chip-simple--ok">Activos 0</span>
+          <span class="chip-simple">Inactivos 0</span>
+        </div>
+
+        <div class="table-responsive usuarios-permisos-modal__tabla-wrap">
+          <table class="table align-middle mb-0 usuarios-permisos-modal__tabla">
+            <thead>
+              <tr>
+                <th scope="col">Permiso</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Descripción</th>
+                <th scope="col" class="text-center">Info</th>
+              </tr>
+            </thead>
+            <tbody data-usuarios-permisos-modal-filas>
+              <tr>
+                <td colspan="4" class="text-body-secondary">Selecciona un usuario para ver sus permisos.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button
+          type="button"
+          class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
+          data-bs-dismiss="modal"
+        >
+          <i class="bi bi-x-circle" aria-hidden="true"></i>
+          <span>Cerrar</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div
+  class="modal fade modal-impacto-trigger"
+  id="modal-usuarios-eliminar"
+  tabindex="-1"
+  aria-labelledby="modal-usuarios-eliminar-titulo"
+  aria-describedby="modal-usuarios-eliminar-descripcion"
+  aria-hidden="true"
+  data-usuarios-eliminar-modal
+>
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title h4" id="modal-usuarios-eliminar-titulo" data-usuarios-eliminar-titulo>Eliminar usuario</h2>
+          <p class="texto-apoyo mb-0" id="modal-usuarios-eliminar-descripcion">Revisa las consecuencias antes de confirmar.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-impacto-trigger__hero modal-impacto-trigger__hero--alerta">
+          <span class="organizacion-entidad__icono" aria-hidden="true"><i class="bi bi-shield-exclamation"></i></span>
+          <div>
+            <strong>Esta eliminación es irreversible.</strong>
+            <p class="texto-apoyo mb-0" data-usuarios-eliminar-identidad></p>
+          </div>
+        </div>
+        <div class="modal-impacto-trigger__avisos mt-3">
+          <p><i class="bi bi-info-circle" aria-hidden="true"></i><span>La cuenta dejará de existir y no podrá acceder al portal. Sus sesiones se invalidarán.</span></p>
+          <p><i class="bi bi-info-circle" aria-hidden="true"></i><span>Si participa en audiencias de correo, sus referencias se retirarán o ajustarán durante la eliminación.</span></p>
+        </div>
+        <form id="formulario-usuarios-eliminar" data-usuarios-eliminar-formulario>
+          <label for="frase-usuarios-eliminar" class="form-label fw-semibold mt-3">
+            Escribe exactamente <code data-usuarios-eliminar-frase-exacta></code>
+          </label>
+          <input id="frase-usuarios-eliminar" type="text" class="form-control" autocomplete="off" spellcheck="false" aria-describedby="estado-usuarios-eliminar" data-usuarios-eliminar-frase>
+          <p id="estado-usuarios-eliminar" class="small text-body-secondary mt-2 mb-0" aria-live="polite" data-usuarios-eliminar-estado>La frase todavía no coincide.</p>
+          <div class="alert alert-danger mt-3 mb-0" role="alert" hidden data-usuarios-eliminar-error></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" form="formulario-usuarios-eliminar" class="btn btn-danger d-inline-flex align-items-center gap-2" disabled data-usuarios-eliminar-confirmar>
+          <i class="bi bi-trash3" aria-hidden="true"></i><span data-usuarios-eliminar-confirmar-texto>Eliminar usuario</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/usuarios.js?v=usuarios-edicion-ux-20261004"></script>
+
+<%- include('../parciales/pie') %>

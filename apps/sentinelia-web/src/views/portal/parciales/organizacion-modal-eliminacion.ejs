@@ -1,0 +1,302 @@
+<div
+  class="modal fade modal-organizacion-eliminacion"
+  id="modal-eliminacion-organizacion"
+  tabindex="-1"
+  aria-labelledby="modal-eliminacion-organizacion-titulo"
+  aria-hidden="true"
+  data-organizacion-modal-eliminacion
+>
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-organizacion-eliminacion__dialogo">
+      <div class="modal-content border-0 shadow modal-organizacion-eliminacion__contenido">
+        <form
+          method="post"
+          class="d-flex flex-column h-100 modal-organizacion-eliminacion__formulario"
+          data-organizacion-modal-form
+        >
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title fs-4 d-inline-flex align-items-center gap-2" id="modal-eliminacion-organizacion-titulo">
+              <i class="bi bi-trash3" aria-hidden="true"></i>
+              Confirmar eliminación
+            </h2>
+            <p class="text-body-secondary mb-0" data-organizacion-modal-subtitulo>
+              Se está evaluando el impacto real antes de continuar.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="modal"
+            aria-label="Cerrar"
+          ></button>
+        </div>
+
+        <div class="modal-body overflow-auto modal-organizacion-eliminacion__cuerpo">
+          <input type="hidden" name="id" value="" data-organizacion-modal-id>
+          <input type="hidden" name="tokenConfirmacion" value="" data-organizacion-token-confirmacion>
+
+          <div class="alert alert-warning d-flex align-items-start gap-3 mb-4" data-organizacion-aviso-principal>
+            <div class="fs-4 lh-1 text-warning-emphasis">
+              <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+            </div>
+            <div>
+              <strong class="d-block mb-1">Se eliminará una entidad organizativa</strong>
+              <span data-organizacion-modal-descripcion>
+                Se cargará el detalle antes de permitir la confirmación.
+              </span>
+            </div>
+          </div>
+
+          <div
+            class="d-flex align-items-center gap-3 py-4"
+            data-organizacion-impacto-cargando
+          >
+            <div class="spinner-border text-secondary" role="status" aria-hidden="true"></div>
+            <div>
+              <strong class="d-block">Calculando impacto</strong>
+              <span class="text-body-secondary">Leyendo dependencias reales desde SQL…</span>
+            </div>
+          </div>
+
+          <div class="alert alert-danger d-none" data-organizacion-impacto-error></div>
+
+          <div class="d-none" data-organizacion-impacto-contenido>
+            <div class="d-none" data-organizacion-impacto-durable>
+              <div class="alert alert-warning d-flex align-items-start gap-2 mb-4">
+                <i class="bi bi-hourglass-split mt-1" aria-hidden="true"></i>
+                <div>
+                  <strong class="d-block">La eliminación se ejecutará en segundo plano</strong>
+                  <span data-organizacion-aviso-agregado>
+                    La raíz seguirá visible hasta que la operación termine.
+                  </span>
+                </div>
+              </div>
+
+              <section class="mb-4" data-organizacion-grupo-eliminacion>
+                <h3 class="h6 mb-3 d-inline-flex align-items-center gap-2">
+                  <i class="bi bi-trash3" aria-hidden="true"></i>
+                  <span>Se eliminará</span>
+                </h3>
+                <p class="small text-body-secondary mb-2">Recuento actual del contenido y las relaciones afectadas.</p>
+                <div class="table-responsive">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>Contenido</th>
+                        <th class="text-end">Cantidad</th>
+                      </tr>
+                    </thead>
+                    <tbody data-organizacion-impacto-eliminacion></tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section class="mb-4 d-none" data-organizacion-grupo-historico>
+                <h3 class="h6 mb-2 d-inline-flex align-items-center gap-2">
+                  <i class="bi bi-clock-history" aria-hidden="true"></i>
+                  <span>Histórico afectado</span>
+                </h3>
+                <p class="small text-body-secondary mb-2">Recuento exacto hasta 10.000; si se supera el límite, se muestra el mínimo confirmado.</p>
+                <div class="table-responsive">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>Contenido</th>
+                        <th class="text-end">Cantidad</th>
+                      </tr>
+                    </thead>
+                    <tbody data-organizacion-impacto-historico></tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section class="mb-4 d-none" data-organizacion-grupo-conservado>
+                <h3 class="h6 mb-2 d-inline-flex align-items-center gap-2 text-success-emphasis">
+                  <i class="bi bi-shield-check" aria-hidden="true"></i>
+                  <span>Se conservará</span>
+                </h3>
+                <p class="small text-body-secondary mb-2">Información que permanecerá disponible después de la eliminación.</p>
+                <div class="table-responsive">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>Contenido</th>
+                        <th class="text-end">Cantidad</th>
+                      </tr>
+                    </thead>
+                    <tbody data-organizacion-impacto-conservado></tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section class="border-top pt-4 mb-2" data-organizacion-confirmacion-durable>
+                <label for="frase_confirmacion_organizacion" class="form-label fw-semibold">
+                  Escribe exactamente <code data-organizacion-frase-exacta></code>
+                </label>
+                <input
+                  id="frase_confirmacion_organizacion"
+                  name="fraseConfirmacion"
+                  type="text"
+                  class="form-control"
+                  autocomplete="off"
+                  spellcheck="false"
+                  disabled
+                  data-organizacion-frase-confirmacion
+                >
+                <p class="form-text mb-0" aria-live="polite" data-organizacion-estado-confirmacion>
+                  La frase todavía no coincide exactamente.
+                </p>
+              </section>
+            </div>
+
+            <div data-organizacion-impacto-legado>
+            <div class="row g-3 mb-4">
+              <div class="col-12 col-md-6 col-xl-3">
+                <div class="card border-danger-subtle bg-danger-subtle h-100">
+                  <div class="card-body">
+                    <div class="text-uppercase small fw-semibold text-danger-emphasis mb-2 d-inline-flex align-items-center gap-2">
+                      <i class="bi bi-diagram-2" aria-hidden="true"></i>
+                      Dependencias
+                    </div>
+                    <div class="display-6 fw-bold text-danger-emphasis mb-1" data-impacto-total-dependencias>0</div>
+                    <div class="small text-body-secondary">Filas adicionales afectadas.</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12 col-md-6 col-xl-3">
+                <div class="card border-danger-subtle bg-danger-subtle h-100">
+                  <div class="card-body">
+                    <div class="text-uppercase small fw-semibold text-danger-emphasis mb-2 d-inline-flex align-items-center gap-2">
+                      <i class="bi bi-bezier2" aria-hidden="true"></i>
+                      Cascada total
+                    </div>
+                    <div class="display-6 fw-bold text-danger-emphasis mb-1" data-impacto-total-cascada>0</div>
+                    <div class="small text-body-secondary">Borrado automático encadenado.</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12 col-md-6 col-xl-3">
+                <div class="card border-warning-subtle bg-warning-subtle h-100">
+                  <div class="card-body">
+                    <div class="text-uppercase small fw-semibold text-warning-emphasis mb-2 d-inline-flex align-items-center gap-2">
+                      <i class="bi bi-unlink" aria-hidden="true"></i>
+                      Desacopladas
+                    </div>
+                    <div class="display-6 fw-bold text-warning-emphasis mb-1" data-impacto-total-desacopladas>0</div>
+                    <div class="small text-body-secondary">Referencias que quedarían a null.</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12 col-md-6 col-xl-3">
+                <div class="card border-secondary-subtle bg-light h-100">
+                  <div class="card-body">
+                    <div class="text-uppercase small fw-semibold text-secondary-emphasis mb-2 d-inline-flex align-items-center gap-2">
+                      <i class="bi bi-shield-lock" aria-hidden="true"></i>
+                      Bloqueos
+                    </div>
+                    <div class="display-6 fw-bold text-secondary-emphasis mb-1" data-impacto-total-bloqueos>0</div>
+                    <div class="small text-body-secondary">Relaciones que impedirían el borrado.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <section class="mb-4">
+              <h3 class="h6 mb-3 d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-down-right-circle" aria-hidden="true"></i>
+                <span>Impacto directo</span>
+              </h3>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Tabla</th>
+                      <th>Regla</th>
+                      <th class="text-end">Filas</th>
+                    </tr>
+                  </thead>
+                  <tbody data-impacto-primer-nivel></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="mb-4">
+              <h3 class="h6 mb-3 d-inline-flex align-items-center gap-2">
+                <i class="bi bi-diagram-3-fill" aria-hidden="true"></i>
+                <span>Borrado en cascada por tabla</span>
+              </h3>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Tabla</th>
+                      <th class="text-end">Filas</th>
+                    </tr>
+                  </thead>
+                  <tbody data-impacto-cascada></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="mb-4 d-none" data-impacto-seccion-desacopladas>
+              <h3 class="h6 mb-3 d-inline-flex align-items-center gap-2">
+                <i class="bi bi-scissors" aria-hidden="true"></i>
+                <span>Referencias que quedarían desacopladas</span>
+              </h3>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Tabla</th>
+                      <th>Regla</th>
+                      <th class="text-end">Filas</th>
+                    </tr>
+                  </thead>
+                  <tbody data-impacto-desacopladas></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="d-none" data-impacto-seccion-bloqueos>
+              <div class="alert alert-danger mb-3 d-flex align-items-start gap-2">
+                <i class="bi bi-shield-exclamation mt-1" aria-hidden="true"></i>
+                <span>
+                Se han detectado referencias que pueden bloquear el borrado. Conviene resolverlas antes de confirmar.
+                </span>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Tabla</th>
+                      <th>Regla</th>
+                      <th class="text-end">Filas</th>
+                    </tr>
+                  </thead>
+                  <tbody data-impacto-bloqueos></tbody>
+                </table>
+              </div>
+            </section>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle" aria-hidden="true"></i>
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            class="btn btn-danger d-inline-flex align-items-center gap-2"
+            disabled
+            data-organizacion-modal-confirmar
+          >
+            <i class="bi bi-trash3" aria-hidden="true"></i>
+            <span>Eliminar definitivamente</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

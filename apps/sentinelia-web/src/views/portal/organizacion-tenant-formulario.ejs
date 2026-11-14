@@ -1,0 +1,151 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<section class="panel-general">
+  <%- include('parciales/organizacion-cabecera', {
+    tituloSeccion: modo === 'editar' ? 'Editar tenant' : 'Crear tenant',
+    descripcionSeccion: modo === 'editar'
+      ? 'Ajusta metadatos visibles del tenant dentro de tu alcance actual.'
+      : 'Añade una nueva raíz organizativa para agrupar empresas, sitios y acceso delegado.',
+    modoCreacion: modo !== 'editar',
+    resumen,
+    subnavegacionOrganizacion,
+    flashOrganizacion,
+    contextoUsuarioActual,
+    tenantObjetivo: modo === 'editar' ? tenantObjetivo : null,
+    tenantFiltro: null,
+    empresaFiltro: null
+  }) %>
+
+  <section class="seccion-panel organizacion-formulario-detalle">
+    <% if (errorFormulario) { %>
+      <div class="mensaje-error"><%= errorFormulario %></div>
+    <% } %>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 pb-0">
+        <h3 class="mb-0 d-inline-flex align-items-center gap-2">
+          <i class="bi bi-diagram-3" aria-hidden="true"></i>
+          Datos del tenant
+        </h3>
+      </div>
+
+      <div class="card-body pt-3">
+        <form
+          method="post"
+          action="<%= modo === 'editar' ? '/organizacion/tenants/actualizar' : '/organizacion/tenants/crear' %>"
+          class="formulario-organizacion"
+          data-tenant-formulario
+          data-modo="<%= modo %>"
+          data-hay-error="<%= errorFormulario ? '1' : '0' %>"
+        >
+          <% if (formulario.id) { %>
+            <input type="hidden" name="id" value="<%= formulario.id %>">
+          <% } %>
+
+          <div class="row g-3">
+            <div class="col-12 col-lg-5">
+              <label for="tenant_nombre" class="form-label">Nombre</label>
+              <input
+                id="tenant_nombre"
+                name="nombre"
+                type="text"
+                class="form-control"
+                value="<%= formulario.nombre %>"
+                maxlength="160"
+                aria-describedby="tenant_nombre_ayuda"
+                required
+              >
+              <div id="tenant_nombre_ayuda" class="form-text">
+                Nombre visible de la raíz organizativa. Máximo 160 caracteres.
+              </div>
+            </div>
+
+            <div class="col-12 col-lg-4">
+              <label for="tenant_alias" class="form-label">Alias</label>
+              <input
+                id="tenant_alias"
+                name="alias"
+                type="text"
+                class="form-control"
+                value="<%= formulario.alias %>"
+                maxlength="120"
+                pattern="[a-zA-Z0-9._\-]+"
+                aria-describedby="tenant_alias_ayuda"
+                required
+              >
+              <div id="tenant_alias_ayuda" class="form-text">
+                Identificador único para referencias internas. Usa hasta 120 letras, números, puntos, guiones o guiones bajos.
+              </div>
+            </div>
+
+            <div class="col-12 col-lg-3">
+              <label for="tenant_estado" class="form-label">Estado</label>
+              <select
+                id="tenant_estado"
+                name="estado"
+                class="form-select"
+                aria-describedby="tenant_estado_ayuda"
+              >
+                <% for (const opcion of opcionesEstado) { %>
+                  <option
+                    value="<%= opcion.valor %>"
+                    <%= formulario.estado === opcion.valor ? 'selected' : '' %>
+                  >
+                    <%= opcion.etiqueta %>
+                </option>
+                <% } %>
+              </select>
+              <div id="tenant_estado_ayuda" class="form-text">
+                Determina si el tenant queda disponible para operar.
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div class="organizacion-formulario-detalle__advertencia" data-tenant-aviso-inactivo hidden>
+                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                <p class="mb-0">
+                  El tenant quedará marcado como inactivo. Sus empresas, sitios y demás contenido no se eliminarán.
+                </p>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div class="d-flex align-items-center justify-content-between gap-3">
+                <label for="tenant_descripcion" class="form-label">Descripción</label>
+                <span class="organizacion-formulario-detalle__contador" data-tenant-descripcion-contador aria-live="polite">0/255</span>
+              </div>
+              <textarea
+                id="tenant_descripcion"
+                name="descripcion"
+                class="form-control"
+                rows="4"
+                maxlength="255"
+                placeholder="Contexto operativo, etiqueta interna o nota funcional breve."
+              ><%= formulario.descripcion %></textarea>
+            </div>
+          </div>
+
+          <div class="acciones-formulario acciones-formulario--sticky organizacion-formulario-detalle__acciones mt-4">
+            <div class="acciones-formulario__estado" data-tenant-cambios-pendientes hidden aria-live="polite">
+              <strong>Cambios pendientes</strong>
+              <span>Revisa los datos antes de guardar.</span>
+            </div>
+            <div class="acciones-formulario__botones">
+              <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2" data-tenant-guardar>
+                <i class="bi bi-floppy" aria-hidden="true"></i>
+                <span><%= modo === 'editar' ? 'Guardar cambios' : 'Crear tenant' %></span>
+              </button>
+              <a href="/organizacion/tenants" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" data-tenant-cancelar>
+                <i class="bi bi-x-circle" aria-hidden="true"></i>
+                <span data-tenant-cancelar-texto>Cancelar</span>
+              </a>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+</section>
+
+<script src="/js/organizacion-tenant-formulario.js?v=tenant-cancelar-20260923"></script>
+<%- include('../parciales/pie') %>

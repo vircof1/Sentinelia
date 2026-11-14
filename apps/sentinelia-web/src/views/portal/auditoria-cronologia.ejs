@@ -1,0 +1,402 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual, contextoUsuarioActual }) %>
+<%
+  const retornoSolicitadoAuditoria = String(queryActual?.returnTo || '').trim();
+  const retornoAuditoriaSeguro = retornoSolicitadoAuditoria.startsWith('/') &&
+    !retornoSolicitadoAuditoria.startsWith('//') &&
+    !/[\\\r\n]/.test(retornoSolicitadoAuditoria) &&
+    [/^\/monitores(?:\/|$|\?)/, /^\/agentes(?:\/|$|\?)/, /^\/usuarios(?:\/|$|\?)/, /^\/dns(?:\/|$|\?)/]
+      .some((patron) => patron.test(retornoSolicitadoAuditoria))
+      ? retornoSolicitadoAuditoria
+      : '';
+  const tiposEventoDisponibles = typeof tiposEventoAuditoria !== 'undefined' ? tiposEventoAuditoria : [];
+%>
+
+<section
+  class="panel-general auditoria-cronologia"
+  data-auditoria-cronologia
+  data-url-eventos="/auditoria/api/eventos"
+  data-url-correlaciones="/auditoria/api/correlaciones"
+  data-url-sujetos="/auditoria/api/sujetos"
+  data-url-actores="/auditoria/api/actores"
+  data-url-diagnosticos="/auditoria/api/diagnosticos"
+>
+  <section class="hero-operativo hero-auditoria card border-0 shadow-lg overflow-hidden">
+    <div class="card-body hero-operativo__cuerpo p-4">
+      <div class="hero-operativo__textos">
+          <span class="insignia-suave d-inline-flex align-items-center gap-2">
+            <i class="bi bi-journal-text" aria-hidden="true"></i>
+            <span>Auditoría</span>
+          </span>
+          <h1>Actividad auditada</h1>
+          <p class="mb-0">
+            Consulta quién hizo qué y cuándo entre los eventos visibles para tu alcance.
+          </p>
+          <div class="hero-etiquetas">
+            <span class="insignia d-inline-flex align-items-center gap-2">
+              <i class="bi bi-diagram-3" aria-hidden="true"></i>
+              <span>Alcance <%= contextoUsuarioActual?.nivelScope || 'desconocido' %></span>
+            </span>
+            <span class="insignia d-inline-flex align-items-center gap-2">
+              <i class="bi bi-calendar-week" aria-hidden="true"></i>
+              <span data-auditoria-periodo>Preparando periodo…</span>
+            </span>
+          </div>
+          <% if (retornoAuditoriaSeguro) { %>
+            <div class="hero-monitores__acciones mt-3">
+              <a href="<%= retornoAuditoriaSeguro %>" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2" data-auditoria-volver-contexto>
+                <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                <span>Volver al recurso</span>
+              </a>
+            </div>
+          <% } %>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion-panel auditoria-integridad" data-auditoria-integridad>
+    <div class="seccion-cabecera">
+      <div>
+        <h2 class="d-inline-flex align-items-center gap-2">
+          <i class="bi bi-shield-lock" aria-hidden="true"></i>
+          <span>Integridad progresiva</span>
+        </h2>
+        <p class="texto-apoyo" data-auditoria-integridad-estado>
+          Consultando diagnóstico de cadenas visibles…
+        </p>
+      </div>
+    </div>
+
+    <div class="auditoria-integridad__resumen" data-auditoria-integridad-resumen hidden>
+      <article class="kpi-resumen kpi-resumen--suave">
+        <span class="etiqueta">Cadenas visibles</span>
+        <strong data-auditoria-integridad-total>0</strong>
+        <small>No implica integridad global del portal.</small>
+      </article>
+      <article class="kpi-resumen kpi-resumen--suave">
+        <span class="etiqueta">Con atención</span>
+        <strong data-auditoria-integridad-problemas>0</strong>
+        <small>Rotas, incompletas, sin datos o pendientes.</small>
+      </article>
+      <article class="kpi-resumen kpi-resumen--suave">
+        <span class="etiqueta">Pendientes</span>
+        <strong data-auditoria-integridad-pendientes>0</strong>
+        <small>La cabecera avanzó más allá del rango verificado.</small>
+      </article>
+    </div>
+
+    <div class="alert alert-warning auditoria-integridad__aviso" data-auditoria-integridad-aviso hidden>
+      <strong>Lectura prudente.</strong>
+      Esta tarjeta compara el rango verificado con la cabecera conocida. Muestra
+      “íntegra hasta N” o “pendiente”; no promete integridad vigente si quedan
+      eventos posteriores sin verificar.
+    </div>
+
+    <div class="alert alert-danger auditoria-integridad__error" role="alert" data-auditoria-integridad-error hidden></div>
+    <div class="estado-vacio auditoria-integridad__vacio" data-auditoria-integridad-vacio hidden>
+      <i class="bi bi-shield-slash" aria-hidden="true"></i>
+      <strong>No hay diagnósticos visibles.</strong>
+      <span>No se puede concluir el estado de integridad: tu alcance actual no muestra cadenas diagnosticadas.</span>
+    </div>
+    <div class="auditoria-integridad__cadenas" data-auditoria-integridad-cadenas></div>
+
+    <div class="auditoria-integridad__incidentes" data-auditoria-integridad-incidentes hidden>
+      <h3>Incidencias activas visibles</h3>
+      <div data-auditoria-integridad-incidentes-lista></div>
+    </div>
+  </section>
+
+  <section class="seccion-panel auditoria-cronologia__controles">
+    <div class="seccion-cabecera">
+      <div>
+        <h2 class="d-inline-flex align-items-center gap-2">
+          <i class="bi bi-funnel" aria-hidden="true"></i>
+          <span>Filtros</span>
+        </h2>
+        <p class="texto-apoyo">La ventana inicial cubre siete días. Los límites de fecha se calculan en UTC; las horas de los eventos se muestran en tu zona local.</p>
+        <p class="texto-apoyo">El resultado o estado depende del tipo de evento; no hay un filtro global que los mezcle.</p>
+      </div>
+    </div>
+
+    <form class="auditoria-filtros" data-auditoria-filtros>
+      <label>
+        <span>Desde</span>
+        <input name="desde" class="form-control" type="date" data-auditoria-desde>
+      </label>
+      <label>
+        <span>Hasta</span>
+        <input name="hasta" class="form-control" type="date" data-auditoria-hasta>
+      </label>
+      <label>
+        <span>Flujo</span>
+        <select name="flujo" class="form-select">
+          <option value="">Todos</option>
+          <option value="internet">Frontera de Internet</option>
+          <option value="sistema">Sistema</option>
+          <option value="usuarios">Usuarios</option>
+          <option value="organizacion">Organización</option>
+          <option value="agentes">Agentes</option>
+          <option value="monitores">Monitores</option>
+          <option value="alertas">Alertas</option>
+          <option value="automatizacion">Automatización</option>
+          <option value="dns">DNS</option>
+        </select>
+      </label>
+      <div class="auditoria-tipo-evento">
+        <label for="auditoria-tipo-evento"><span>Tipo de evento</span></label>
+        <input id="auditoria-tipo-evento" name="tipoEvento" class="form-control" type="search" autocomplete="off" placeholder="Busca por nombre o código" data-auditoria-tipo-evento aria-controls="auditoria-tipo-evento-opciones" aria-expanded="false" aria-describedby="auditoria-tipo-evento-ayuda">
+        <div id="auditoria-tipo-evento-opciones" class="auditoria-tipo-evento__opciones" data-auditoria-tipo-evento-opciones hidden></div>
+        <small id="auditoria-tipo-evento-ayuda" class="texto-apoyo" data-auditoria-tipo-evento-ayuda>Escribe y elige una sugerencia; se aplicará su código exacto.</small>
+      </div>
+      <datalist id="auditoria-tipos-evento" data-auditoria-tipos-evento>
+        <% for (const evento of tiposEventoDisponibles) { %>
+          <option value="<%= evento.tipo %>" label="<%= evento.etiqueta %>"></option>
+        <% } %>
+      </datalist>
+      <label>
+        <span>Orden</span>
+        <select name="orden" class="form-select">
+          <option value="desc">Más recientes primero</option>
+          <option value="asc">Más antiguos primero</option>
+        </select>
+      </label>
+      <label>
+        <span>Tamaño de página</span>
+        <select name="limite" class="form-select" data-auditoria-limite>
+          <option value="10">10 eventos</option>
+          <option value="25" selected>25 eventos</option>
+          <option value="50">50 eventos</option>
+        </select>
+      </label>
+      <fieldset class="auditoria-filtros__sujeto" data-auditoria-sujeto>
+        <legend>Sujeto exacto</legend>
+        <label>
+          <span>Tipo</span>
+          <select name="sujetoTipo" class="form-select" data-auditoria-sujeto-tipo>
+            <option value="">Sin filtro de sujeto</option>
+            <option value="frontera_internet">Frontera de Internet</option>
+            <option value="usuario">Usuario</option>
+            <option value="sesion_usuario">Sesión de usuario</option>
+            <option value="agente">Agente</option>
+            <option value="sesion_agente">Sesión de agente</option>
+            <option value="regla_telemetria">Regla de telemetría</option>
+            <option value="monitor">Monitor</option>
+            <option value="alerta">Alerta</option>
+            <option value="trigger">Trigger</option>
+            <option value="binding_trigger">Vínculo de trigger</option>
+            <option value="zona_dns">Zona DNS</option>
+            <option value="registro_dns">Registro DNS</option>
+            <option value="tenant">Tenant</option>
+            <option value="empresa">Empresa</option>
+            <option value="sitio">Sitio</option>
+            <option value="configuracion_portal">Configuración del portal</option>
+            <option value="cadena_auditoria">Cadena de auditoría</option>
+            <option value="incidente_integridad">Incidente de integridad</option>
+          </select>
+        </label>
+        <label class="auditoria-sujeto__busqueda">
+          <span>Buscar etiqueta actual</span>
+          <input
+            class="form-control"
+            type="search"
+            autocomplete="off"
+            placeholder="Escribe al menos 2 caracteres"
+            data-auditoria-sujeto-busqueda
+          >
+          <div class="auditoria-sujeto__opciones" data-auditoria-sujeto-opciones hidden></div>
+        </label>
+        <label>
+          <span>ID exacto o seleccionado</span>
+          <input
+            name="sujetoId"
+            class="form-control"
+            type="text"
+            maxlength="191"
+            autocomplete="off"
+            placeholder="Identificador SQL exacto"
+            data-auditoria-sujeto-id
+          >
+        </label>
+        <p class="texto-apoyo auditoria-sujeto__estado" data-auditoria-sujeto-estado aria-live="polite">
+          Selecciona un tipo para buscar; también puedes introducir un ID histórico exacto.
+        </p>
+      </fieldset>
+      <details class="auditoria-filtros-avanzados" data-auditoria-filtros-avanzados>
+        <summary>Investigación avanzada</summary>
+        <div class="auditoria-filtros-avanzados__campos">
+          <fieldset class="auditoria-filtros__actor">
+            <legend>
+              <span>Actor exacto</span>
+              <button type="button" class="usuario-permiso-item__ayuda" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-custom-class="auditoria-tooltip"
+                data-bs-title="Actor real: identidad que inició la operación. Actor efectivo: identidad cuyos permisos se aplicaron al actuar en su nombre."
+                aria-label="Ayuda sobre el actor: el real inició la operación; el efectivo es la identidad cuyos permisos se aplicaron al actuar en su nombre.">
+                <i class="bi bi-info-circle" aria-hidden="true"></i>
+              </button>
+            </legend>
+            <label>
+              <span>Rol</span>
+              <select name="actorRol" class="form-select">
+                <option value="">Sin filtro de actor</option>
+                <option value="real">Actor real</option>
+                <option value="efectivo">Actor efectivo</option>
+              </select>
+            </label>
+            <label>
+              <span>Tipo</span>
+              <select name="actorTipo" class="form-select" data-auditoria-actor-tipo>
+                <option value="">Selecciona un tipo</option>
+                <option value="usuario">Usuario</option>
+                <option value="agente">Agente</option>
+                <option value="runtime">Runtime</option>
+                <option value="sistema">Sistema</option>
+              </select>
+            </label>
+            <label class="auditoria-actor__busqueda">
+              <span>Buscar etiqueta actual</span>
+              <input class="form-control" type="search" autocomplete="off" placeholder="Escribe al menos 2 caracteres" data-auditoria-actor-busqueda>
+              <div class="auditoria-actor__opciones" data-auditoria-actor-opciones hidden></div>
+            </label>
+            <label>
+              <span>ID exacto o seleccionado</span>
+              <input name="actorId" class="form-control" type="text" maxlength="128" autocomplete="off" data-auditoria-actor-id>
+            </label>
+            <p class="texto-apoyo auditoria-actor__estado" data-auditoria-actor-estado aria-live="polite">
+              Rol, tipo e ID se aplican siempre juntos.
+            </p>
+          </fieldset>
+          <label>
+            <span>Modo de actuación</span>
+            <select name="modoActuacion" class="form-select">
+              <option value="">Todos</option>
+              <option value="directo">Directo</option>
+              <option value="impersonado">Impersonado</option>
+            </select>
+          </label>
+          <label>
+            <span>Origen</span>
+            <select name="origen" class="form-select">
+              <option value="">Todos</option>
+              <option value="web">Web</option>
+              <option value="api_agentes">API de agentes</option>
+              <option value="runtime">Runtime</option>
+              <option value="bootstrap">Bootstrap</option>
+              <option value="tarea_sistema">Tarea de sistema</option>
+            </select>
+          </label>
+          <div class="auditoria-filtros__campo-ayuda">
+            <div class="campo-etiqueta-ayuda">
+              <label for="auditoria-clave-cadena">Clave de cadena exacta</label>
+              <button type="button" class="usuario-permiso-item__ayuda" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-custom-class="auditoria-tooltip"
+                data-bs-title="Identifica la secuencia auditable de un flujo y un alcance, por ejemplo usuarios:tenant:35. No es un ID de evento."
+                aria-label="Ayuda sobre la clave de cadena: identifica la secuencia auditable de un flujo y un alcance; no es un ID de evento.">
+                <i class="bi bi-info-circle" aria-hidden="true"></i>
+              </button>
+            </div>
+            <input id="auditoria-clave-cadena" name="claveCadena" class="form-control" type="text" maxlength="128" pattern="(internet|sistema|usuarios|organizacion|agentes|monitores|alertas|automatizacion|dns):(portal|tenant:[1-9][0-9]*)" placeholder="usuarios:tenant:9">
+          </div>
+          <div class="auditoria-filtros__campo-ayuda">
+            <div class="campo-etiqueta-ayuda">
+              <label for="auditoria-correlacion-id">ID de correlación</label>
+              <button type="button" class="usuario-permiso-item__ayuda" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-custom-class="auditoria-tooltip"
+                data-bs-title="Identificador compartido por eventos de una misma operación. Solo verás los que permite tu alcance."
+                aria-label="Ayuda sobre la correlación: agrupa eventos de una misma operación; solo verás los permitidos por tu alcance.">
+                <i class="bi bi-info-circle" aria-hidden="true"></i>
+              </button>
+            </div>
+            <input id="auditoria-correlacion-id" name="correlacionId" class="form-control" type="text" maxlength="36" pattern="[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}" placeholder="UUIDv7 exacto">
+          </div>
+          <fieldset class="auditoria-filtros__causalidad">
+            <legend>
+              <span>Causalidad exacta</span>
+              <button type="button" class="usuario-permiso-item__ayuda" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-custom-class="auditoria-tooltip"
+                data-bs-title="Hecho concreto que desencadenó este evento. Busca por tipo e ID exactos; no equivale a la correlación de toda la operación."
+                aria-label="Ayuda sobre causalidad: hecho concreto que desencadenó el evento; no equivale a la correlación de toda la operación.">
+                <i class="bi bi-info-circle" aria-hidden="true"></i>
+              </button>
+            </legend>
+            <label>
+              <span>Tipo</span>
+              <select name="causalidadTipo" class="form-select">
+                <option value="">Sin filtro causal</option>
+                <option value="solicitud_recuperacion_password">Solicitud de recuperación de contraseña</option>
+                <option value="evento_auditoria">Evento de auditoría</option>
+                <option value="evento_monitor">Evento de monitor</option>
+                <option value="ejecucion_trigger">Ejecución de trigger</option>
+                <option value="operacion_sesion_agente">Operación de sesión de agente</option>
+                <option value="generacion_dns">Generación DNS</option>
+              </select>
+            </label>
+            <label>
+              <span>ID exacto</span>
+              <input name="causalidadId" class="form-control" type="text" maxlength="128" autocomplete="off">
+            </label>
+          </fieldset>
+        </div>
+      </details>
+      <div class="auditoria-filtros__acciones">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-search" aria-hidden="true"></i>
+          <span>Aplicar</span>
+        </button>
+        <button type="button" class="btn auditoria-accion" data-auditoria-reset>
+          <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+          <span>Restablecer</span>
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="seccion-panel auditoria-cronologia__panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h2 class="d-inline-flex align-items-center gap-2">
+          <i class="bi bi-clock-history" aria-hidden="true"></i>
+          <span>Eventos visibles</span>
+        </h2>
+        <p class="texto-apoyo" data-auditoria-estado aria-live="polite">Preparando lectura de auditoría…</p>
+      </div>
+    </div>
+
+    <div class="alert alert-danger auditoria-cronologia__error" role="alert" data-auditoria-error hidden></div>
+    <div class="estado-vacio auditoria-cronologia__vacio" data-auditoria-vacio hidden>
+      <i class="bi bi-inbox" aria-hidden="true"></i>
+      <strong>No hay eventos visibles en esta ventana.</strong>
+      <span>Prueba a cambiar filtros o revisa si tu alcance tiene actividad reciente.</span>
+    </div>
+    <div class="auditoria-lista" data-auditoria-lista>
+      <table class="auditoria-tabla">
+        <caption class="visually-hidden">Página actual de eventos de auditoría visibles</caption>
+        <thead>
+          <tr>
+            <th scope="col">Fecha</th>
+            <th scope="col">Evento / flujo</th>
+            <th scope="col">Sujeto</th>
+            <th scope="col">Actor / origen</th>
+            <th scope="col"><span class="visually-hidden">Acciones</span></th>
+          </tr>
+        </thead>
+        <tbody data-auditoria-tabla-cuerpo></tbody>
+      </table>
+    </div>
+
+    <div class="auditoria-cronologia__pie" aria-label="Navegación de páginas">
+      <button type="button" class="btn auditoria-accion" data-auditoria-primera disabled>
+        <i class="bi bi-skip-backward-fill" aria-hidden="true"></i>
+        <span>Primera</span>
+      </button>
+      <button type="button" class="btn auditoria-accion" data-auditoria-anterior disabled>
+        <i class="bi bi-chevron-left" aria-hidden="true"></i>
+        <span>Anterior</span>
+      </button>
+      <span class="auditoria-paginacion__estado" data-auditoria-pagina aria-live="polite">Página 1</span>
+      <button type="button" class="btn auditoria-accion" data-auditoria-cargar-mas data-auditoria-siguiente disabled>
+        <span>Siguiente</span>
+        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+      </button>
+      <span class="texto-apoyo" data-auditoria-fin hidden>Fin de la cronología visible.</span>
+    </div>
+  </section>
+</section>
+
+<script src="/js/auditoria-cronologia.js"></script>
+
+<%- include('../parciales/pie') %>

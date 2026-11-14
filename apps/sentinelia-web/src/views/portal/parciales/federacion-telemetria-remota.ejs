@@ -1,0 +1,292 @@
+<%
+  const etiquetaPol = { abierto: 'Prueba de vida activa', cerrado: 'Prueba de vida cerrada', nuncaObservado: 'Nunca observado' };
+  const clasePol = { abierto: 'insignia-monitor--ok', cerrado: 'insignia-monitor--advertencia', nuncaObservado: 'insignia-monitor--suave' };
+  const valorLegible = (valor) => {
+    if (valor === null) return 'null';
+    if (typeof valor === 'object') return JSON.stringify(valor);
+    if (typeof valor === 'boolean') return valor ? 'verdadero' : 'falso';
+    return String(valor);
+  };
+  const etiquetaScope = (scope) => {
+    if (!scope) return 'No declarado';
+    const niveles = [];
+    if (scope.tenantElementoOrigenId) niveles.push('Tenant');
+    if (scope.empresaElementoOrigenId) niveles.push('Empresa');
+    if (scope.sitioElementoOrigenId) niveles.push('Sitio');
+    return niveles.join(' · ') || 'Portal completo';
+  };
+  const graficoActividadJson = JSON.stringify(telemetriaRemota.grafico || { unidades: [] })
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+%>
+
+<span class="insignia-suave">Área remota · solo lectura</span>
+<h2 class="mt-2"><i class="bi <%= seccionActual.icono %>" aria-hidden="true"></i> Agentes</h2>
+<p>Agentes remotos y la telemetría que producen: catálogo de señales, fotografías actuales, continuidad e histórico publicados por la instalación de origen.</p>
+
+<div class="submenus-remotos mt-4">
+  <% for (const subseccion of subsecciones) { %>
+    <a href="<%= urlSubvista(subseccion.id) %>"
+      class="<%= navegacion.subvista === subseccion.id ? 'activo' : '' %>"><%= subseccion.etiqueta %></a>
+  <% } %>
+</div>
+
+<% if (navegacion.subvista === 'resumen') { %>
+  <div class="resumen-telemetria-remota mt-4" aria-label="Resumen de telemetría remota">
+    <article><span>Agentes publicados</span><strong><%= telemetriaRemota.resumen.fuentes %></strong></article>
+    <article><span>Señales catalogadas</span><strong><%= telemetriaRemota.resumen.senales %></strong></article>
+    <article><span>Con estado actual</span><strong><%= telemetriaRemota.resumen.senalesConEstado %></strong></article>
+    <article><span>Agentes con POL</span><strong><%= telemetriaRemota.resumen.fuentesConPol %></strong></article>
+  </div>
+
+  <% if (telemetriaRemota.resumen.limiteAlcanzado) { %>
+    <div class="alert alert-warning mt-3" role="status">La vista alcanzó su límite de 1000 registros actuales. Las cifras son una ventana mínima, no un total concluyente.</div>
+  <% } %>
+
+  <% if (telemetriaRemota.fuentes.length === 0 && telemetriaRemota.senalesSinFuente.length === 0) { %>
+    <div class="estado-vacio-remoto mt-4">
+      <i class="bi bi-graph-down" aria-hidden="true"></i>
+      <div><strong>No hay telemetría actual visible.</strong><br>Puede que el catálogo aún no se haya materializado o que quede fuera de tu concesión y scope.</div>
+    </div>
+  <% } else { %>
+    <section class="fuentes-telemetria-remota mt-4" aria-label="Fuentes de telemetría remota">
+      <% for (const fuente of telemetriaRemota.fuentes) { %>
+        <article class="fuente-telemetria-remota">
+          <header>
+            <div>
+              <span class="insignia-monitor insignia-monitor--neutro">Agente remoto</span>
+              <% if (fuente.pol) { %><span class="insignia-monitor <%= fuente.pol.utilizable ? (clasePol[fuente.pol.estado] || 'insignia-monitor--suave') : 'insignia-monitor--advertencia' %>"><%= fuente.pol.utilizable ? (etiquetaPol[fuente.pol.estado] || fuente.pol.estado) : 'POL no utilizable ahora' %></span><% } else { %><span class="insignia-monitor insignia-monitor--suave">Sin POL recibido</span><% } %>
+              <h3><%= fuente.nombre %></h3>
+              <code class="text-break"><%= fuente.elementoOrigenId %></code>
+            </div>
+            <div class="fuente-telemetria-remota__total">
+              <small>Señales</small>
+              <strong><%= fuente.senales.length %></strong>
+            </div>
+          </header>
+
+          <dl class="fuente-telemetria-remota__metadatos">
+            <div><dt>GUID declarado</dt><dd><%= fuente.guid || 'No declarado' %></dd></div>
+            <div><dt>Scope de origen</dt><dd><%= etiquetaScope(fuente.scopeOrganizativo) %></dd></div>
+            <div><dt>Último heartbeat</dt><dd><% if (fuente.pol?.ultimoHeartbeatUtc) { %><time data-fecha-utc="<%= fuente.pol.ultimoHeartbeatUtc %>"><%= fuente.pol.ultimoHeartbeatUtc %></time><% } else { %>No recibido<% } %></dd></div>
+          </dl>
+
+          <% if (fuente.senales.length === 0) { %>
+            <div class="estado-vacio-remoto"><i class="bi bi-activity" aria-hidden="true"></i><div><strong>Agente sin señales visibles.</strong><br>El catálogo puede estar vacío, fuera de scope o todavía incompleto.</div></div>
+          <% } else { %>
+            <div class="senales-telemetria-remota">
+              <% for (const senal of fuente.senales) { %>
+                <article class="senal-telemetria-remota">
+                  <div class="senal-telemetria-remota__identidad">
+                    <div>
+                      <span class="insignia-monitor insignia-monitor--suave"><%= senal.tipoDato || 'tipo no declarado' %></span>
+                      <% if (senal.estadoActual) { %><span class="insignia-monitor <%= senal.estadoActual.condicion === 'vigente' ? 'insignia-monitor--ok' : 'insignia-monitor--advertencia' %>"><%= senal.estadoActual.condicion === 'vigente' ? 'Dato vigente' : senal.estadoActual.condicion === 'vencida' ? 'Dato vencido' : 'Dato no utilizable' %></span><% } %>
+                    </div>
+                    <h4><%= senal.nombre %></h4>
+                    <% if (senal.descripcion) { %><p><%= senal.descripcion %></p><% } %>
+                    <code class="text-break"><%= senal.elementoOrigenId %></code>
+                  </div>
+                  <div class="senal-telemetria-remota__estado">
+                    <% if (!senal.estadoActual) { %>
+                      <small>Sin fotografía actual recibida</small>
+                    <% } else { %>
+                      <small>Último valor publicado</small>
+                      <strong class="text-break"><%= valorLegible(senal.estadoActual.valor) %><% if (senal.unidad) { %> <%= senal.unidad %><% } %></strong>
+                      <span><%= senal.estadoActual.calidad || 'Calidad no declarada' %><% if (senal.estadoActual.severidad) { %> · <%= senal.estadoActual.severidad %><% } %></span>
+                      <% if (senal.estadoActual.observadoEnUtc) { %><time data-fecha-utc="<%= senal.estadoActual.observadoEnUtc %>"><%= senal.estadoActual.observadoEnUtc %></time><% } %>
+                    <% } %>
+                  </div>
+                </article>
+              <% } %>
+            </div>
+          <% } %>
+        </article>
+      <% } %>
+    </section>
+
+    <% if (telemetriaRemota.senalesSinFuente.length > 0) { %>
+      <section class="telemetria-sin-catalogo mt-4">
+        <h3>Señales cuyo agente no está visible</h3>
+        <p>Se conservan como señales válidas dentro de la concesión, pero esta vista no inventa ni resuelve el contexto de un agente ausente.</p>
+        <% for (const senal of telemetriaRemota.senalesSinFuente) { %>
+          <article><strong><%= senal.nombre %></strong><code class="text-break"><%= senal.elementoOrigenId %></code><small>Agente: <%= senal.fuenteOrigenId || 'no declarado' %></small></article>
+        <% } %>
+      </section>
+    <% } %>
+  <% } %>
+<% } else if (navegacion.subvista === 'actividad') { %>
+  <div class="resumen-telemetria-remota mt-4" aria-label="Resumen de cronología operativa telemétrica remota">
+    <article><span>Registros recientes</span><strong><%= telemetriaRemota.resumen.total %></strong></article>
+    <article><span>Observaciones</span><strong><%= telemetriaRemota.resumen.observaciones %></strong></article>
+    <article><span>Eventos derivados</span><strong><%= telemetriaRemota.resumen.eventosDerivados %></strong></article>
+    <article><span>Estados POL</span><strong><%= telemetriaRemota.resumen.estadosPol %></strong></article>
+  </div>
+
+  <form method="get" action="/federacion/datos-remotos" class="filtros-telemetria-remota mt-4" data-telemetria-remota-actividad-filtros>
+    <input type="hidden" name="procedencia" value="<%= telemetriaRemota.installationOrigenId %>">
+    <input type="hidden" name="vista" value="agentes">
+    <input type="hidden" name="subvista" value="actividad">
+    <input type="hidden" name="desdeUtc" value="<%= telemetriaRemota.filtros.desdeUtc || '' %>" data-telemetria-remota-desde-utc>
+    <input type="hidden" name="hastaUtc" value="<%= telemetriaRemota.filtros.hastaUtc || '' %>" data-telemetria-remota-hasta-utc>
+    <label><span>Señal</span><select class="form-select" name="senal">
+      <option value="">Todas las señales graficables</option>
+      <% for (const senal of telemetriaRemota.filtros.senales) { %>
+        <option value="<%= senal.elementoOrigenId %>" <%= telemetriaRemota.filtros.senalOrigenId === senal.elementoOrigenId ? 'selected' : '' %>><%= senal.nombre %><%= senal.tipoDato === 'duracion' ? ' (segundos)' : senal.tipoDato === 'momento_utc' ? ' (UTC)' : senal.unidad ? ` (${senal.unidad})` : ' (sin unidad)' %></option>
+      <% } %>
+    </select></label>
+    <label><span>Desde</span><input class="form-control" type="datetime-local" data-telemetria-remota-desde-local></label>
+    <label><span>Hasta</span><input class="form-control" type="datetime-local" data-telemetria-remota-hasta-local></label>
+    <label><span>Límite</span><input class="form-control" type="number" name="limiteActividad" min="25" max="500" step="1" value="<%= telemetriaRemota.filtros.limite %>"></label>
+    <div class="filtros-telemetria-remota__acciones">
+      <button class="btn btn-primary" type="submit">Consultar</button>
+      <a class="btn btn-outline-secondary" href="<%= urlSubvista('actividad') %>">Limpiar</a>
+      <span>Rangos rápidos:</span>
+      <button class="btn btn-outline-secondary btn-sm" type="button" data-telemetria-remota-rango-horas="1">Última hora</button>
+      <button class="btn btn-outline-secondary btn-sm" type="button" data-telemetria-remota-rango-horas="7">Últimas 7 horas</button>
+      <button class="btn btn-outline-secondary btn-sm" type="button" data-telemetria-remota-rango-horas="24">Últimas 24 horas</button>
+    </div>
+  </form>
+
+  <% if (telemetriaRemota.resumen.limiteAlcanzado) { %>
+    <div class="alert alert-warning mt-3" role="status">Se muestran los 150 registros recientes actualmente publicados. Puede existir actividad anterior fuera de esta ventana.</div>
+  <% } %>
+
+  <% if (telemetriaRemota.grafico?.unidades?.length) { %>
+    <section class="telemetria-grafico telemetria-grafico--compacto telemetria-remota-actividad mt-4" data-telemetria-remota-actividad>
+      <script type="application/json" data-telemetria-remota-actividad-datos><%- graficoActividadJson %></script>
+      <div class="telemetria-grafico__layout">
+        <div class="telemetria-grafico__principal">
+          <div class="telemetria-grafico__cabecera telemetria-remota-actividad__cabecera">
+            <div>
+              <h3 class="h5 mb-1">Series temporales recibidas</h3>
+              <p class="text-body-secondary mb-0" data-telemetria-remota-actividad-descripcion>
+                Evolución de números, duraciones y momentos UTC, separada por semántica.
+              </p>
+            </div>
+            <label class="telemetria-remota-actividad__unidad">
+              <span>Tipo y unidad</span>
+              <select class="form-select form-select-sm" data-telemetria-remota-actividad-unidad>
+                <% for (const grupo of telemetriaRemota.grafico.unidades) { %>
+                  <option value="<%= grupo.clave %>"><%= grupo.etiqueta %> · <%= grupo.totalPuntos %> puntos</option>
+                <% } %>
+              </select>
+            </label>
+          </div>
+          <div class="telemetria-grafico__canvas">
+            <canvas data-telemetria-remota-actividad-canvas aria-label="Gráfico de actividad telemétrica remota"></canvas>
+            <div class="telemetria-grafico__estado" data-telemetria-remota-actividad-estado>Preparando gráfica...</div>
+          </div>
+          <div class="telemetria-grafico__pol-linea" data-telemetria-remota-actividad-pol-linea hidden></div>
+          <div class="telemetria-grafico__pol" data-telemetria-remota-actividad-pol-resumen>
+            <span class="telemetria-grafico__pol-chip <%= telemetriaRemota.grafico.pol.periodos.length ? 'telemetria-grafico__pol-chip--vivo' : 'telemetria-grafico__pol-chip--sin-datos' %>">Cobertura POL</span>
+            <span class="telemetria-grafico__pol-texto">Preparando contexto de prueba de vida alineado con la gráfica.</span>
+          </div>
+        </div>
+        <aside class="telemetria-grafico__detalle" data-telemetria-remota-actividad-detalle>
+          <span class="badge text-bg-light mb-2">Punto activo</span>
+          <div data-telemetria-remota-actividad-detalle-vacio>
+            <h3 class="h5 mb-2">Pasa el ratón por una serie</h3>
+            <p class="text-body-secondary mb-0">Aquí se mostrará el valor, la señal, la fecha, la calidad y el detalle declarado en origen.</p>
+          </div>
+          <div data-telemetria-remota-actividad-detalle-contenido hidden>
+            <h3 class="h6 mb-1" data-telemetria-remota-actividad-detalle-titulo>Observación</h3>
+            <p class="telemetria-grafico__detalle-valor mb-3" data-telemetria-remota-actividad-detalle-valor>sin valor</p>
+            <dl class="telemetria-grafico__detalle-lista">
+              <dt>Observado</dt><dd data-telemetria-remota-actividad-detalle-observado>sin fecha</dd>
+              <dt>Recibido</dt><dd data-telemetria-remota-actividad-detalle-recibido>sin fecha</dd>
+              <dt>Calidad</dt><dd data-telemetria-remota-actividad-detalle-calidad>sin dato</dd>
+              <dt>Severidad</dt><dd data-telemetria-remota-actividad-detalle-severidad>sin dato</dd>
+              <dt>Origen</dt><dd data-telemetria-remota-actividad-detalle-origen>sin dato</dd>
+            </dl>
+            <p class="small mb-0" data-telemetria-remota-actividad-detalle-humano>Sin detalle.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+  <% } else if (telemetriaRemota.resumen.observaciones > 0) { %>
+    <div class="estado-vacio-remoto mt-4">
+      <i class="bi bi-bar-chart-line" aria-hidden="true"></i>
+      <div><strong>Las observaciones visibles no forman una serie graficable.</strong><br>Los valores booleanos, textuales, de estado o JSON permanecen en el registro estructurado inferior.</div>
+    </div>
+  <% } %>
+
+  <% if (telemetriaRemota.entradas.length === 0) { %>
+    <div class="estado-vacio-remoto mt-4">
+      <i class="bi bi-activity" aria-hidden="true"></i>
+      <div><strong>No hay actividad telemétrica visible.</strong><br>No equivale a inactividad del origen: la concesión, el scope y la retención delimitan esta lectura.</div>
+    </div>
+  <% } else { %>
+    <h3 class="h5 mt-4 mb-3">Cronología operativa reciente</h3>
+    <ol class="actividad-telemetria-remota mt-4" aria-label="Cronología operativa telemétrica remota reciente">
+      <% for (const entrada of telemetriaRemota.entradas) { %>
+        <li class="actividad-telemetria-remota__entrada actividad-telemetria-remota__entrada--<%= entrada.tipo %>">
+          <div class="actividad-telemetria-remota__icono">
+            <i class="bi <%= entrada.tipo === 'observacion' ? 'bi-activity' : entrada.tipo === 'eventoDerivado' ? 'bi-lightning-charge' : 'bi-heart-pulse' %>" aria-hidden="true"></i>
+          </div>
+          <article>
+            <header>
+              <div>
+                <span class="insignia-monitor <%= entrada.tipo === 'eventoDerivado' ? 'insignia-monitor--advertencia' : entrada.tipo === 'pol' && entrada.utilizable ? 'insignia-monitor--ok' : 'insignia-monitor--suave' %>"><%= entrada.tipo === 'observacion' ? 'Observación' : entrada.tipo === 'eventoDerivado' ? 'Evento derivado' : 'Estado POL' %></span>
+                <% if (entrada.tipo === 'observacion') { %><span class="insignia-monitor <%= entrada.condicion === 'vigente' ? 'insignia-monitor--ok' : 'insignia-monitor--advertencia' %>"><%= entrada.condicion === 'vigente' ? 'Dato vigente' : entrada.condicion === 'vencida' ? 'Dato vencido' : 'Dato no utilizable' %></span><% } %>
+                <h3><%= entrada.nombre %></h3>
+              </div>
+              <% if (entrada.fechaUtc) { %><time data-fecha-utc="<%= entrada.fechaUtc %>"><%= entrada.fechaUtc %></time><% } %>
+            </header>
+
+            <% if (entrada.tipo === 'observacion') { %>
+              <div class="actividad-telemetria-remota__valor"><strong><%= valorLegible(entrada.valor) %><% if (entrada.unidad) { %> <%= entrada.unidad %><% } %></strong><span><%= entrada.calidad || 'Calidad no declarada' %><% if (entrada.severidad) { %> · <%= entrada.severidad %><% } %></span></div>
+            <% } else if (entrada.tipo === 'eventoDerivado') { %>
+              <% if (entrada.detalle) { %><p><%= entrada.detalle %></p><% } %>
+              <div class="actividad-telemetria-remota__valor"><strong><%= valorLegible(entrada.valor) %><% if (entrada.unidad) { %> <%= entrada.unidad %><% } %></strong><span><%= entrada.codigo || 'Sin código declarado' %><% if (entrada.severidad) { %> · <%= entrada.severidad %><% } %></span></div>
+            <% } else { %>
+              <p>El agente declara su prueba de vida como <strong><%= entrada.estado %></strong><% if (entrada.detalle) { %>: <%= entrada.detalle %><% } %>.</p>
+            <% } %>
+
+            <% if (entrada.detalle && entrada.tipo === 'observacion') { %><p><%= entrada.detalle %></p><% } %>
+            <footer><code class="text-break"><%= entrada.elementoOrigenId %></code><small>Agente: <%= entrada.fuenteOrigenId || 'no declarado' %></small></footer>
+          </article>
+        </li>
+      <% } %>
+    </ol>
+  <% } %>
+<% } else { %>
+  <div class="resumen-telemetria-remota resumen-telemetria-remota--historico mt-4" aria-label="Resumen de muestras y cobertura histórica remota">
+    <article><span>Registros retenidos</span><strong><%= telemetriaRemota.resumen.total %></strong></article>
+    <article><span>Observaciones</span><strong><%= telemetriaRemota.resumen.observaciones %></strong></article>
+    <article class="<%= telemetriaRemota.resumen.huecos ? 'con-huecos' : '' %>"><span>Huecos explícitos</span><strong><%= telemetriaRemota.resumen.huecos %></strong></article>
+  </div>
+
+  <% if (telemetriaRemota.resumen.desdeUtc || telemetriaRemota.resumen.hastaUtc) { %>
+    <p class="ventana-historica-telemetria mt-3">Ventana visible: <% if (telemetriaRemota.resumen.desdeUtc) { %><time data-fecha-utc="<%= telemetriaRemota.resumen.desdeUtc %>"><%= telemetriaRemota.resumen.desdeUtc %></time><% } %> — <% if (telemetriaRemota.resumen.hastaUtc) { %><time data-fecha-utc="<%= telemetriaRemota.resumen.hastaUtc %>"><%= telemetriaRemota.resumen.hastaUtc %></time><% } %></p>
+  <% } %>
+  <% if (telemetriaRemota.resumen.limiteAlcanzado) { %>
+    <div class="alert alert-warning mt-3" role="status">La ventana alcanzó 500 registros publicados. No permite concluir que no existan hechos anteriores.</div>
+  <% } %>
+
+  <% if (telemetriaRemota.entradas.length === 0) { %>
+    <div class="estado-vacio-remoto mt-4">
+      <i class="bi bi-clock-history" aria-hidden="true"></i>
+      <div><strong>No hay muestras ni cobertura histórica publicadas.</strong><br>La ausencia puede ser real o responder a la retención y completitud concedidas.</div>
+    </div>
+  <% } else { %>
+    <ol class="historico-telemetria-remota mt-4" aria-label="Muestras y cobertura histórica remota">
+      <% for (const entrada of telemetriaRemota.entradas) { %>
+        <li class="historico-telemetria-remota__entrada <%= entrada.tipo === 'rangoHistorico' ? 'historico-telemetria-remota__entrada--hueco' : '' %>">
+          <div class="historico-telemetria-remota__marca"><i class="bi <%= entrada.tipo === 'rangoHistorico' ? 'bi-dash-circle' : 'bi-graph-up' %>" aria-hidden="true"></i></div>
+          <article>
+            <% if (entrada.tipo === 'rangoHistorico') { %>
+              <header><div><span class="insignia-monitor insignia-monitor--advertencia">Intervalo no disponible</span><h3><%= entrada.causa %></h3></div></header>
+              <dl><div><dt>Desde</dt><dd><time data-fecha-utc="<%= entrada.desdeUtc %>"><%= entrada.desdeUtc %></time></dd></div><div><dt>Hasta</dt><dd><time data-fecha-utc="<%= entrada.hastaUtc %>"><%= entrada.hastaUtc %></time></dd></div></dl>
+            <% } else { %>
+              <header><div><span class="insignia-monitor insignia-monitor--suave"><%= entrada.tipoDato || 'Observación' %></span><h3><%= entrada.nombre %></h3></div><% if (entrada.fechaUtc) { %><time data-fecha-utc="<%= entrada.fechaUtc %>"><%= entrada.fechaUtc %></time><% } %></header>
+              <div class="actividad-telemetria-remota__valor"><strong><%= valorLegible(entrada.valor) %><% if (entrada.unidad) { %> <%= entrada.unidad %><% } %></strong><span><%= entrada.calidad || 'Calidad no declarada' %><% if (entrada.severidad) { %> · <%= entrada.severidad %><% } %></span></div>
+              <% if (entrada.detalle) { %><p><%= entrada.detalle %></p><% } %>
+            <% } %>
+            <footer><code class="text-break"><%= entrada.elementoOrigenId %></code><small>Señal: <%= entrada.senalOrigenId || 'no declarada' %></small></footer>
+          </article>
+        </li>
+      <% } %>
+    </ol>
+  <% } %>
+<% } %>

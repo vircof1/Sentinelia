@@ -1,0 +1,193 @@
+<%
+  const datosAlertas = alertasRemotas || {
+    totalActuales: 0, totalVisibles: 0, totalDescartadas: 0,
+    totalSinVigencia: 0, totalCerradas: 0,
+    alertasVisibles: [], alertasDescartadas: [],
+    alertasSinVigencia: [], alertasCerradas: [],
+    puedeGestionarDescartes: false
+  };
+  const alertasActivas = [
+    ...(datosAlertas.alertasVisibles || []),
+    ...(datosAlertas.alertasDescartadas || [])
+  ];
+  const alertasPresentadas = navegacion.subvista === 'sin-vigencia'
+    ? (datosAlertas.alertasSinVigencia || [])
+    : navegacion.subvista === 'historico'
+      ? (datosAlertas.alertasCerradas || [])
+      : alertasActivas;
+  const textoScopeAlerta = (scope) => scope?.sitioId
+    ? `Tenant #${scope.tenantId} · Empresa #${scope.empresaId} · Sitio #${scope.sitioId}`
+    : scope?.empresaId
+      ? `Tenant #${scope.tenantId} · Empresa #${scope.empresaId}`
+      : scope?.tenantId
+        ? `Tenant #${scope.tenantId}`
+        : 'Portal completo';
+  const textoEstadoAlerta = (estado) => estado === 'activaEnOrigen'
+    ? 'Activa en origen'
+    : estado === 'cerradaEnOrigen'
+      ? 'Cerrada en origen'
+      : 'Vigencia agotada';
+  const urlMonitorAlerta = (alerta) => `/federacion/datos-remotos?procedencia=${encodeURIComponent(alerta.installationOrigenId)}&vista=monitores&subvista=estado&monitor=${encodeURIComponent(alerta.monitorOrigenId)}`;
+%>
+
+<section data-alertas-remotas-shell>
+  <span class="insignia-suave">Estado operativo remoto · consulta explícita</span>
+  <h2 class="mt-2"><i class="bi <%= seccionActual?.icono %>" aria-hidden="true"></i> Alertas remotas</h2>
+  <p>
+    Ciclos de alerta declarados por monitores de la instalación de origen. Son
+    información remota: no ejecutan triggers locales y solo el origen puede
+    abrirlos o cerrarlos.
+  </p>
+
+  <div class="alert alert-info" role="status">
+    Esta consulta depende del permiso para ver alertas remotas, pero no de la
+    preferencia personal que decide si también aparecen en el dashboard.
+  </div>
+
+  <nav class="submenus-remotos mt-4" aria-label="Vistas de alertas remotas">
+    <% for (const subseccion of subsecciones) { %>
+      <a href="<%= urlSubvista(subseccion.id) %>"
+        class="<%= navegacion.subvista === subseccion.id ? 'activo' : '' %>"
+        <%= navegacion.subvista === subseccion.id ? 'aria-current="page"' : '' %>>
+        <%= subseccion.etiqueta %>
+      </a>
+    <% } %>
+  </nav>
+
+  <section class="row g-3 mt-1" aria-label="Resumen de alertas remotas">
+    <div class="col-6 col-xl"><article class="kpi-resumen kpi-resumen--suave h-100">
+      <span class="etiqueta">Activas</span><strong><%= datosAlertas.totalActuales %></strong>
+      <small>Sostenidas por el origen y su vigencia.</small>
+    </article></div>
+    <div class="col-6 col-xl"><article class="kpi-resumen kpi-resumen--suave h-100">
+      <span class="etiqueta">Visibles</span><strong><%= datosAlertas.totalVisibles %></strong>
+      <small>Sin descarte personal vigente.</small>
+    </article></div>
+    <div class="col-6 col-xl"><article class="kpi-resumen kpi-resumen--suave h-100">
+      <span class="etiqueta">Descartadas</span><strong><%= datosAlertas.totalDescartadas %></strong>
+      <small>Ocultación personal, no cierre remoto.</small>
+    </article></div>
+    <div class="col-6 col-xl"><article class="kpi-resumen kpi-resumen--suave h-100">
+      <span class="etiqueta">Sin vigencia</span><strong><%= datosAlertas.totalSinVigencia %></strong>
+      <small>El origen no confirmó todavía su cierre.</small>
+    </article></div>
+    <div class="col-6 col-xl"><article class="kpi-resumen kpi-resumen--suave h-100">
+      <span class="etiqueta">Cerradas</span><strong><%= datosAlertas.totalCerradas || 0 %></strong>
+      <small>Ciclos cerrados conservados.</small>
+    </article></div>
+  </section>
+
+  <% if (alertasPresentadas.length === 0) { %>
+    <div class="estado-vacio-remoto mt-4">
+      <i class="bi <%= navegacion.subvista === 'historico' ? 'bi-journal-check' : 'bi-bell-slash' %>" aria-hidden="true"></i>
+      <div>
+        <strong>No hay alertas remotas en esta vista.</strong><br>
+        La ausencia puede ser real o estar delimitada por concesión, scope, completitud y retención.
+      </div>
+    </div>
+  <% } else { %>
+    <section class="d-grid gap-3 mt-4" aria-label="Alertas remotas recibidas">
+      <% for (const alerta of alertasPresentadas) { %>
+        <% const descartada = alerta.descarteLocal?.vigente === true; %>
+        <article class="tarjeta dashboard-alerta-remota dashboard-alerta-remota--<%= alerta.estadoPresentacion %>">
+          <div class="d-flex flex-wrap justify-content-between gap-3 align-items-start">
+            <div>
+              <div class="fila-monitor__etiquetas">
+                <span class="insignia-monitor insignia-monitor--alerta">Remota</span>
+                <span class="insignia-monitor <%= alerta.estadoPresentacion === 'activaEnOrigen' ? 'insignia-monitor--alerta' : alerta.estadoPresentacion === 'cerradaEnOrigen' ? 'insignia-monitor--ok' : 'insignia-monitor--advertencia' %>"><%= textoEstadoAlerta(alerta.estadoPresentacion) %></span>
+                <% if (descartada) { %><span class="insignia-monitor insignia-monitor--neutro">Descartada para ti</span><% } %>
+              </div>
+              <h3 class="h5 mt-2 mb-1"><%= alerta.monitorNombre || 'Monitor remoto' %></h3>
+              <p class="mb-1"><%= alerta.payload?.mensajeUltimoResultado || alerta.payload?.estadoDetectado || 'Sin detalle operativo declarado.' %></p>
+              <code class="text-break"><%= alerta.alertaAuditoriaId %></code>
+            </div>
+            <a class="btn btn-outline-secondary btn-sm" href="<%= urlMonitorAlerta(alerta) %>">
+              <i class="bi bi-broadcast" aria-hidden="true"></i> Ver monitor
+            </a>
+          </div>
+
+          <dl class="row mt-3 mb-0">
+            <dt class="col-sm-3">Scope</dt><dd class="col-sm-9"><%= textoScopeAlerta(alerta.scope) %></dd>
+            <dt class="col-sm-3">Desde</dt><dd class="col-sm-9"><time data-fecha-utc="<%= alerta.payload?.validoDesdeUtc || '' %>"><%= alerta.payload?.validoDesdeUtc || 'No declarada' %></time></dd>
+            <dt class="col-sm-3">Última confirmación</dt><dd class="col-sm-9"><time data-fecha-utc="<%= alerta.frescura?.ultimaConfirmacionUtc || '' %>"><%= alerta.frescura?.ultimaConfirmacionUtc || 'No declarada' %></time></dd>
+            <dt class="col-sm-3">Última ejecución</dt><dd class="col-sm-9"><time data-fecha-utc="<%= alerta.frescura?.ultimaEjecucionUtc || '' %>"><%= alerta.frescura?.ultimaEjecucionUtc || 'No declarada' %></time></dd>
+            <dt class="col-sm-3">Vigente hasta</dt><dd class="col-sm-9"><time data-fecha-utc="<%= alerta.frescura?.vigenteHastaOrigenUtc || '' %>"><%= alerta.frescura?.vigenteHastaOrigenUtc || 'No declarada' %></time></dd>
+            <% if (alerta.payload?.cerradaEnUtc) { %><dt class="col-sm-3">Cerrada en origen</dt><dd class="col-sm-9"><time data-fecha-utc="<%= alerta.payload.cerradaEnUtc %>"><%= alerta.payload.cerradaEnUtc %></time></dd><% } %>
+            <dt class="col-sm-3">Confirmaciones</dt><dd class="col-sm-9"><%= alerta.payload?.contadorRepeticiones ?? 0 %></dd>
+            <dt class="col-sm-3">Completitud</dt><dd class="col-sm-9"><code><%= alerta.completitud?.interpretable %>/<%= alerta.completitud?.observable %>/<%= alerta.completitud?.reconstruible %></code></dd>
+            <dt class="col-sm-3">Recorrido</dt><dd class="col-sm-9"><%= alerta.recorrido?.longitud || 0 %> saltos conservados</dd>
+          </dl>
+
+          <% if (alerta.payload?.contextoHumano?.descripcionFallo || alerta.payload?.contextoHumano?.posibleSolucion) { %>
+            <div class="alert alert-light mt-3 mb-0">
+              <strong>Contexto humano de origen</strong>
+              <% if (alerta.payload.contextoHumano.descripcionFallo) { %><p class="mb-1 mt-2"><%= alerta.payload.contextoHumano.descripcionFallo %></p><% } %>
+              <% if (alerta.payload.contextoHumano.posibleSolucion) { %><p class="mb-0"><strong>Posible solución:</strong> <%= alerta.payload.contextoHumano.posibleSolucion %></p><% } %>
+            </div>
+          <% } %>
+
+          <% if (alerta.payload?.descarteOrigen?.descartada) { %>
+            <p class="texto-apoyo mt-3 mb-0">
+              El origen declaró esta alerta descartada en su propio ámbito
+              <% if (alerta.payload.descarteOrigen.motivo) { %>: <%= alerta.payload.descarteOrigen.motivo %><% } %>.
+            </p>
+          <% } %>
+
+          <% if (descartada) { %>
+            <div class="alert alert-secondary mt-3 mb-0">
+              <strong>Descarte personal:</strong> <%= alerta.descarteLocal.motivo %>
+              <% if (alerta.descarteLocal.descartadaHastaUtc) { %> · hasta <time data-fecha-utc="<%= alerta.descarteLocal.descartadaHastaUtc %>"><%= alerta.descarteLocal.descartadaHastaUtc %></time><% } %>
+            </div>
+          <% } %>
+
+          <% if (datosAlertas.puedeGestionarDescartes && alerta.estadoPresentacion === 'activaEnOrigen') { %>
+            <div class="d-flex justify-content-end mt-3">
+              <% if (descartada) { %>
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                  data-alerta-remota-revertir
+                  data-proyeccion-id="<%= alerta.proyeccionId %>"
+                  data-alerta-id="<%= alerta.alertaAuditoriaId %>">
+                  Revertir descarte
+                </button>
+              <% } else { %>
+                <button type="button" class="btn btn-outline-warning btn-sm"
+                  data-alerta-remota-descartar
+                  data-proyeccion-id="<%= alerta.proyeccionId %>"
+                  data-alerta-id="<%= alerta.alertaAuditoriaId %>"
+                  data-monitor-nombre="<%= alerta.monitorNombre || 'Monitor remoto' %>">
+                  Descartar para mí
+                </button>
+              <% } %>
+            </div>
+          <% } %>
+        </article>
+      <% } %>
+    </section>
+  <% } %>
+</section>
+
+<% if (datosAlertas.puedeGestionarDescartes) { %>
+  <div class="modal fade" tabindex="-1" aria-hidden="true" data-alerta-remota-modal>
+    <div class="modal-dialog"><div class="modal-content">
+      <form data-alerta-remota-form>
+        <div class="modal-header">
+          <h2 class="modal-title h5">Descartar alerta remota para mí</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <p>La alerta seguirá activa en origen. Solo se modifica tu presentación local de <strong data-alerta-remota-monitor></strong>.</p>
+          <input type="hidden" data-alerta-remota-proyeccion>
+          <input type="hidden" data-alerta-remota-identidad>
+          <label class="form-label" for="motivo-descarte-alerta-remota">Motivo</label>
+          <textarea id="motivo-descarte-alerta-remota" class="form-control" maxlength="512" required data-alerta-remota-motivo></textarea>
+          <label class="form-label mt-3" for="hasta-descarte-alerta-remota">Hasta (opcional)</label>
+          <input id="hasta-descarte-alerta-remota" type="datetime-local" class="form-control" data-alerta-remota-hasta>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-warning">Descartar</button>
+        </div>
+      </form>
+    </div></div>
+  </div>
+<% } %>

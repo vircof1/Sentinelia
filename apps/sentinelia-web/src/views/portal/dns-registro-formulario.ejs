@@ -1,0 +1,746 @@
+<%- include('../parciales/cabecera', { titulo, usuarioActual }) %>
+
+<%
+  const esEdicionRegistro = modo === 'editar';
+  const concesionesVigentesDdns = esEdicionRegistro
+    ? concesionesDdns.filter((item) => item.estado === 'vigente').length
+    : 0;
+  const tipoRegistroFormulario = String(formulario.tipoRegistro || 'A').trim().toUpperCase();
+  const nombreRegistroResumen = esEdicionRegistro
+    ? registroObjetivo?.nombreVisible || 'registro DNS'
+    : (
+        String(formulario.hostRelativo || '').trim()
+          ? `${String(formulario.hostRelativo || '').trim()}.${zona.nombreZona}`.replace(/^@\./, '')
+          : 'Nuevo registro DNS'
+      );
+  const renderAyudaCampo = (etiqueta, ayuda, id) => `
+    <span class="campo-etiqueta-ayuda">
+      <span>${etiqueta}</span>
+      <button
+        type="button"
+        class="usuario-permiso-item__ayuda"
+        data-bs-toggle="tooltip"
+        data-bs-placement="top"
+        title="${ayuda.replaceAll('"', '&quot;')}"
+        aria-label="Ayuda sobre ${id}"
+      >
+        <i class="bi bi-info-circle" aria-hidden="true"></i>
+      </button>
+    </span>
+  `;
+%>
+
+<section
+  class="panel-general"
+  data-dns-registro-formulario
+  data-registro-modo="<%= modo %>"
+  data-zona-nombre="<%= zona.nombreZona %>"
+  data-zona-ttl="<%= zona.ttlDefectoSegundos %>"
+  data-registro-gobernado-inicial="<%= bloquearEdicionHumanaValorPrincipal ? '1' : '0' %>"
+  data-registro-gobernado-por="<%= gobernanzaRegistro?.gobernadoPor || '' %>"
+  data-registro-tipo-inicial="<%= registroObjetivo?.tipoRegistro || '' %>"
+  data-registro-categoria-inicial="<%= registroObjetivo?.categoriaOrigen || '' %>"
+  data-registro-rol-asignado="<%= gobernanzaRegistro?.rolAsignado || '' %>"
+  data-registro-activo-inicial="<%= formulario.activo ? '1' : '0' %>"
+  data-registro-ttl-inicial="<%= formulario.ttlSegundos %>"
+  data-registro-valor-inicial="<%= formulario.valorPrincipal %>"
+  data-registro-prioridad-inicial="<%= formulario.prioridad %>"
+  data-registro-ddns-concedido="<%= esEdicionRegistro && concesionesDdns.some((item) => item.estado === 'vigente') ? '1' : '0' %>"
+  data-registro-ddns-concesiones-vigentes="<%= concesionesVigentesDdns %>"
+>
+  <section class="hero-operativo hero-monitores card border-0 shadow-lg overflow-hidden dns-registro-formulario-hero">
+    <div class="card-body hero-operativo__cuerpo p-4 p-lg-5">
+      <div class="hero-operativo__contenido hero-monitores__contenido row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <div class="hero-operativo__textos">
+            <span class="insignia-suave hero-monitores__insignia">
+              <i class="bi bi-list-ul" aria-hidden="true"></i>
+              <span><%= esEdicionRegistro ? 'Edición de registro DNS' : 'Alta de registro DNS' %></span>
+            </span>
+            <h1><%= esEdicionRegistro ? `Editar ${registroObjetivo?.nombreVisible || 'registro DNS'}` : `Nuevo registro en ${zona.nombreZona}` %></h1>
+            <p>
+              <%= esEdicionRegistro
+                ? 'Revisa la identidad y la configuración del registro antes de guardar los cambios.'
+                : 'Define el host, el tipo y el valor. Podrás revisar el resultado antes de crear el registro.' %>
+            </p>
+            <div class="hero-etiquetas hero-monitores__etiquetas">
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-diagram-2" aria-hidden="true"></i>
+                <span>Zona <%= zona.nombreZona %></span>
+              </span>
+              <span class="insignia d-inline-flex align-items-center gap-2">
+                <i class="bi bi-signpost-split" aria-hidden="true"></i>
+                <span><%= zona.alcanceDescripcion %></span>
+              </span>
+              <% if (esEdicionRegistro && registroObjetivo?.categoriaOrigen === 'sistema') { %>
+                <span class="insignia dns-registro-formulario-hero__aviso-sistema d-inline-flex align-items-center gap-2">
+                  <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                  <span>Registro de sistema · cambios sensibles</span>
+                </span>
+              <% } %>
+              <% if (concesionesVigentesDdns > 0) { %>
+                <span class="insignia d-inline-flex align-items-center gap-2">
+                  <i class="bi bi-shield-lock" aria-hidden="true"></i>
+                  <span>DDNS · <%= concesionesVigentesDdns %> <%= concesionesVigentesDdns === 1 ? 'concesión vigente' : 'concesiones vigentes' %></span>
+                </span>
+              <% } %>
+            </div>
+            <div class="hero-monitores__acciones">
+              <a
+                href="<%= retornoDetalle %>"
+                class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2"
+              >
+                <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
+                <span>Volver a la zona</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="rejilla-resumen hero-monitores__kpis">
+            <article class="kpi-resumen kpi-resumen--suave hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-card-heading" aria-hidden="true"></i>
+                <span class="etiqueta"><%= esEdicionRegistro ? 'Registro' : 'Registro propuesto' %></span>
+              </span>
+              <strong data-dns-registro-resumen-nombre><%= nombreRegistroResumen %></strong>
+              <small>Tipo <b data-dns-registro-resumen-tipo><%= tipoRegistroFormulario %></b><span data-dns-registro-resumen-tipo-detalle> · Se mostrarán los campos necesarios para este tipo.</span></small>
+            </article>
+            <article class="kpi-resumen <%= formulario.activo ? 'kpi-resumen--ok' : 'kpi-resumen--neutro' %> hero-monitores__kpi">
+              <span class="hero-monitores__kpi-cabecera">
+                <i class="bi bi-toggle-<%= formulario.activo ? 'on' : 'off' %>" aria-hidden="true"></i>
+                <span class="etiqueta"><%= esEdicionRegistro ? 'Configuración' : 'Configuración prevista' %></span>
+              </span>
+              <strong data-dns-registro-resumen-estado><%= formulario.activo ? 'Activo' : 'Inactivo' %></strong>
+              <small>TTL efectivo: <b data-dns-registro-resumen-ttl><%= formulario.ttlSegundos || zona.ttlDefectoSegundos %> s</b><span data-dns-registro-resumen-ttl-detalle>. <%= formulario.ttlSegundos ? 'Este registro sobreescribe el TTL de la zona.' : 'Si no indicas TTL, heredará el valor por defecto de la zona.' %></span></small>
+              <small data-dns-registro-resumen-publicacion><%= formulario.publicarEnBind ? 'Publicación en BIND según el modo de la zona.' : 'No se publicará en BIND.' %></small>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion-panel">
+    <div class="seccion-cabecera">
+      <div>
+        <h2>Formulario del registro</h2>
+        <p class="texto-apoyo"><%= alcanceActual.descripcion %></p>
+      </div>
+      <a href="<%= retornoDetalle %>" class="boton-secundario enlace-boton">Volver</a>
+    </div>
+
+    <% if (errorFormulario) { %>
+      <div class="mensaje-error"><%= errorFormulario %></div>
+    <% } %>
+
+    <div class="tarjeta">
+      <form
+        method="post"
+        action="<%= esEdicionRegistro ? `/dns/${zona.id}/registros/${registroObjetivo.id}/actualizar` : `/dns/${zona.id}/registros/crear` %>"
+        class="formulario-organizacion"
+        data-dns-registro-formulario-submit
+      >
+        <input type="hidden" name="return_to" value="<%= retornoDetalle %>">
+
+        <div class="d-grid gap-4">
+          <section class="card border-0 shadow-sm overflow-hidden">
+            <div class="card-header bg-white border-bottom py-3">
+              <div class="d-flex flex-column gap-1">
+                <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                  <i class="bi bi-card-heading" aria-hidden="true"></i>
+                  <span>Identidad base</span>
+                </div>
+                <p class="mb-0 text-body-secondary">
+                  Define el host relativo, el tipo de registro y si debe quedar activo desde el primer momento.
+                </p>
+              </div>
+            </div>
+            <div class="card-body p-4">
+              <div class="row g-3">
+                <div class="col-12 col-lg-5">
+                  <label for="registro_host_relativo" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Host relativo',
+                      'Usa @ para la raíz de la zona. Para subhosts indica solo la parte relativa, por ejemplo www, mail o _sip._tcp. No repitas la zona completa.',
+                      'host relativo'
+                    ) %>
+                  </label>
+                  <input
+                    id="registro_host_relativo"
+                    name="host_relativo"
+                    type="text"
+                    class="form-control"
+                    value="<%= formulario.hostRelativo %>"
+                    placeholder="@"
+                    maxlength="255"
+                    data-dns-registro-host
+                    required
+                  >
+                  <p class="texto-apoyo mb-0" data-dns-registro-host-ayuda>
+                    Usa <code>@</code> para la raíz de <code><%= zona.nombreZona %></code>.
+                  </p>
+                </div>
+                <div class="col-12 col-lg-4">
+                  <label for="registro_tipo_registro" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Tipo',
+                      'El tipo decide qué formato debe tener el valor principal y qué campos adicionales aparecen. Cambiarlo reconfigura el formulario.',
+                      'tipo de registro'
+                    ) %>
+                  </label>
+                  <select
+                    id="registro_tipo_registro"
+                    name="tipo_registro"
+                    class="form-select"
+                    data-dns-registro-tipo
+                    required
+                  >
+                    <% for (const opcion of opcionesTipoRegistro) { %>
+                      <option value="<%= opcion.valor %>" <%= formulario.tipoRegistro === opcion.valor ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+                    <% } %>
+                  </select>
+                </div>
+                <div class="col-12 col-lg-3">
+                  <label for="registro_activo" class="form-label">Estado</label>
+                  <select id="registro_activo" name="activo" class="form-select" data-dns-registro-activo>
+                    <option value="1" <%= formulario.activo ? 'selected' : '' %>>Activo</option>
+                    <option value="0" <%= !formulario.activo ? 'selected' : '' %>>Inactivo</option>
+                  </select>
+                  <p class="texto-apoyo mb-0" data-dns-registro-estado-ayuda>
+                    <%= formulario.activo ? 'El registro podrá considerarse en publicación cuando el catálogo se reproyecte.' : 'Se persistirá sin participación operativa.' %>
+                  </p>
+                  <p
+                    class="texto-apoyo dns-registro-formulario__estado-gobernado mb-0"
+                    data-dns-registro-estado-gobernado
+                    <%= !bloquearEdicionHumanaValorPrincipal ? 'hidden' : '' %>
+                  >
+                    El estado <code>activo</code> forma parte del contrato automático; un cambio manual puede ser sobrescrito.
+                  </p>
+                </div>
+              </div>
+              <% if (concesionesVigentesDdns > 0) { %>
+                <div class="alert alert-warning mt-3 mb-0" role="status" data-ddns-cambio-advertencia hidden>
+                  Cambiar el tipo o retirar DDNS revocará la concesión vigente del agente y terminará su trabajo pendiente al guardar.
+                </div>
+              <% } %>
+            </div>
+          </section>
+
+          <section class="card border-0 shadow-sm overflow-hidden">
+            <div class="card-header bg-white border-bottom py-3">
+              <div class="d-flex flex-column gap-1">
+                <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                  <i class="bi bi-box-seam" aria-hidden="true"></i>
+                  <span>Valor y resolución</span>
+                </div>
+                <p class="mb-0 text-body-secondary">
+                  El valor principal cambia de semántica según el tipo elegido. El formulario te irá guiando.
+                </p>
+              </div>
+            </div>
+            <div class="card-body p-4 d-grid gap-4">
+              <div
+                class="dns-registro-formulario__gobernanza"
+                data-dns-registro-gobernanza
+                <%= !(bloquearEdicionHumanaValorPrincipal || ['trigger', 'ddns'].includes(formulario.categoriaOrigen)) ? 'hidden' : '' %>
+              >
+                <div class="dns-registro-formulario__gobernanza-cabecera">
+                  <i class="bi bi-shield-lock" aria-hidden="true"></i>
+                  <strong data-dns-registro-gobernanza-titulo>
+                    <%= bloquearEdicionHumanaValorPrincipal
+                      ? `Registro gobernado por ${(gobernanzaRegistro?.gobernadoPor || formulario.categoriaOrigen) === 'trigger' ? 'una acción' : (gobernanzaRegistro?.gobernadoPor || formulario.categoriaOrigen)}`
+                      : 'Registro preparado para automatización' %>
+                  </strong>
+                </div>
+                <p class="mb-0" data-dns-registro-gobernanza-texto>
+                  <% if (bloquearEdicionHumanaValorPrincipal) { %>
+                    El <code>valor principal</code> queda bajo automatización y no puede editarse manualmente desde este formulario.
+                    <% if (gobernanzaRegistro?.rolAsignado) { %>
+                      Rol lógico asignado: <code><%= gobernanzaRegistro.rolAsignado %></code>.
+                    <% } %>
+                  <% } else if (formulario.categoriaOrigen === 'ddns') { %>
+                    Este registro se está marcando para futura automatización <code>ddns</code>. El TTL sigue siendo una decisión administrativa.
+                  <% } else { %>
+                    Este registro se está marcando para una acción automatizada. El valor podrá quedar gobernado por eventos internos de la plataforma.
+                  <% } %>
+                </p>
+                <div class="dns-registro-formulario__gobernanza-matriz">
+                  <span>
+                    <strong>Control automático</strong>
+                    <code data-dns-registro-gobernanza-campos>valorPrincipal + activo</code>
+                  </span>
+                  <span>
+                    <strong>TTL</strong>
+                    <code data-dns-registro-gobernanza-ttl-politica>Manual por administrador</code>
+                  </span>
+                  <span>
+                    <strong>Fuente efectiva</strong>
+                    <code data-dns-registro-gobernanza-fuente>SQL, proyectado después a BIND</code>
+                  </span>
+                </div>
+              </div>
+
+              <div class="row g-3">
+                <div class="col-12 col-xl-8">
+                  <label for="registro_valor_principal" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Valor principal',
+                      'Puede ser una IP, un nombre DNS completo, texto libre o el dominio de una CA según el tipo de registro. Revisa siempre el ejemplo activo.',
+                      'valor principal'
+                    ) %>
+                  </label>
+                  <input
+                    id="registro_valor_principal"
+                    name="valor_principal"
+                    type="text"
+                    class="form-control"
+                    value="<%= formulario.valorPrincipal %>"
+                    maxlength="1024"
+                    data-dns-registro-valor
+                    aria-describedby="registro_valor_principal_ayuda registro_valor_principal_error"
+                    <%= bloquearEdicionHumanaValorPrincipal ? 'readonly aria-readonly="true"' : '' %>
+                    required
+                  >
+                  <p id="registro_valor_principal_ayuda" class="texto-apoyo mb-0" data-dns-registro-valor-ayuda>
+                    Para <code>A</code> usa una IPv4, por ejemplo <code>127.0.0.1</code>.
+                  </p>
+                  <p id="registro_valor_principal_error" class="dns-registro-formulario__error mb-0" data-dns-registro-valor-error role="alert" hidden></p>
+                </div>
+                <div class="col-12 col-xl-4">
+                  <label for="registro_ttl_segundos" class="form-label">
+                    <%- renderAyudaCampo(
+                      'TTL específico (s)',
+                      'Si lo dejas vacío, el registro hereda el TTL de la zona. Si lo rellenas, este registro tendrá su propia caducidad de caché.',
+                      'TTL específico'
+                    ) %>
+                  </label>
+                  <input
+                    id="registro_ttl_segundos"
+                    name="ttl_segundos"
+                    type="number"
+                    class="form-control"
+                    min="0"
+                    max="2147483647"
+                    step="1"
+                    value="<%= formulario.ttlSegundos %>"
+                    data-dns-registro-ttl
+                  >
+                  <p class="dns-formulario-tiempo-ayuda mb-0" data-dns-registro-ttl-ayuda></p>
+                </div>
+              </div>
+
+              <div class="dns-registro-formulario__resumen-operativo">
+                <div class="dns-formulario-resumen-operativo__cabecera">
+                  <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+                  <strong>Lectura operativa rápida</strong>
+                </div>
+                <div data-dns-registro-preview>
+                  Este registro se interpretará según el tipo seleccionado.
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card border-0 shadow-sm overflow-hidden" data-dns-registro-bloque="mx_srv">
+            <div class="card-header bg-white border-bottom py-3">
+              <div class="d-flex flex-column gap-1">
+                <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                  <i class="bi bi-sort-numeric-down" aria-hidden="true"></i>
+                  <span>Prioridad</span>
+                </div>
+                <p class="mb-0 text-body-secondary">
+                  Solo aplica a registros <code>MX</code> y <code>SRV</code>.
+                </p>
+              </div>
+            </div>
+            <div class="card-body p-4">
+              <div class="row g-3">
+                <div class="col-12 col-lg-4">
+                  <label for="registro_prioridad" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Prioridad',
+                      'En MX y SRV, valores más bajos significan mayor preferencia.',
+                      'prioridad'
+                    ) %>
+                  </label>
+                  <input
+                    id="registro_prioridad"
+                    name="prioridad"
+                    type="number"
+                    class="form-control"
+                    min="0"
+                    max="65535"
+                    step="1"
+                    value="<%= formulario.prioridad %>"
+                    data-dns-registro-prioridad
+                  >
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card border-0 shadow-sm overflow-hidden" data-dns-registro-bloque="srv">
+            <div class="card-header bg-white border-bottom py-3">
+              <div class="d-flex flex-column gap-1">
+                <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                  <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                  <span>Parámetros SRV</span>
+                </div>
+                <p class="mb-0 text-body-secondary">
+                  Peso y puerto solo se usan cuando el tipo es <code>SRV</code>.
+                </p>
+              </div>
+            </div>
+            <div class="card-body p-4">
+              <div class="row g-3">
+                <div class="col-12 col-lg-4">
+                  <label for="registro_peso" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Peso',
+                      'Distribuye tráfico entre registros SRV con igual prioridad. Más peso suele implicar más probabilidad de selección.',
+                      'peso SRV'
+                    ) %>
+                  </label>
+                  <input
+                    id="registro_peso"
+                    name="peso"
+                    type="number"
+                    class="form-control"
+                    min="0"
+                    max="65535"
+                    step="1"
+                    value="<%= formulario.peso %>"
+                    data-dns-registro-peso
+                  >
+                </div>
+                <div class="col-12 col-lg-4">
+                  <label for="registro_puerto" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Puerto',
+                      'Puerto real del servicio anunciado por el registro SRV.',
+                      'puerto SRV'
+                    ) %>
+                  </label>
+                  <input
+                    id="registro_puerto"
+                    name="puerto"
+                    type="number"
+                    class="form-control"
+                    min="1"
+                    max="65535"
+                    step="1"
+                    value="<%= formulario.puerto %>"
+                    data-dns-registro-puerto
+                  >
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card border-0 shadow-sm overflow-hidden" data-dns-registro-bloque="caa">
+            <div class="card-header bg-white border-bottom py-3">
+              <div class="d-flex flex-column gap-1">
+                <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                  <i class="bi bi-shield-lock" aria-hidden="true"></i>
+                  <span>Parámetros CAA</span>
+                </div>
+                <p class="mb-0 text-body-secondary">
+                  Define la CA autorizada y los atributos extra del registro <code>CAA</code>.
+                </p>
+              </div>
+            </div>
+            <div class="card-body p-4">
+              <div class="row g-3">
+                <div class="col-12 col-lg-4">
+                  <label for="registro_flags" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Flags',
+                      'El valor más frecuente es 0. Solo usa valores distintos cuando conozcas el comportamiento que deseas forzar.',
+                      'flags CAA'
+                    ) %>
+                  </label>
+                  <input
+                    id="registro_flags"
+                    name="flags"
+                    type="number"
+                    class="form-control"
+                    min="0"
+                    max="255"
+                    step="1"
+                    value="<%= formulario.flags %>"
+                    data-dns-registro-flags
+                  >
+                </div>
+                <div class="col-12 col-lg-4">
+                  <label for="registro_tag" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Tag',
+                      'Lo más habitual es issue, issuewild o iodef. Debe ser una palabra corta, sin espacios.',
+                      'tag CAA'
+                    ) %>
+                  </label>
+                  <input
+                    id="registro_tag"
+                    name="tag"
+                    type="text"
+                    class="form-control"
+                    maxlength="255"
+                    value="<%= formulario.tag %>"
+                    data-dns-registro-tag
+                  >
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card border-0 shadow-sm overflow-hidden">
+            <div class="card-header bg-white border-bottom py-3">
+              <div class="d-flex flex-column gap-1">
+                <div class="d-inline-flex align-items-center gap-2 text-primary-emphasis fw-semibold">
+                  <i class="bi bi-sliders" aria-hidden="true"></i>
+                  <span>Metadatos y publicación</span>
+                </div>
+                <p class="mb-0 text-body-secondary">
+                  Decide si se publicará en BIND y añade una descripción. Los datos técnicos son opcionales.
+                </p>
+              </div>
+            </div>
+            <div class="card-body p-4 d-grid gap-4">
+              <div class="row g-3">
+                <div class="col-12 col-lg-5">
+                  <label for="registro_categoria_origen" class="form-label">
+                    <%- renderAyudaCampo(
+                      'Categoría',
+                      'Normalmente será normal. El resto de categorías suelen reservarse para automatismos, sistema o DDNS.',
+                      'categoría del registro'
+                    ) %>
+                  </label>
+                  <% if (!puedeAdministrarDnsAvanzado) { %>
+                    <input type="hidden" name="categoria_origen" value="normal">
+                  <% } %>
+                  <select
+                    id="registro_categoria_origen"
+                    name="categoria_origen"
+                    class="form-select"
+                    data-dns-registro-categoria
+                    <%= !puedeAdministrarDnsAvanzado ? 'disabled' : '' %>
+                  >
+                    <% for (const opcion of opcionesCategoriaOrigen) { %>
+                      <option value="<%= opcion.valor %>" <%= formulario.categoriaOrigen === opcion.valor ? 'selected' : '' %>><%= opcion.valor === 'trigger' ? 'Acción' : opcion.etiqueta %></option>
+                    <% } %>
+                  </select>
+                </div>
+                <div class="col-12 col-lg-4 campo-checkbox">
+                  <input
+                    type="hidden"
+                    name="publicar_en_bind"
+                    value="<%= puedeGestionarPublicacionDns ? '0' : (formulario.publicarEnBind ? '1' : '0') %>"
+                  >
+                  <label class="etiqueta-checkbox">
+                    <input
+                      type="checkbox"
+                      name="publicar_en_bind"
+                      value="1"
+                      <%= formulario.publicarEnBind ? 'checked' : '' %>
+                      <%= !puedeGestionarPublicacionDns ? 'disabled' : '' %>
+                      title="<%= puedeGestionarPublicacionDns ? '' : 'Necesitas Publicar DNS para cambiar si este registro se proyecta a BIND.' %>"
+                      data-dns-registro-publicar
+                    >
+                    <span>Publicar en BIND</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label for="registro_descripcion" class="form-label">Descripción</label>
+                <textarea
+                  id="registro_descripcion"
+                  name="descripcion"
+                  class="form-control"
+                  rows="3"
+                ><%= formulario.descripcion %></textarea>
+              </div>
+
+              <section
+                class="dns-registro-formulario__contrato-gobernanza"
+                data-dns-registro-contrato-gobernanza
+                <%= !['trigger', 'ddns'].includes(formulario.categoriaOrigen) ? 'hidden' : '' %>
+              >
+                <div class="dns-registro-formulario__bloque-avanzado-cabecera">
+                  <div>
+                    <h3>Contrato de gobernanza</h3>
+                    <p class="texto-apoyo mb-0">
+                      Metadatos mínimos para que una automatización sepa qué puede tocar sin convertir el registro en edición libre.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="row g-3">
+                  <div class="col-12 col-lg-4">
+                    <label for="registro_gobernanza_modo_control" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Modo de control',
+                        'En esta fase solo se permite gobernar valor principal y estado activo. El TTL queda en manos del administrador.',
+                        'modo de control'
+                      ) %>
+                    </label>
+                    <select
+                      id="registro_gobernanza_modo_control"
+                      name="gobernanza_modo_control"
+                      class="form-select"
+                      data-dns-registro-gobernanza-modo
+                    >
+                      <option value="valor_y_activo" <%= formulario.gobernanzaModoControl === 'valor_y_activo' ? 'selected' : '' %>>Valor y activo</option>
+                    </select>
+                  </div>
+                  <div class="col-12 col-lg-4">
+                    <label for="registro_gobernanza_rol_asignado" class="form-label">
+                      <%- renderAyudaCampo(
+                        'Rol lógico',
+                        'Etiqueta estable para describir quién puede gobernar este registro. Todavía no apunta a un agente concreto.',
+                        'rol lógico de gobernanza'
+                      ) %>
+                    </label>
+                    <input
+                      id="registro_gobernanza_rol_asignado"
+                      name="gobernanza_rol_asignado"
+                      type="text"
+                      class="form-control"
+                      maxlength="120"
+                      value="<%= formulario.gobernanzaRolAsignado %>"
+                      placeholder="conmutacion_isp"
+                      data-dns-registro-gobernanza-rol
+                    >
+                  </div>
+                  <div class="col-12 col-lg-4" data-dns-registro-gobernanza-ttl-campo>
+                    <label for="registro_gobernanza_ttl_sugerido" class="form-label">
+                      <%- renderAyudaCampo(
+                        'TTL sugerido DDNS',
+                        'Pista para futuros agentes DDNS. No sustituye al TTL real del registro ni lo impone en runtime.',
+                        'TTL sugerido DDNS'
+                      ) %>
+                    </label>
+                    <input
+                      id="registro_gobernanza_ttl_sugerido"
+                      name="gobernanza_ttl_sugerido"
+                      type="number"
+                      class="form-control"
+                      min="0"
+                      max="2147483647"
+                      step="1"
+                      value="<%= formulario.gobernanzaTtlSugerido %>"
+                      placeholder="300"
+                      data-dns-registro-gobernanza-ttl
+                    >
+                  </div>
+                </div>
+                <p class="texto-apoyo mb-0" data-dns-registro-ddns-contrato>
+                  En registros <code>ddns</code> el JSON reservará también
+                  <code>propietario</code>, <code>criterioActualizacion</code>,
+                  <code>politicaSobrescritura</code> y <code>validacionOrigen</code>
+                  para futuros agentes autenticados. Todavía no ejecuta DDNS.
+                </p>
+              </section>
+
+              <details class="dns-registro-formulario__bloque-avanzado" <%= String(formulario.datosAuxiliares || '').trim() && (errorFormulario || !['ddns', 'trigger'].includes(formulario.categoriaOrigen)) ? 'open' : '' %> data-dns-registro-avanzado>
+                <summary class="dns-registro-formulario__bloque-avanzado-cabecera">
+                  <div>
+                    <h3>Datos técnicos (JSON)</h3>
+                    <p class="texto-apoyo mb-0">
+                      Opcional · no se publica como parte del registro DNS.
+                    </p>
+                  </div>
+                  <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                </summary>
+                <div class="dns-registro-formulario__bloque-avanzado-contenido">
+                  <label for="registro_datos_auxiliares" class="form-label">Datos auxiliares JSON</label>
+                  <textarea
+                    id="registro_datos_auxiliares"
+                    name="datos_auxiliares"
+                    class="form-control"
+                    rows="6"
+                    placeholder='{"gobernadoPor":"trigger","modoControl":"valor_y_activo"}'
+                    data-dns-registro-json
+                  ><%= formulario.datosAuxiliares %></textarea>
+                  <p class="texto-apoyo mb-0" data-dns-registro-json-ayuda>
+                    Déjalo vacío salvo que una integración concreta te lo pida.
+                  </p>
+                </div>
+              </details>
+
+              <div class="dns-formulario-alertas" data-dns-registro-alertas hidden>
+                <div class="dns-formulario-alerta">
+                  <strong>Conviene revisar este registro.</strong>
+                  <ul class="mb-0" data-dns-registro-alertas-lista></ul>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div class="acciones-formulario acciones-formulario--sticky">
+            <div class="acciones-formulario__estado" data-dns-registro-estado>
+              <strong><%= esEdicionRegistro ? 'Edición activa' : 'Alta nueva' %></strong>
+              <span data-dns-registro-estado-resumen>Revisa tipo, TTL y publicación antes de guardar el registro.</span>
+            </div>
+            <div class="acciones-formulario__botones">
+              <button type="submit" class="boton-primario">
+                <%= esEdicionRegistro ? 'Guardar registro' : 'Crear registro' %>
+              </button>
+              <a href="<%= retornoDetalle %>" class="boton-secundario enlace-boton">Cancelar</a>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <% if (esEdicionRegistro && capacidadesPortal?.ddnsAgentes && (formulario.categoriaOrigen === 'ddns' || concesionesDdns.length > 0)) { %>
+    <%- include('./parciales/ddns-concesiones-administrativas', {
+      extremoDdns: 'registro', zona, registroObjetivo, concesionesDdns,
+      puedeAdministrarDnsAvanzado, tokenCSRFPortal, retornoDetalle
+    }) %>
+  <% } %>
+</section>
+
+<div class="modal fade" id="modalAdvertenciaEdicionDdns" tabindex="-1" aria-labelledby="tituloAdvertenciaEdicionDdns" aria-hidden="true" data-ddns-edicion-advertencia>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="tituloAdvertenciaEdicionDdns">Cambiar contenido gobernado por un agente</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        Esta intervención humana avanzará el estado deseado del registro. El agente conserva su autoridad y podría sustituir el valor después.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="boton-secundario" data-bs-dismiss="modal">Revisar</button>
+        <button type="button" class="boton-primario" data-ddns-edicion-confirmar>Guardar de todos modos</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade modal-impacto-trigger" id="modalCambioTipoDdns" tabindex="-1" aria-labelledby="tituloCambioTipoDdns" aria-hidden="true" data-ddns-cambio-modal>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="tituloCambioTipoDdns">Revocar la concesión DDNS</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p>Cambiar el tipo o retirar la categoría DDNS revocará la concesión vigente. El agente dejará de poder actualizar este registro y se terminará su trabajo pendiente.</p>
+        <p class="mb-0">El registro DNS no se elimina. Revisa también su nuevo valor y tipo antes de guardar.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="boton-secundario" data-bs-dismiss="modal">Seguir revisando</button>
+        <button type="button" class="btn btn-danger" data-ddns-cambio-confirmar>Guardar y revocar concesión</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/dns-registro-formulario.js"></script>
+
+<%- include('../parciales/pie') %>

@@ -1,0 +1,223 @@
+<div class="col-12">
+  <section
+    class="monitor-logico-canvas"
+    data-monitor-logico-canvas
+  >
+    <div class="monitor-logico-canvas__cabecera">
+      <div>
+        <span class="badge rounded-pill text-bg-success-subtle text-success-emphasis mb-2 d-inline-flex align-items-center gap-2">
+          <i class="bi bi-bounding-box" aria-hidden="true"></i>
+          Editor visual
+        </span>
+        <h4 class="h5 mb-1">Regla visual</h4>
+        <p class="mb-0 text-body-secondary">
+          Abre el editor para construir la regla con las entradas que has añadido. Aquí verás el resultado que se guardará.
+        </p>
+      </div>
+      <button
+        type="button"
+        class="btn btn-primary btn-sm d-inline-flex align-items-center gap-2"
+        data-monitor-logico-canvas-abrir-full
+        <%= tipoMonitorFormulario === 'booleano' ? '' : 'disabled' %>
+      >
+        <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
+        <span>Abrir editor lógico</span>
+      </button>
+    </div>
+
+    <div class="monitor-logico-canvas__resumen">
+      <div class="monitor-logico-canvas__resumen-item">
+        <span>Expresión operativa</span>
+        <strong data-monitor-logico-canvas-expresion>
+          <%= formulario.expresionLogica || 'Sin definir' %>
+        </strong>
+      </div>
+    </div>
+
+    <p class="monitor-logico-canvas__ayuda mb-0">
+      Expresión compilada del grafo:
+      <code data-monitor-logico-canvas-compilada>pendiente de grafo lógico</code>
+    </p>
+    <div
+      class="monitor-logico-canvas__compatibilidad"
+      data-monitor-logico-canvas-compatibilidad
+      hidden
+    >
+      <strong>Modo textual compatible.</strong>
+      <span>
+        Este monitor conserva su expresión operativa aunque el grafo visual todavía no la represente completa.
+      </span>
+    </div>
+    <textarea
+      name="layout_visual_logico"
+      data-monitor-logico-layout
+      hidden
+    ><%= formulario.layoutVisualLogico || '' %></textarea>
+  </section>
+</div>
+
+<div
+  class="modal fade"
+  id="modal-monitor-logico-canvas-full"
+  tabindex="-1"
+  aria-labelledby="modal-monitor-logico-canvas-full-titulo"
+  aria-hidden="true"
+  data-monitor-logico-canvas-modal
+>
+  <div class="modal-dialog modal-fullscreen modal-dialog-scrollable monitor-logico-estudio__dialog">
+    <div class="modal-content monitor-logico-estudio border-0">
+      <div class="modal-header monitor-logico-estudio__header">
+        <div>
+          <span class="badge rounded-pill text-bg-success-subtle text-success-emphasis mb-2 d-inline-flex align-items-center gap-2">
+            <i class="bi bi-bezier2" aria-hidden="true"></i>
+            Editor lógico
+          </span>
+          <h2 class="modal-title fs-4" id="modal-monitor-logico-canvas-full-titulo">
+            <span class="monitor-logico-estudio__titulo-escritorio">Construye la regla visual</span>
+            <span class="monitor-logico-estudio__titulo-movil">Regla lógica</span>
+          </h2>
+          <p class="mb-0 text-body-secondary">
+            Conecta las entradas vinculadas mediante puertas lógicas hasta la salida y aplica la regla cuando sea válida.
+          </p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+
+      <div class="modal-body monitor-logico-estudio__body">
+        <aside class="monitor-logico-estudio__panel monitor-logico-estudio__biblioteca">
+          <span class="monitor-logico-estudio__panel-etiqueta">Biblioteca</span>
+          <section class="monitor-logico-estudio__puertas" aria-labelledby="monitor-logico-puertas-titulo">
+            <span class="monitor-logico-estudio__panel-etiqueta" id="monitor-logico-puertas-titulo">Puertas lógicas</span>
+            <div class="d-grid gap-2">
+            <button type="button" class="btn btn-outline-primary btn-sm" data-monitor-logico-grafo-add="and" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="AND: la salida queda disponible solo si todas sus entradas lo están." aria-label="Añadir puerta AND: todas las entradas deben estar disponibles">
+              <img class="monitor-logico-estudio__puerta-icono" src="/IMG/logic-gates/and-ansi.svg" alt="" aria-hidden="true">
+              AND
+            </button>
+            <button type="button" class="btn btn-outline-primary btn-sm" data-monitor-logico-grafo-add="or" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="OR: basta con que una de sus entradas esté disponible." aria-label="Añadir puerta OR: basta una entrada disponible">
+              <img class="monitor-logico-estudio__puerta-icono" src="/IMG/logic-gates/or-ansi.svg" alt="" aria-hidden="true">
+              OR
+            </button>
+            <button type="button" class="btn btn-outline-primary btn-sm" data-monitor-logico-grafo-add="not" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="NOT: invierte el estado de una entrada." aria-label="Añadir puerta NOT: invierte la señal">
+              <img class="monitor-logico-estudio__puerta-icono" src="/IMG/logic-gates/not-ansi.svg" alt="" aria-hidden="true">
+              NOT
+            </button>
+            </div>
+          </section>
+
+          <hr>
+
+          <div class="monitor-logico-estudio__conexion-ayuda">
+            <strong>Conexiones</strong>
+            <button
+              type="button"
+              class="monitor-logico-estudio__info"
+              data-bs-toggle="tooltip"
+              data-bs-placement="right"
+              data-bs-title="Activa Conectar y pulsa una salida iluminada; después pulsa una entrada iluminada. Para desconectar, activa Desconectar y pulsa el punto o la pieza vinculada."
+              aria-label="Cómo conectar y desconectar nodos"
+            >
+              <i class="bi bi-info-circle" aria-hidden="true"></i>
+            </button>
+          </div>
+
+          <div class="d-grid gap-2 monitor-logico-estudio__acciones-lienzo">
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-monitor-logico-grafo-conectar>
+              <i class="bi bi-link-45deg me-1" aria-hidden="true"></i>
+              Modo conectar
+            </button>
+            <button type="button" class="btn btn-outline-warning btn-sm" data-monitor-logico-grafo-desconectar>
+              <i class="bi bi-link-45deg me-1" aria-hidden="true"></i>
+              Desconectar
+            </button>
+            <hr class="monitor-logico-estudio__separador-accion">
+            <button type="button" class="btn btn-outline-danger btn-sm" data-monitor-logico-grafo-borrar disabled>
+              <i class="bi bi-trash3 me-1" aria-hidden="true"></i>
+              Borrar seleccionado
+            </button>
+          </div>
+
+          <hr>
+
+          <section class="monitor-logico-estudio__simulacion" data-monitor-logico-grafo-simulacion>
+            <h3 class="h6 mb-2">Simulación</h3>
+            <div class="monitor-logico-estudio__simulacion-entradas" data-monitor-logico-grafo-simulacion-entradas></div>
+            <div class="monitor-logico-estudio__simulacion-resultado" data-monitor-logico-grafo-simulacion-resultado>
+              <span>Salida simulada</span>
+              <strong>Sin datos</strong>
+              <small>Define valores de entrada para evaluar el grafo.</small>
+            </div>
+          </section>
+        </aside>
+
+        <section class="monitor-logico-estudio__lienzo-wrap">
+          <div class="monitor-logico-estudio__toolbar">
+            <span data-monitor-logico-grafo-status>Abre el estudio para cargar el borrador visual.</span>
+            <span class="monitor-logico-estudio__compilacion" data-monitor-logico-grafo-compilacion>
+              Fórmula pendiente.
+            </span>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Zoom del canvas lógico">
+              <button type="button" class="btn btn-outline-secondary" data-monitor-logico-grafo-zoom="out">
+                <i class="bi bi-zoom-out" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="btn btn-outline-secondary" data-monitor-logico-grafo-zoom="reset">100%</button>
+              <button type="button" class="btn btn-outline-secondary" data-monitor-logico-grafo-zoom="in">
+                <i class="bi bi-zoom-in" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="monitor-logico-estudio__lienzo" data-monitor-logico-canvas-full-lienzo>
+            <svg
+              class="monitor-logico-estudio__conexiones"
+              aria-hidden="true"
+              data-monitor-logico-canvas-full-svg
+            ></svg>
+            <div class="monitor-logico-estudio__nodos" data-monitor-logico-canvas-full-nodos></div>
+          </div>
+        </section>
+
+        <aside class="monitor-logico-estudio__panel monitor-logico-estudio__inspector">
+          <span class="monitor-logico-estudio__panel-etiqueta">Inspector</span>
+          <h3 class="h5 mb-1" data-monitor-logico-grafo-inspector-titulo>Selecciona una pieza</h3>
+          <p class="monitor-logico-estudio__panel-intro" data-monitor-logico-grafo-inspector-detalle>
+            Haz clic sobre una entrada, operador o salida para revisar su papel en la regla.
+          </p>
+
+          <dl class="monitor-logico-estudio__inspector-datos">
+            <div>
+              <dt>Tipo</dt>
+              <dd data-monitor-logico-grafo-inspector-tipo>—</dd>
+            </div>
+            <div>
+              <dt>Conexiones</dt>
+              <dd data-monitor-logico-grafo-inspector-conexiones>—</dd>
+            </div>
+            <div>
+              <dt>Estado simulado</dt>
+              <dd data-monitor-logico-grafo-inspector-estado>—</dd>
+            </div>
+          </dl>
+
+          <button type="button" class="btn btn-outline-danger btn-sm w-100" data-monitor-logico-grafo-borrar-inspector disabled>
+            <i class="bi bi-trash3 me-1" aria-hidden="true"></i>
+            Eliminar pieza seleccionada
+          </button>
+
+          <hr>
+
+          <div class="monitor-logico-estudio__ayuda">
+            <strong>Lectura rápida</strong>
+            <p>La salida final es única. Si la fórmula no puede construirse, el botón de aplicar permanecerá desactivado.</p>
+          </div>
+        </aside>
+      </div>
+
+      <div class="modal-footer monitor-logico-estudio__footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar sin aplicar</button>
+        <button type="button" class="btn btn-primary" data-monitor-logico-grafo-aplicar>
+          Aplicar al formulario
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

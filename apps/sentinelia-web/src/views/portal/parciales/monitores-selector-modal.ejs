@@ -1,0 +1,193 @@
+<div
+  class="modal fade"
+  id="modal-selector-monitores-comparador"
+  tabindex="-1"
+  aria-labelledby="modal-selector-monitores-comparador-titulo"
+  aria-hidden="true"
+  data-comparador-selector-modal
+  data-url-listado="/monitores/api/listado"
+>
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable comparador-selector__dialogo">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <div>
+          <h2
+            class="modal-title fs-4 d-inline-flex align-items-center gap-2"
+            id="modal-selector-monitores-comparador-titulo"
+          >
+            <i class="bi bi-hdd-network" aria-hidden="true"></i>
+            <span>Buscar monitor para <span data-comparador-selector-slot-titulo>Monitor 1</span></span>
+          </h2>
+          <p class="text-body-secondary mb-0">
+            Busca un monitor de tu alcance para añadirlo a la comparación.
+          </p>
+        </div>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Cerrar"
+        ></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="row g-3 align-items-end">
+          <div class="col-12 col-md-8">
+            <label for="comparador_selector_q" class="form-label">Monitor o descripción</label>
+            <input
+              id="comparador_selector_q"
+              type="search"
+              class="form-control"
+              placeholder="Buscar por nombre, descripción o alcance"
+              autocomplete="off"
+              data-comparador-selector-q
+            >
+          </div>
+          <div class="col-12 col-md-4">
+            <label for="comparador_selector_tipo" class="form-label">Tipo</label>
+            <select id="comparador_selector_tipo" class="form-select" data-comparador-selector-tipo>
+              <% for (const opcion of opcionesTipo) { %>
+                <option value="<%= opcion.valor %>"><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+        </div>
+
+        <details class="comparador-selector__filtros mt-3" data-comparador-selector-mas-filtros>
+          <summary>
+            Más filtros
+            <span class="text-body-secondary fw-normal ms-1" data-comparador-selector-estado-resumen>· Solo activos</span>
+            <span class="badge text-bg-secondary ms-1" data-comparador-selector-filtros-activos hidden></span>
+          </summary>
+          <div class="row g-3 align-items-end mt-0">
+          <div class="col-6 col-lg-3">
+            <label for="comparador_selector_tenant" class="form-label">Organización</label>
+            <select id="comparador_selector_tenant" class="form-select" data-comparador-selector-tenant>
+              <option value="">Todos</option>
+              <% for (const opcion of opcionesTenants) { %>
+                <option value="<%= opcion.valor %>"><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-6 col-lg-3">
+            <label for="comparador_selector_empresa" class="form-label">Empresa</label>
+            <select id="comparador_selector_empresa" class="form-select" data-comparador-selector-empresa>
+              <option value="">Todas</option>
+              <% for (const opcion of opcionesEmpresas) { %>
+                <option value="<%= opcion.valor %>" data-tenant-id="<%= opcion.tenantId %>"><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-6 col-lg-2">
+            <label for="comparador_selector_pertenencia" class="form-label">Pertenencia</label>
+            <select id="comparador_selector_pertenencia" class="form-select" data-comparador-selector-pertenencia>
+              <% for (const opcion of opcionesPertenencia) { %>
+                <option value="<%= opcion.valor %>"><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-6 col-lg-2">
+            <label for="comparador_selector_activo" class="form-label">Estado</label>
+            <select id="comparador_selector_activo" class="form-select" data-comparador-selector-activo>
+              <% for (const opcion of opcionesEstadoListado) { %>
+                <option value="<%= opcion.valor %>" <%= opcion.valor === 'solo_activos' ? 'selected' : '' %>><%= opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-6 col-lg-2">
+            <label for="comparador_selector_filas" class="form-label">Resultados por página</label>
+            <select id="comparador_selector_filas" class="form-select" data-comparador-selector-page-size>
+              <% for (const opcion of opcionesTamanoPaginaListado) { %>
+                <option value="<%= opcion %>" <%= Number(opcion) === 10 ? 'selected' : '' %>><%= opcion %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-6 col-lg-3">
+            <label for="comparador_selector_sort_by" class="form-label">Ordenar por</label>
+            <select id="comparador_selector_sort_by" class="form-select" data-comparador-selector-sort-by>
+              <% for (const opcion of opcionesOrdenListado) { %>
+                <option value="<%= opcion.valor %>" <%= opcion.valor === 'nombre' ? 'selected' : '' %>><%= opcion.etiqueta === 'Tenant' ? 'Organización' : opcion.etiqueta %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-6 col-lg-3">
+            <label for="comparador_selector_sort_dir" class="form-label">Sentido</label>
+            <select id="comparador_selector_sort_dir" class="form-select" data-comparador-selector-sort-dir>
+              <option value="asc" selected>Ascendente</option>
+              <option value="desc">Descendente</option>
+            </select>
+          </div>
+          </div>
+        </details>
+
+        <div class="d-flex flex-wrap gap-2 mt-3">
+          <button
+            type="button"
+            class="btn btn-primary d-inline-flex align-items-center gap-2"
+            data-comparador-selector-aplicar
+          >
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <span>Buscar</span>
+          </button>
+          <button
+            type="button"
+            class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
+            data-comparador-selector-limpiar
+          >
+            <i class="bi bi-eraser" aria-hidden="true"></i>
+            <span>Limpiar</span>
+          </button>
+        </div>
+
+        <div class="mt-3 mb-2">
+          <p class="text-body-secondary mb-0" role="status" data-comparador-selector-resumen-listado>
+            Cargando monitores...
+          </p>
+        </div>
+
+        <div data-comparador-selector-estado class="text-body-secondary mb-2">Cargando monitores...</div>
+        <div class="table-responsive comparador-selector__tabla">
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Monitor</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Ubicación</th>
+                <th scope="col">Estado</th>
+                <th scope="col" class="text-end">Selección</th>
+              </tr>
+            </thead>
+            <tbody data-comparador-selector-filas>
+              <tr>
+                <td colspan="5" class="text-body-secondary">Cargando monitores...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="comparador-selector__tarjetas" data-comparador-selector-tarjetas></div>
+      </div>
+
+      <div class="modal-footer d-flex justify-content-between align-items-center gap-3 flex-wrap" data-comparador-selector-paginacion hidden>
+        <span class="text-body-secondary" data-comparador-selector-pagina-actual></span>
+        <div class="btn-group" role="group" aria-label="Paginación selector de monitores">
+          <button type="button" class="btn btn-outline-secondary comparador-selector__paginacion-extremo" data-selector-page-action="first">
+            <i class="bi bi-chevron-double-left me-2" aria-hidden="true"></i>
+            Primero
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-selector-page-action="prev">
+            <i class="bi bi-chevron-left me-2" aria-hidden="true"></i>
+            Anterior
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-selector-page-action="next">
+            Siguiente
+            <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="btn btn-outline-secondary comparador-selector__paginacion-extremo" data-selector-page-action="last">
+            Último
+            <i class="bi bi-chevron-double-right ms-2" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
